@@ -42,9 +42,12 @@ pub fn build(b: *std.Build) void {
         .files = &.{
             "freetype/library.c",
             "freetype/face.c",
+
             "dwrite/library.c",
             "dwrite/face.c",
+
             "coretext/library.c",
+            "coretext/face.c",
         },
         .flags = &.{
             "-Wall",
