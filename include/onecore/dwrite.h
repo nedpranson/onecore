@@ -1,5 +1,6 @@
 #ifdef ONECORE_DWRITE
 
+#include <initguid.h>
 #include <dwrite.h>
 
 typedef struct oc_library_s {

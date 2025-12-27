@@ -3,6 +3,10 @@
 #ifdef ONECORE_DWRITE
 
 oc_error oc_library_init(oc_library *plibrary) {
+  if (plibrary == NULL) {
+    return oc_error_invalid_param;
+  }
+
   HRESULT hr = DWriteCreateFactory(
     DWRITE_FACTORY_TYPE_SHARED,
     &IID_IDWriteFactory,

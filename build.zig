@@ -21,8 +21,11 @@ pub fn build(b: *std.Build) void {
 
     lib.linkLibC();
 
-    if (target.result.os.tag != .windows) {
-        lib.linkSystemLibrary("freetype2");
+    switch (target.result.os.tag) {
+        .windows => lib.linkSystemLibrary("dwrite"),
+        else => |tag| if (!tag.isDarwin()) {
+            lib.linkSystemLibrary("freetype2");
+        },
     }
 
     lib.addIncludePath(b.path("include"));
@@ -33,6 +36,7 @@ pub fn build(b: *std.Build) void {
         .files = &.{
             "freetype/library.c",
             "dwrite/library.c",
+            "coretext/library.c",
         },
         .flags = &.{
             "-Wall",
@@ -64,6 +68,11 @@ pub fn build(b: *std.Build) void {
         .root = b.path("test/src"),
         .files = &.{
             "main.c",
+        },
+        .flags = &.{
+            "-Wall",
+            "-Wextra",
+            "-Werror",
         },
     });
 

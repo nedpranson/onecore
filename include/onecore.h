@@ -18,19 +18,25 @@ extern "C" {
 #if !defined(ONECORE_DWRITE) && !defined(ONECORE_FREETYPE)
   #if defined(_WIN32) || defined(__CYGWIN__)
     #define ONECORE_DWRITE
+  #elif defined(__APPLE__) && defined(__MACH__)
+    #define ONECORE_CORETEXT
   #else
     #define ONECORE_FREETYPE
   #endif
 #endif
 
+#include <stddef.h>
+
 typedef enum {
   oc_error_ok,
+  oc_error_invalid_param,
   oc_error_out_of_memory,
   oc_error_unexpected,
 } oc_error;
 
 #include "onecore/freetype.h"
 #include "onecore/dwrite.h"
+#include "onecore/coretext.h"
 
 OC_EXPORT oc_error
 oc_library_init(oc_library *plibrary);

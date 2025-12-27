@@ -3,6 +3,10 @@
 #ifdef ONECORE_FREETYPE
 
 oc_error oc_library_init(oc_library *plibrary) {
+  if (plibrary == NULL) {
+    return oc_error_invalid_param;
+  }
+
   FT_Error err = FT_Init_FreeType(&plibrary->ft_library);
   switch (err) {
     case FT_Err_Ok: return oc_error_ok;
