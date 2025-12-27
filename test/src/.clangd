@@ -1,0 +1,4 @@
+CompileFlags:
+  Add:
+    - -I/home/nedas/Work/onecore/include
+    - -I/home/nedas/.cache/zig/p/N-V-__8AAGqXEgDqPMiNOjtZjvSwt2Yn-qHc3jNyBXUVrdtK/src

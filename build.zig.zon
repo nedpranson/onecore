@@ -1,0 +1,13 @@
+.{
+    .name = .onecore,
+    .version = "0.0.1",
+    .dependencies = .{
+        .unity = .{
+            .url = "git+https://github.com/ThrowTheSwitch/Unity#51d2db98e292545321fcf23999920622b5bcf772",
+            .hash = "N-V-__8AAGqXEgDqPMiNOjtZjvSwt2Yn-qHc3jNyBXUVrdtK",
+        },
+    },
+    .minimum_zig_version = "0.15.2",
+    .paths = .{""},
+    .fingerprint = 0xc9772f36a7d8b35b,
+}
