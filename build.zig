@@ -1,4 +1,5 @@
 const std = @import("std");
+const apple_sdk = @import("apple_sdk");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -23,8 +24,13 @@ pub fn build(b: *std.Build) void {
 
     switch (target.result.os.tag) {
         .windows => lib.linkSystemLibrary("dwrite"),
-        else => |tag| if (!tag.isDarwin()) {
-            lib.linkSystemLibrary("freetype2");
+        else => |tag| {
+            if (tag.isDarwin()) {
+                // we need apple-sdk shit
+                lib.linkFramework("CoreText");
+            } else {
+                lib.linkSystemLibrary("freetype2");
+            }
         },
     }
 
@@ -35,7 +41,9 @@ pub fn build(b: *std.Build) void {
         .root = b.path("src"),
         .files = &.{
             "freetype/library.c",
+            "freetype/face.c",
             "dwrite/library.c",
+            "dwrite/face.c",
             "coretext/library.c",
         },
         .flags = &.{

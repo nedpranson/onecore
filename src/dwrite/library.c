@@ -7,13 +7,13 @@ oc_error oc_library_init(oc_library *plibrary) {
     return oc_error_invalid_param;
   }
 
-  HRESULT hr = DWriteCreateFactory(
+  HRESULT err = DWriteCreateFactory(
     DWRITE_FACTORY_TYPE_SHARED,
     &IID_IDWriteFactory,
     (IUnknown**)&plibrary->dw_factory
   );
 
-  switch (hr) {
+  switch (err) {
     case S_OK: return oc_error_ok;
     case E_OUTOFMEMORY: return oc_error_out_of_memory;
     default: return oc_error_unexpected;

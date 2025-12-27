@@ -30,6 +30,7 @@ extern "C" {
 typedef enum {
   oc_error_ok,
   oc_error_invalid_param,
+  oc_error_failed_to_open,
   oc_error_out_of_memory,
   oc_error_unexpected,
 } oc_error;
@@ -43,6 +44,12 @@ oc_library_init(oc_library *plibrary);
 
 OC_EXPORT void
 oc_library_free(oc_library library);
+
+OC_EXPORT oc_error
+oc_face_new(oc_library library, const char* path, long face_index, oc_face *pface);
+
+OC_EXPORT void
+oc_face_free(oc_face face);
 
 #ifdef __cplusplus
 }
