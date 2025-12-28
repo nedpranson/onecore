@@ -8,8 +8,7 @@
 #define unexpected(err) (oc_error_unexpected)
 #else
 
-static inline oc_error __unexpected(int64_t err, const char* file, int line)
-{
+static inline oc_error __unexpected(int64_t err, const char* file, int line) {
     fprintf(stderr, "%s:%d: unexpected error: %" PRId64 "\n", file, line, err);
     return oc_error_unexpected;
 }

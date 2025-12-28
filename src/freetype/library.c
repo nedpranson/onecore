@@ -4,8 +4,7 @@
 
 #include "../unexpected.h"
 
-oc_error oc_library_init(oc_library* plibrary)
-{
+oc_error oc_library_init(oc_library* plibrary) {
     if (plibrary == NULL) {
         return oc_error_invalid_param;
     }
@@ -21,8 +20,7 @@ oc_error oc_library_init(oc_library* plibrary)
     }
 }
 
-void oc_library_free(oc_library library)
-{
+void oc_library_free(oc_library library) {
     FT_Done_FreeType(library.ft_library);
 }
 

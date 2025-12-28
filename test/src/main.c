@@ -5,8 +5,7 @@ void setUp(void) { }
 
 void tearDown(void) { }
 
-void test_oc_library_init(void)
-{
+void test_oc_library_init(void) {
     oc_library lib;
     oc_error err;
 
@@ -18,8 +17,7 @@ void test_oc_library_init(void)
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 }
 
-void test_oc_face_new(void)
-{
+void test_oc_face_new(void) {
     oc_library lib;
     oc_face face;
     oc_error err;
@@ -59,8 +57,7 @@ void test_oc_face_new(void)
     oc_library_free(lib);
 }
 
-int main(void)
-{
+int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_oc_library_init);
     RUN_TEST(test_oc_face_new);

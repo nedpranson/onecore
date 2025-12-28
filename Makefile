@@ -1,7 +1,7 @@
 FMT_DIRS := include src test/src
 FMT_FILES := $(shell find $(FMT_DIRS) -type f \( -iname "*.c" -o -iname "*.h" \))
 
-FMT := clang-format -i --style=WebKit
+FMT := clang-format -i --style=file
 HASH := xxhsum
 
 .PHONY: fmt

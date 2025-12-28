@@ -4,8 +4,7 @@
 #include "../unexpected.h"
 #include <assert.h>
 
-oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_face* pface)
-{
+oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_face* pface) {
     if (pface == NULL) {
         return oc_error_invalid_param;
     }
@@ -96,8 +95,7 @@ oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_f
     }
 }
 
-void oc_face_free(oc_face face)
-{
+void oc_face_free(oc_face face) {
     face.dw_font_face->lpVtbl->Release(face.dw_font_face);
 }
 
