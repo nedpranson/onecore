@@ -1,6 +1,7 @@
 #include <onecore.h>
-
 #ifdef ONECORE_DWRITE
+
+#include "../unexpected.h"
 
 oc_error oc_library_init(oc_library* plibrary)
 {
@@ -19,7 +20,7 @@ oc_error oc_library_init(oc_library* plibrary)
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return oc_error_unexpected;
+        return unexpected(err);
     }
 }
 

@@ -1,7 +1,8 @@
-#include <assert.h>
 #include <onecore.h>
-
 #ifdef ONECORE_DWRITE
+
+#include "../unexpected.h"
+#include <assert.h>
 
 oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_face* pface)
 {
@@ -42,7 +43,7 @@ oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_f
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return oc_error_unexpected;
+        return unexpected(err);
     }
 
     WINBOOL is_supported_fonttype;
@@ -65,7 +66,7 @@ oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_f
         case E_OUTOFMEMORY:
             return oc_error_out_of_memory;
         default:
-            return oc_error_unexpected;
+            return unexpected(err);
         }
     }
 
@@ -91,7 +92,7 @@ oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_f
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return oc_error_unexpected;
+        return unexpected(err);
     }
 }
 

@@ -1,7 +1,9 @@
 #ifdef ONECORE_DWRITE
 
-#include <dwrite.h>
+// clang-format off
 #include <initguid.h>
+#include <dwrite.h>
+// clang-format on
 
 typedef struct oc_library_s {
     IDWriteFactory* dw_factory;

@@ -1,6 +1,7 @@
 #include <onecore.h>
-
 #ifdef ONECORE_FREETYPE
+
+#include "../unexpected.h"
 
 oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_face* pface)
 {
@@ -19,8 +20,7 @@ oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_f
     case FT_Err_Invalid_Argument:
         return oc_error_invalid_param;
     default:
-        printf("unexpected %d\n", err);
-        return oc_error_unexpected;
+        return unexpected(err);
     }
 }
 

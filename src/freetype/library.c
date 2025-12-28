@@ -2,6 +2,8 @@
 
 #ifdef ONECORE_FREETYPE
 
+#include "../unexpected.h"
+
 oc_error oc_library_init(oc_library* plibrary)
 {
     if (plibrary == NULL) {
@@ -15,7 +17,7 @@ oc_error oc_library_init(oc_library* plibrary)
     case FT_Err_Out_Of_Memory:
         return oc_error_out_of_memory;
     default:
-        return oc_error_unexpected;
+        return unexpected(err);
     }
 }
 
