@@ -38,6 +38,12 @@ void test_oc_face_new(void) {
     err = oc_face_new(lib, "test/files/arial", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
+    err = oc_face_new(lib, "test/files/arial.ttf", 0, NULL);
+    TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
+
+    err = oc_face_new(lib, NULL, 0, &face);
+    TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
+
     err = oc_face_new(lib, "test/files/arial.ttf", 10, &face);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
@@ -57,9 +63,6 @@ void test_oc_face_new(void) {
 
     err = oc_face_new(lib, "", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
-
-    err = oc_face_new(lib, NULL, 0, &face);
-    TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
     oc_library_free(lib);
 }

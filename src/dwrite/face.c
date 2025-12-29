@@ -9,6 +9,10 @@ oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_f
         return oc_error_invalid_param;
     }
 
+    if (path == NULL) {
+        return oc_error_invalid_param;
+    }
+
     HRESULT err;
 
     int wlen = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0) - 1;
@@ -39,6 +43,8 @@ oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_f
     switch (err) {
     case S_OK:
         break;
+    case DWRITE_E_FILENOTFOUND:
+        return oc_error_failed_to_open;
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
