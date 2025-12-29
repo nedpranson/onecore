@@ -30,16 +30,16 @@ void test_oc_face_new(void) {
     oc_face_free(face);
 
     err = oc_face_new(lib, "test/files/arial.idk", 0, &face);
-    TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
 
     err = oc_face_new(lib, "test/files/arial.otf", 0, &face);
-    TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    err = oc_face_new(lib, "test/files/arial", 0, &face);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
 
     err = oc_face_new(lib, "test/files/arial.ttf", 10, &face);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
-
-    err = oc_face_new(lib, "test/files/arial", 10, &face);
-    TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
 
     err = oc_face_new(lib, "non_existing.ttf", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
