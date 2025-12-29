@@ -12,7 +12,7 @@ oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_f
         return oc_error_invalid_param;
     }
 
-    FT_Open_Args open_args = {0};
+    FT_Open_Args open_args = { 0 };
     open_args.flags = FT_OPEN_PATHNAME;
     open_args.pathname = (char*)path;
 

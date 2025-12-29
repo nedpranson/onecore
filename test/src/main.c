@@ -31,12 +31,15 @@ void test_oc_face_new(void) {
 
     err = oc_face_new(lib, "test/files/arial.idk", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
+    oc_face_free(face);
 
     err = oc_face_new(lib, "test/files/arial.otf", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
+    oc_face_free(face);
 
     err = oc_face_new(lib, "test/files/arial", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
+    oc_face_free(face);
 
     err = oc_face_new(lib, "test/files/arial.ttf", 0, NULL);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
