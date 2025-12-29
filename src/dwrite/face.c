@@ -39,6 +39,8 @@ oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_f
     switch (err) {
     case S_OK:
         break;
+    case DWRITE_E_FILEFORMAT:
+        return oc_error_failed_to_open;
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
@@ -88,6 +90,8 @@ oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_f
     switch (err) {
     case S_OK:
         return oc_error_ok;
+    case E_INVALIDARG:
+        return oc_error_invalid_param;
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:

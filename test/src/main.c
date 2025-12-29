@@ -38,11 +38,18 @@ void test_oc_face_new(void) {
     err = oc_face_new(lib, "test/files/arial.ttf", 10, &face);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
-    err = oc_face_new(lib, "non_existing", 0, &face);
+    err = oc_face_new(lib, "test/files/arial", 10, &face);
+    TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
+
+    err = oc_face_new(lib, "non_existing.ttf", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
 
     char path[8192 + 1];
     memset(path, 'a', sizeof(path));
+    path[8188] = '.';
+    path[8189] = 't';
+    path[8190] = 't';
+    path[8191] = 'f';
     path[8192] = '\0';
 
     err = oc_face_new(lib, path, 0, &face);
