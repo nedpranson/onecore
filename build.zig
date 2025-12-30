@@ -26,7 +26,8 @@ pub fn build(b: *std.Build) void {
         .windows => lib.linkSystemLibrary("dwrite"),
         else => |tag| {
             if (tag.isDarwin()) {
-                // we need apple-sdk shit
+                lib.linkFramework("CoreFoundation");
+                lib.linkFramework("CoreGraphics");
                 lib.linkFramework("CoreText");
             } else {
                 lib.linkSystemLibrary("freetype2");
