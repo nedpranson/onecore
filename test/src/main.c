@@ -64,6 +64,10 @@ void test_oc_face_new(void) {
     err = oc_face_new(lib, path, 0, &face);
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
 
+    const char ipath[] = { 0xC0, 0xAF, 0x00 };
+    err = oc_face_new(lib, ipath, 0, &face);
+    TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
+
     err = oc_face_new(lib, "", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
 
