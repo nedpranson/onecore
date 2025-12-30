@@ -107,4 +107,17 @@ void oc_face_free(oc_face face) {
     face.dw_font_face->lpVtbl->Release(face.dw_font_face);
 }
 
+uint16_t oc_face_get_char_index(oc_face face, uint32_t charcode) {
+    UINT16 index;
+
+    HRESULT err = face.dw_font_face->lpVtbl->GetGlyphIndices(
+        face.dw_font_face,
+        &charcode,
+        1,
+        &index);
+    assert(err == S_OK);
+
+    return index;
+}
+
 #endif // ONECORE_DWRITE

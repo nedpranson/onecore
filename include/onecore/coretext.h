@@ -7,7 +7,7 @@ typedef struct oc_library_s {
 } oc_library;
 
 typedef struct oc_face_s {
-    CGFontRef ct_font_ref;
+    CTFontRef ct_font_ref;
 } oc_face;
 
 #endif // ONECORE_CORETEXT

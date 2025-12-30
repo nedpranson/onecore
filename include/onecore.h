@@ -26,6 +26,7 @@ extern "C" {
 #endif
 
 #include <stddef.h>
+#include <stdint.h>
 
 typedef enum {
     oc_error_ok,
@@ -50,6 +51,9 @@ oc_face_new(oc_library library, const char* path, long face_index, oc_face* pfac
 
 OC_EXPORT void
 oc_face_free(oc_face face);
+
+OC_EXPORT uint16_t
+oc_face_get_char_index(oc_face face, uint32_t charcode);
 
 #ifdef __cplusplus
 }

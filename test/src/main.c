@@ -74,10 +74,44 @@ void test_oc_face_new(void) {
     oc_library_free(lib);
 }
 
+void test_oc_face_get_char_index(void) {
+    oc_library lib;
+    oc_face face;
+    oc_error err;
+    uint16_t idx;
+
+    err = oc_library_init(&lib);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    err = oc_face_new(lib, "test/files/arial.ttf", 0, &face);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    idx = oc_face_get_char_index(face, 'A');
+    TEST_ASSERT_EQUAL_INT16(36, idx);
+
+    idx = oc_face_get_char_index(face, 0);
+    TEST_ASSERT_EQUAL_INT16(0, idx);
+
+    idx = oc_face_get_char_index(face, 0xE000);
+    TEST_ASSERT_EQUAL_INT16(0, idx);
+
+    idx = oc_face_get_char_index(face, 0x110000);
+    TEST_ASSERT_EQUAL_INT16(0, idx);
+
+    idx = oc_face_get_char_index(face, 0xFFFFFFFF);
+    TEST_ASSERT_EQUAL_INT16(0, idx);
+
+    oc_face_free(face);
+    oc_library_free(lib);
+}
+
 int main(void) {
     UNITY_BEGIN();
+
     RUN_TEST(test_oc_library_init);
     RUN_TEST(test_oc_face_new);
+    RUN_TEST(test_oc_face_get_char_index);
+
     UNITY_END();
     return 0;
 }

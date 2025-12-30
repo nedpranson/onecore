@@ -36,4 +36,8 @@ void oc_face_free(oc_face face) {
     FT_Done_Face(face.ft_face);
 }
 
+inline uint16_t oc_face_get_char_index(oc_face face, uint32_t charcode) {
+    return FT_Get_Char_Index(face.ft_face, charcode);
+}
+
 #endif // ONECORE_FREETYPE

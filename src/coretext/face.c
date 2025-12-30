@@ -14,7 +14,8 @@ oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_f
 
     CFStringRef cf_path_ref = CFStringCreateWithCString(NULL, path, kCFStringEncodingUTF8);
     if (cf_path_ref == NULL) {
-        return oc_error_out_of_memory;
+        // macos error handling sucks
+        return oc_error_failed_to_open;
     }
 
     CFURLRef cf_url_ref = CFURLCreateWithFileSystemPath(NULL, cf_path_ref, kCFURLPOSIXPathStyle, false);
@@ -50,19 +51,45 @@ oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_f
         return oc_error_out_of_memory;
     }
 
-    CGFontRef cgf_font_ref = CTFontCopyGraphicsFont(ctf_font_ref, NULL);
-    CFRelease(ctf_font_ref);
+    // CGFontRef cgf_font_ref = CTFontCopyGraphicsFont(ctf_font_ref, NULL);
+    // CFRelease(ctf_font_ref);
 
-    if (cgf_font_ref == NULL) {
-        return oc_error_out_of_memory;
-    }
+    // if (cgf_font_ref == NULL) {
+    // return oc_error_out_of_memory;
+    //}
 
-    pface->ct_font_ref = cgf_font_ref;
+    pface->ct_font_ref = ctf_font_ref;
     return oc_error_ok;
 }
 
 void oc_face_free(oc_face face) {
-    CGFontRelease(face.ct_font_ref);
+    CFRelease(face.ct_font_ref);
+}
+
+uint16_t oc_face_get_char_index(oc_face face, uint32_t charcode) {
+    if (charcode > 0x10FFFF) {
+        return 0;
+    }
+
+    CGGlyph cg_glyph;
+    UniChar uni_char[2];
+
+    if (charcode <= 0xFFFF) {
+        uni_char[0] = charcode;
+        uni_char[1] = 0;
+    } else {
+        uint32_t norm = charcode - 0x10000;
+        uni_char[0] = (norm >> 10) + 0xD800;
+        uni_char[1] = (norm & 0x3FF) + 0xDC00;
+    }
+
+    CTFontGetGlyphsForCharacters(
+        face.ct_font_ref,
+        uni_char,
+        &cg_glyph,
+        2 - (uni_char[1] == 0));
+
+    return cg_glyph;
 }
 
 #endif // ONECORE_CORETEXT
