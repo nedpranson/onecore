@@ -71,25 +71,31 @@ uint16_t oc_face_get_char_index(oc_face face, uint32_t charcode) {
         return 0;
     }
 
-    CGGlyph cg_glyph;
+    // CTFontGetGlyphsForCharacters writes cg_glyph[1] when the length is 2 (i.e. when encoding a surrogate pair)
+    // in this case it will always be set to 0, but we still need to pass 2 elements
+    // we reuse the second element to store the utf16 character sequence length
+    CGGlyph cg_glyph[2];
     UniChar uni_char[2];
 
     if (charcode <= 0xFFFF) {
         uni_char[0] = charcode;
-        uni_char[1] = 0;
+        cg_glyph[1] = 1;
     } else {
         uint32_t norm = charcode - 0x10000;
         uni_char[0] = (norm >> 10) + 0xD800;
         uni_char[1] = (norm & 0x3FF) + 0xDC00;
+        cg_glyph[1] = 2;
     }
 
+    // cg_glyph[0] will always be set by Core Text no matter the status
+    // thus we can ignore returned value
     CTFontGetGlyphsForCharacters(
         face.ct_font_ref,
         uni_char,
-        &cg_glyph,
-        2 - (uni_char[1] == 0));
+        cg_glyph,
+        cg_glyph[1]);
 
-    return cg_glyph;
+    return cg_glyph[0];
 }
 
 #endif // ONECORE_CORETEXT
