@@ -100,6 +100,13 @@ void test_oc_face_get_char_index(void) {
 
     idx = oc_face_get_char_index(face, 0xFFFFFFFF);
     TEST_ASSERT_EQUAL_INT16(0, idx);
+    oc_face_free(face);
+
+    err = oc_face_new(lib, "test/files/emoji.ttf", 0, &face);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    idx = oc_face_get_char_index(face, 0x1F600);
+    TEST_ASSERT_EQUAL_INT16(1076, idx);
 
     oc_face_free(face);
     oc_library_free(lib);
