@@ -130,10 +130,15 @@ uint16_t oc_face_get_char_index(oc_face face, uint32_t charcode) {
 }
 
 oc_error oc_face_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
+    if (ptable == NULL) {
+        return oc_error_invalid_param;
+    }
+
     const void* table_data;
     UINT32 table_size;
 
     void* context;
+    WINBOOL exists;
 
     HRESULT err = face.dw_font_face->lpVtbl->TryGetFontTable(
         face.dw_font_face,
@@ -141,13 +146,17 @@ oc_error oc_face_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
         &table_data,
         &table_size,
         &context,
-        NULL);
+        &exists);
 
     switch (err) {
     case S_OK:
         break;
     default:
         return unexpected(err);
+    }
+
+    if (exists == FALSE) {
+        return oc_error_table_missing;
     }
 
     table_handle* handle = malloc(sizeof(table_handle));
