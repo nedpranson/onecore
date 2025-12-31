@@ -72,6 +72,8 @@ uint16_t oc_get_char_index(oc_face face, uint32_t charcode) {
         return 0;
     }
 
+    // check out CFStringGetSurrogatePairForLongCharacter
+
     // CTFontGetGlyphsForCharacters writes cg_glyph[1] when the length is 2 (i.e. when encoding a surrogate pair)
     // in this case it will always be set to 0, but we still need to pass 2 elements
     // we reuse the second element to store the utf16 character sequence length
@@ -135,6 +137,20 @@ void oc_get_metrics(oc_face face, oc_metrics* pmetrics) {
     pmetrics->leading = (int16_t)(CTFontGetLeading(face.ct_font_ref) * funits_per_em / fsize);
     pmetrics->underline_position = (int16_t)(CTFontGetUnderlinePosition(face.ct_font_ref) * funits_per_em / fsize);
     pmetrics->underline_thickness = (uint16_t)(CTFontGetUnderlineThickness(face.ct_font_ref) * funits_per_em / fsize);
+}
+
+oc_error oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics) {
+    CGFloat fsize = CTFontGetSize(face.ct_font_ref);
+    CGFloat funits_per_em = (CGFloat)CTFontGetUnitsPerEm(face.ct_font_ref);
+
+    CGFloat fadvance = CTFontGetAdvancesForGlyphs(face.ct_font_ref, kCTFontOrientationHorizontal, &glyph_index, NULL, 1);
+    CGRect bbox = CTFontGetBoundingRectsForGlyphs(face.ct_font_ref, kCTFontOrientationHorizontal, &glyph_index, NULL, 1);
+    CGFloat fleftSideBearing = bbox.origin.x;
+    CGFloat frightSideBearing = bbox.size.width - (fadvance + bbox.origin.x);
+
+    printf("%d\n", (int32_t)(fleftSideBearing * funits_per_em / fsize));
+    printf("%d\n", (int32_t)(frightSideBearing * funits_per_em / fsize));
+    printf("%d\n", (int32_t)(fadvance * funits_per_em / fsize));
 }
 
 #endif // ONECORE_CORETEXT

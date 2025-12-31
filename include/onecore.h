@@ -27,6 +27,7 @@ extern "C" {
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef enum {
     oc_error_ok,
@@ -59,6 +60,15 @@ typedef struct oc_metrics_s {
     uint16_t underline_thickness;
 } oc_metrics;
 
+typedef struct oc_glyph_metrics_s {
+    uint16_t units_per_em;
+    uint16_t ascent;
+    uint16_t descent;
+    int16_t leading;
+    int16_t underline_position;
+    uint16_t underline_thickness;
+} oc_glyph_metrics;
+
 #define OC_MAKE_TAG(x1, x2, x3, x4) \
     (((uint8_t)x1) << 24 | ((uint8_t)x2) << 16 | ((uint8_t)x3) << 8 | ((uint8_t)x4))
 
@@ -80,6 +90,7 @@ oc_free_face(oc_face face);
 OC_EXPORT uint16_t
 oc_get_char_index(oc_face face, uint32_t charcode);
 
+// copy variant would be nice which we would not need to free
 OC_EXPORT oc_error
 oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable);
 
@@ -88,6 +99,14 @@ oc_free_table(oc_face face, oc_table table);
 
 OC_EXPORT void
 oc_get_metrics(oc_face face, oc_metrics* pmetrics);
+
+OC_EXPORT oc_error
+oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics);
+
+//OC_EXPORT bool
+//oc_get_outline(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics);
+
+// oc_render_glyph???
 
 #ifdef __cplusplus
 }

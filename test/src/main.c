@@ -89,6 +89,8 @@ void test_oc_get_char_index(void) {
     idx = oc_get_char_index(face, 'A');
     TEST_ASSERT_EQUAL_INT16(36, idx);
 
+    oc_get_glyph_metrics(face, idx, NULL);
+
     idx = oc_get_char_index(face, 0);
     TEST_ASSERT_EQUAL_INT16(0, idx);
 

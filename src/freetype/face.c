@@ -91,4 +91,28 @@ void oc_get_metrics(oc_face face, oc_metrics* pmetrics) {
     pmetrics->underline_thickness = face.ft_face->underline_thickness;
 }
 
+
+oc_error oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics) {
+    (void)pglyph_metrics;
+
+    // start: not thrad safe here!!!!
+    FT_Error err = FT_Load_Glyph(face.ft_face, glyph_index, FT_LOAD_NO_SCALE | FT_LOAD_BITMAP_METRICS_ONLY);
+    switch (err) {
+    case FT_Err_Ok:
+        break;
+    default:
+        return unexpected(err);
+    }
+    
+    FT_GlyphSlot slot = face.ft_face->glyph;
+    FT_Glyph_Metrics glyph_metrics = slot->metrics;
+    // end: not thrad safe here!!!!
+
+    printf("%ld\n", glyph_metrics.horiBearingX);
+    printf("%ld\n", glyph_metrics.horiBearingY);
+    printf("%ld\n", glyph_metrics.horiAdvance);
+
+    return oc_error_ok;
+}
+
 #endif // ONECORE_FREETYPE
