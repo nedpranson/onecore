@@ -156,6 +156,9 @@ void test_oc_face_get_metrics(void) {
     TEST_ASSERT_EQUAL_UINT16(2048, metrics.units_per_em);
     TEST_ASSERT_EQUAL_UINT16(1854, metrics.ascent);
     TEST_ASSERT_EQUAL_UINT16(434, metrics.descent);
+    TEST_ASSERT_EQUAL_INT16(67, metrics.leading);
+    TEST_ASSERT_EQUAL_INT16(-217, metrics.underline_position);
+    TEST_ASSERT_EQUAL_UINT16(150, metrics.underline_thickness);
     oc_face_free(face);
 
     err = oc_face_new(lib, "test/files/source-serif.otf", 0, &face);
@@ -165,6 +168,9 @@ void test_oc_face_get_metrics(void) {
     TEST_ASSERT_EQUAL_UINT16(1000, metrics.units_per_em);
     TEST_ASSERT_EQUAL_UINT16(1036, metrics.ascent);
     TEST_ASSERT_EQUAL_UINT16(335, metrics.descent);
+    TEST_ASSERT_EQUAL_INT16(0, metrics.leading);
+    TEST_ASSERT_EQUAL_INT16(-50, metrics.underline_position);
+    TEST_ASSERT_EQUAL_UINT16(50, metrics.underline_thickness);
     oc_face_free(face);
 
     err = oc_face_new(lib, "test/files/roman.ttf", 0, &face);
@@ -174,6 +180,9 @@ void test_oc_face_get_metrics(void) {
     TEST_ASSERT_EQUAL_UINT16(1000, metrics.units_per_em);
     TEST_ASSERT_EQUAL_UINT16(878, metrics.ascent);
     TEST_ASSERT_EQUAL_UINT16(250, metrics.descent);
+    TEST_ASSERT_EQUAL_INT16(0, metrics.leading);
+    TEST_ASSERT_EQUAL_INT16(-100, metrics.underline_position);
+    TEST_ASSERT_EQUAL_UINT16(50, metrics.underline_thickness);
     oc_face_free(face);
 
     oc_library_free(lib);

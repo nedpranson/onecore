@@ -85,6 +85,10 @@ void oc_face_get_metrics(oc_face face, oc_metrics* pmetrics) {
     pmetrics->units_per_em = face.ft_face->units_per_EM;
     pmetrics->ascent = face.ft_face->ascender;
     pmetrics->descent = -face.ft_face->descender;
+    pmetrics->leading = face.ft_face->height - face.ft_face->ascender + face.ft_face->descender;
+    // reverting ajusted underline position by freetype
+    pmetrics->underline_position = face.ft_face->underline_position + (face.ft_face->underline_thickness >> 1);
+    pmetrics->underline_thickness = face.ft_face->underline_thickness;
 }
 
 #endif // ONECORE_FREETYPE

@@ -195,7 +195,10 @@ void oc_face_get_metrics(oc_face face, oc_metrics* pmetrics) {
 
     pmetrics->units_per_em = metrics.designUnitsPerEm;
     pmetrics->ascent = metrics.ascent;
-    pmetrics->descent= metrics.descent;
+    pmetrics->descent = metrics.descent;
+    pmetrics->leading = metrics.lineGap;
+    pmetrics->underline_position = metrics.underlinePosition;
+    pmetrics->underline_thickness = metrics.underlineThickness;
 }
 
 #endif // ONECORE_DWRITE

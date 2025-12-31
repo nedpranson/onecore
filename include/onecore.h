@@ -54,6 +54,9 @@ typedef struct oc_metrics_s {
     uint16_t units_per_em;
     uint16_t ascent;
     uint16_t descent;
+    int16_t leading;
+    int16_t underline_position;
+    uint16_t underline_thickness;
 } oc_metrics;
 
 #define OC_MAKE_TAG(x1, x2, x3, x4) \
