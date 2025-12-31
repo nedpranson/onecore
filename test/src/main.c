@@ -27,8 +27,6 @@ void test_oc_face_new(void) {
 
     err = oc_face_new(lib, "test/files/arial.ttf", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-
-    oc_face_get_metrics(face);
     oc_face_free(face);
 
     err = oc_face_new(lib, "test/files/arial.idk", 0, &face);
@@ -142,6 +140,45 @@ void test_oc_face_get_sfnt_table(void) {
     oc_library_free(lib);
 }
 
+void test_oc_face_get_metrics(void) {
+    oc_library lib;
+    oc_face face;
+    oc_metrics metrics;
+    oc_error err;
+
+    err = oc_library_init(&lib);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    err = oc_face_new(lib, "test/files/arial.ttf", 0, &face);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    oc_face_get_metrics(face, &metrics);
+    TEST_ASSERT_EQUAL_UINT16(2048, metrics.units_per_em);
+    TEST_ASSERT_EQUAL_UINT16(1854, metrics.ascent);
+    TEST_ASSERT_EQUAL_UINT16(434, metrics.descent);
+    oc_face_free(face);
+
+    err = oc_face_new(lib, "test/files/source-serif.otf", 0, &face);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    oc_face_get_metrics(face, &metrics);
+    TEST_ASSERT_EQUAL_UINT16(1000, metrics.units_per_em);
+    TEST_ASSERT_EQUAL_UINT16(1036, metrics.ascent);
+    TEST_ASSERT_EQUAL_UINT16(335, metrics.descent);
+    oc_face_free(face);
+
+    err = oc_face_new(lib, "test/files/roman.ttf", 0, &face);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    oc_face_get_metrics(face, &metrics);
+    TEST_ASSERT_EQUAL_UINT16(1000, metrics.units_per_em);
+    TEST_ASSERT_EQUAL_UINT16(878, metrics.ascent);
+    TEST_ASSERT_EQUAL_UINT16(250, metrics.descent);
+    oc_face_free(face);
+
+    oc_library_free(lib);
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -149,6 +186,7 @@ int main(void) {
     RUN_TEST(test_oc_face_new);
     RUN_TEST(test_oc_face_get_char_index);
     RUN_TEST(test_oc_face_get_sfnt_table);
+    RUN_TEST(test_oc_face_get_metrics);
 
     UNITY_END();
     return 0;

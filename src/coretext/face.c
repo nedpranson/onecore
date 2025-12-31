@@ -1,4 +1,5 @@
 #include <onecore.h>
+#include <stdint.h>
 #ifdef ONECORE_CORETEXT
 
 oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_face* pface) {
@@ -123,10 +124,13 @@ inline void oc_table_free(oc_table table) {
     CFRelease(table.__handle);
 }
 
-void oc_face_get_metrics(oc_face face) {
-    printf("ascender: %f\n", CTFontGetAscent(face.ct_font_ref));
-    printf("descender: %f\n", CTFontGetDescent(face.ct_font_ref));
-    printf("units_per_EM: %d\n", CTFontGetUnitsPerEm(face.ct_font_ref));
+void oc_face_get_metrics(oc_face face, oc_metrics* pmetrics) {
+    CGFloat fsize = CTFontGetSize(face.ct_font_ref);
+    CGFloat funits = (CGFloat)CTFontGetUnitsPerEm(face.ct_font_ref);
+
+    pmetrics->units_per_em = (uint16_t)funits;
+    pmetrics->ascent = (uint16_t)(CTFontGetAscent(face.ct_font_ref) * funits / fsize);
+    pmetrics->descent = (uint16_t)(CTFontGetDescent(face.ct_font_ref) * funits / fsize);
 }
 
 #endif // ONECORE_CORETEXT

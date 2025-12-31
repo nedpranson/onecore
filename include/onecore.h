@@ -50,6 +50,12 @@ typedef struct oc_table_s {
     void* __handle;
 } oc_table;
 
+typedef struct oc_metrics_s {
+    uint16_t units_per_em;
+    uint16_t ascent;
+    uint16_t descent;
+} oc_metrics;
+
 #define OC_MAKE_TAG(x1, x2, x3, x4) \
     (((uint8_t)x1) << 24 | ((uint8_t)x2) << 16 | ((uint8_t)x3) << 8 | ((uint8_t)x4))
 
@@ -75,7 +81,7 @@ OC_EXPORT void
 oc_table_free(oc_table table);
 
 OC_EXPORT void
-oc_face_get_metrics(oc_face face);
+oc_face_get_metrics(oc_face face, oc_metrics* pmetrics);
 
 #ifdef __cplusplus
 }
