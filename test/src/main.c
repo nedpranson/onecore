@@ -27,6 +27,8 @@ void test_oc_face_new(void) {
 
     err = oc_face_new(lib, "test/files/arial.ttf", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    oc_face_get_metrics(face);
     oc_face_free(face);
 
     err = oc_face_new(lib, "test/files/arial.idk", 0, &face);

@@ -123,4 +123,10 @@ inline void oc_table_free(oc_table table) {
     CFRelease(table.__handle);
 }
 
+void oc_face_get_metrics(oc_face face) {
+    printf("ascender: %f\n", CTFontGetAscent(face.ct_font_ref));
+    printf("descender: %f\n", CTFontGetDescent(face.ct_font_ref));
+    printf("units_per_EM: %d\n", CTFontGetUnitsPerEm(face.ct_font_ref));
+}
+
 #endif // ONECORE_CORETEXT

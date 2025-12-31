@@ -74,6 +74,9 @@ oc_face_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable);
 OC_EXPORT void
 oc_table_free(oc_table table);
 
+OC_EXPORT void
+oc_face_get_metrics(oc_face face);
+
 #ifdef __cplusplus
 }
 #endif

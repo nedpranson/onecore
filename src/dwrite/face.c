@@ -189,4 +189,13 @@ void oc_table_free(oc_table table) {
     free(handle);
 }
 
+void oc_face_get_metrics(oc_face face) {
+    DWRITE_FONT_METRICS metrics; 
+    face.dw_font_face->lpVtbl->GetMetrics(face.dw_font_face, &metrics);
+
+    printf("ascender: %d\n", metrics.ascent);
+    printf("descender: %d\n", metrics.descent);
+    printf("units_per_EM: %d\n", metrics.designUnitsPerEm);
+}
+
 #endif // ONECORE_DWRITE

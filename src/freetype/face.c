@@ -80,4 +80,11 @@ inline void oc_table_free(oc_table table) {
     free(table.__handle);
 }
 
+
+void oc_face_get_metrics(oc_face face) {
+    printf("ascender: %d\n", face.ft_face->ascender);
+    printf("descender: %d\n", face.ft_face->descender);
+    printf("units_per_EM: %d\n", face.ft_face->units_per_EM);
+}
+
 #endif // ONECORE_FREETYPE
