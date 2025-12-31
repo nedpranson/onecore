@@ -127,14 +127,13 @@ inline void oc_table_free(oc_table table) {
 void oc_face_get_metrics(oc_face face, oc_metrics* pmetrics) {
     CGFloat fsize = CTFontGetSize(face.ct_font_ref);
     CGFloat funits_per_em = (CGFloat)CTFontGetUnitsPerEm(face.ct_font_ref);
-    CGFloat fscale = funits_per_em / fsize;
 
     pmetrics->units_per_em = (uint16_t)funits_per_em;
-    pmetrics->ascent = (uint16_t)(CTFontGetAscent(face.ct_font_ref) * funits_per_em / fscale);
-    pmetrics->descent = (uint16_t)(CTFontGetDescent(face.ct_font_ref) * funits_per_em / fscale);
-    pmetrics->leading = (int16_t)(CTFontGetLeading(face.ct_font_ref) * funits_per_em / fscale);
-    pmetrics->underline_position = (int16_t)(CTFontGetUnderlinePosition(face.ct_font_ref) * funits_per_em / fscale);
-    pmetrics->underline_thickness = (uint16_t)(CTFontGetUnderlineThickness(face.ct_font_ref) * funits_per_em / fscale);
+    pmetrics->ascent = (uint16_t)(CTFontGetAscent(face.ct_font_ref) * funits_per_em / fsize);
+    pmetrics->descent = (uint16_t)(CTFontGetDescent(face.ct_font_ref) * funits_per_em / fsize);
+    pmetrics->leading = (int16_t)(CTFontGetLeading(face.ct_font_ref) * funits_per_em / fsize);
+    pmetrics->underline_position = (int16_t)(CTFontGetUnderlinePosition(face.ct_font_ref) * funits_per_em / fsize);
+    pmetrics->underline_thickness = (uint16_t)(CTFontGetUnderlineThickness(face.ct_font_ref) * funits_per_em / fsize);
 }
 
 #endif // ONECORE_CORETEXT
