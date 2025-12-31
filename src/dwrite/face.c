@@ -142,7 +142,7 @@ oc_error oc_face_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
 
     HRESULT err = face.dw_font_face->lpVtbl->TryGetFontTable(
         face.dw_font_face,
-        tag,
+        _byteswap_ulong(tag), // swapping bytes because windows table tags are little-endian
         &table_data,
         &table_size,
         &context,
