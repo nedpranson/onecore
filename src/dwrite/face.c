@@ -4,12 +4,7 @@
 #include "../unexpected.h"
 #include <assert.h>
 
-typedef struct table_handle_s {
-    IDWriteFontFace* font_face;
-    void* context;
-} table_handle;
-
-oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_face* pface) {
+oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_face* pface) {
     if (pface == NULL) {
         return oc_error_invalid_param;
     }
@@ -110,11 +105,11 @@ oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_f
     }
 }
 
-void oc_face_free(oc_face face) {
+void oc_free_face(oc_face face) {
     face.dw_font_face->lpVtbl->Release(face.dw_font_face);
 }
 
-uint16_t oc_face_get_char_index(oc_face face, uint32_t charcode) {
+uint16_t oc_get_char_index(oc_face face, uint32_t charcode) {
     UINT16 index;
 
     HRESULT err = face.dw_font_face->lpVtbl->GetGlyphIndices(
@@ -129,7 +124,7 @@ uint16_t oc_face_get_char_index(oc_face face, uint32_t charcode) {
     return index;
 }
 
-oc_error oc_face_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
+oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
     if (ptable == NULL) {
         return oc_error_invalid_param;
     }
@@ -151,6 +146,8 @@ oc_error oc_face_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
     switch (err) {
     case S_OK:
         break;
+    case E_OUTOFMEMORY:
+        return oc_error_out_of_memory;
     default:
         return unexpected(err);
     }
@@ -159,38 +156,21 @@ oc_error oc_face_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
         return oc_error_table_missing;
     }
 
-    table_handle* handle = malloc(sizeof(table_handle));
-    if (handle == NULL) {
-        face.dw_font_face->lpVtbl->ReleaseFontTable(face.dw_font_face, context);
-        return oc_error_out_of_memory;
-    }
-
-    handle->font_face = face.dw_font_face;
-    handle->context = context;
-
     oc_table table;
     table.buffer = table_data;
     table.size = table_size;
-    table.__handle = handle;
-
-    // TODO: probably better idea to pass face in oc_table_free
-    face.dw_font_face->lpVtbl->AddRef(face.dw_font_face);
+    table.__handle = context;
 
     *ptable = table;
     return oc_error_ok;
 }
 
-void oc_table_free(oc_table table) {
-    table_handle* handle = table.__handle;
-
-    handle->font_face->lpVtbl->ReleaseFontTable(handle->font_face, handle->context);
-    handle->font_face->lpVtbl->Release(handle->font_face);
-
-    free(handle);
+inline void oc_free_table(oc_face face, oc_table table) {
+    face.dw_font_face->lpVtbl->ReleaseFontTable(face.dw_font_face, table.__handle);
 }
 
-void oc_face_get_metrics(oc_face face, oc_metrics* pmetrics) {
-    DWRITE_FONT_METRICS metrics; 
+void oc_get_metrics(oc_face face, oc_metrics* pmetrics) {
+    DWRITE_FONT_METRICS metrics;
     face.dw_font_face->lpVtbl->GetMetrics(face.dw_font_face, &metrics);
 
     pmetrics->units_per_em = metrics.designUnitsPerEm;

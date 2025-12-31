@@ -4,7 +4,7 @@
 #include "../unexpected.h"
 #include <assert.h>
 
-oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_face* pface) {
+oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_face* pface) {
     if (pface == NULL) {
         return oc_error_invalid_param;
     }
@@ -33,15 +33,15 @@ oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_f
     }
 }
 
-void oc_face_free(oc_face face) {
+void oc_free_face(oc_face face) {
     FT_Done_Face(face.ft_face);
 }
 
-inline uint16_t oc_face_get_char_index(oc_face face, uint32_t charcode) {
+inline uint16_t oc_get_char_index(oc_face face, uint32_t charcode) {
     return FT_Get_Char_Index(face.ft_face, charcode);
 }
 
-oc_error oc_face_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
+oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
     oc_table table;
     FT_Error err;
 
@@ -76,12 +76,12 @@ oc_error oc_face_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
     return oc_error_ok;
 }
 
-inline void oc_table_free(oc_table table) {
+inline void oc_free_table(oc_face face, oc_table table) {
+    (void)face;
     free(table.__handle);
 }
 
-
-void oc_face_get_metrics(oc_face face, oc_metrics* pmetrics) {
+void oc_get_metrics(oc_face face, oc_metrics* pmetrics) {
     pmetrics->units_per_em = face.ft_face->units_per_EM;
     pmetrics->ascent = face.ft_face->ascender;
     pmetrics->descent = -face.ft_face->descender;

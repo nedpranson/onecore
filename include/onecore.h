@@ -63,28 +63,31 @@ typedef struct oc_metrics_s {
     (((uint8_t)x1) << 24 | ((uint8_t)x2) << 16 | ((uint8_t)x3) << 8 | ((uint8_t)x4))
 
 OC_EXPORT oc_error
-oc_library_init(oc_library* plibrary);
+oc_init_library(oc_library* plibrary);
 
 OC_EXPORT void
-oc_library_free(oc_library library);
+oc_free_library(oc_library library);
 
 OC_EXPORT oc_error
-oc_face_new(oc_library library, const char* path, long face_index, oc_face* pface);
+oc_open_face(oc_library library, const char* path, long face_index, oc_face* pface);
+
+//OC_EXPORT oc_error
+//oc_open_memory_face(oc_library library, const void* data, size_t size, long face_index, oc_face* pface);
 
 OC_EXPORT void
-oc_face_free(oc_face face);
+oc_free_face(oc_face face);
 
 OC_EXPORT uint16_t
-oc_face_get_char_index(oc_face face, uint32_t charcode);
+oc_get_char_index(oc_face face, uint32_t charcode);
 
 OC_EXPORT oc_error
-oc_face_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable);
+oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable);
 
 OC_EXPORT void
-oc_table_free(oc_table table);
+oc_free_table(oc_face face, oc_table table);
 
 OC_EXPORT void
-oc_face_get_metrics(oc_face face, oc_metrics* pmetrics);
+oc_get_metrics(oc_face face, oc_metrics* pmetrics);
 
 #ifdef __cplusplus
 }
