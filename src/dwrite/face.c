@@ -4,6 +4,11 @@
 #include "../unexpected.h"
 #include <assert.h>
 
+typedef struct table_handle_s {
+    IDWriteFontFace* font_face;
+    void* context;
+} table_handle;
+
 oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_face* pface) {
     if (pface == NULL) {
         return oc_error_invalid_param;
@@ -30,6 +35,8 @@ oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_f
     }
 
     int ok = MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, wlen + 1);
+
+    (void)ok;
     assert(ok != 0);
 
     IDWriteFontFile* font_file;
@@ -115,9 +122,62 @@ uint16_t oc_face_get_char_index(oc_face face, uint32_t charcode) {
         &charcode,
         1,
         &index);
+
+    (void)err;
     assert(err == S_OK);
 
     return index;
+}
+
+oc_error oc_face_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
+    const void* table_data;
+    UINT32 table_size;
+
+    void* context;
+
+    HRESULT err = face.dw_font_face->lpVtbl->TryGetFontTable(
+        face.dw_font_face,
+        tag,
+        &table_data,
+        &table_size,
+        &context,
+        NULL);
+
+    switch (err) {
+    case S_OK:
+        break;
+    default:
+        return unexpected(err);
+    }
+
+    table_handle* handle = malloc(sizeof(table_handle));
+    if (handle == NULL) {
+        face.dw_font_face->lpVtbl->ReleaseFontTable(face.dw_font_face, context);
+        return oc_error_out_of_memory;
+    }
+
+    handle->font_face = face.dw_font_face;
+    handle->context = context;
+
+    oc_table table;
+    table.buffer = table_data;
+    table.size = table_size;
+    table.__handle = handle;
+
+    // TODO: probably better idea to pass face in oc_table_free
+    face.dw_font_face->lpVtbl->AddRef(face.dw_font_face);
+
+    *ptable = table;
+    return oc_error_ok;
+}
+
+void oc_table_free(oc_table table) {
+    table_handle* handle = table.__handle;
+
+    handle->font_face->lpVtbl->ReleaseFontTable(handle->font_face, handle->context);
+    handle->font_face->lpVtbl->Release(handle->font_face);
+
+    free(handle);
 }
 
 #endif // ONECORE_DWRITE

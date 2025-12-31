@@ -98,4 +98,29 @@ uint16_t oc_face_get_char_index(oc_face face, uint32_t charcode) {
     return cg_glyph[0];
 }
 
+oc_error oc_face_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
+    oc_table table;
+
+    if (ptable == NULL) {
+        return oc_error_invalid_param;
+    }
+
+    CFDataRef cf_data_ref = CTFontCopyTable(face.ct_font_ref, tag, kCTFontTableOptionNoOptions);
+    if (cf_data_ref == NULL) {
+        return oc_error_table_missing;
+    }
+
+    table.buffer = CFDataGetBytePtr(cf_data_ref);
+    table.size = CFDataGetLength(cf_data_ref);
+    table.__handle = (void*)cf_data_ref;
+
+    *ptable = table;
+
+    return oc_error_ok;
+}
+
+inline void oc_table_free(oc_table table) {
+    CFRelease(table.__handle);
+}
+
 #endif // ONECORE_CORETEXT

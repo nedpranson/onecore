@@ -112,12 +112,41 @@ void test_oc_face_get_char_index(void) {
     oc_library_free(lib);
 }
 
+void test_oc_face_get_sfnt_table(void) {
+    oc_library lib;
+    oc_face face;
+    oc_table table;
+    oc_error err;
+
+    err = oc_library_init(&lib);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    err = oc_face_new(lib, "test/files/arial.ttf", 0, &face);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    err = oc_face_get_sfnt_table(face, OC_MAKE_TAG('c', 'm', 'a', 'p'), NULL);
+    TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
+
+    err = oc_face_get_sfnt_table(face, OC_MAKE_TAG('c', 'm', 'a', 'p'), &table);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+    TEST_ASSERT_EQUAL_size_t(5994, table.size);
+
+    oc_table_free(table);
+
+    err = oc_face_get_sfnt_table(face, OC_MAKE_TAG('u', 'n', 'k', 'n'), &table);
+    TEST_ASSERT_EQUAL(oc_error_table_missing, err);
+
+    oc_face_free(face);
+    oc_library_free(lib);
+}
+
 int main(void) {
     UNITY_BEGIN();
 
     RUN_TEST(test_oc_library_init);
     RUN_TEST(test_oc_face_new);
     RUN_TEST(test_oc_face_get_char_index);
+    RUN_TEST(test_oc_face_get_sfnt_table);
 
     UNITY_END();
     return 0;

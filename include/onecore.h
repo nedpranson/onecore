@@ -32,6 +32,7 @@ typedef enum {
     oc_error_ok,
     oc_error_invalid_param,
     oc_error_failed_to_open,
+    oc_error_table_missing,
     oc_error_out_of_memory,
     oc_error_unexpected,
 } oc_error;
@@ -39,6 +40,18 @@ typedef enum {
 #include "onecore/coretext.h"
 #include "onecore/dwrite.h"
 #include "onecore/freetype.h"
+
+typedef uint32_t oc_tag;
+
+typedef struct oc_table_s {
+    const uint8_t* buffer;
+    size_t size;
+
+    void* __handle;
+} oc_table;
+
+#define OC_MAKE_TAG(x1, x2, x3, x4) \
+    (((uint8_t)x1) << 24 | ((uint8_t)x2) << 16 | ((uint8_t)x3) << 8 | ((uint8_t)x4))
 
 OC_EXPORT oc_error
 oc_library_init(oc_library* plibrary);
@@ -54,6 +67,12 @@ oc_face_free(oc_face face);
 
 OC_EXPORT uint16_t
 oc_face_get_char_index(oc_face face, uint32_t charcode);
+
+OC_EXPORT oc_error
+oc_face_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable);
+
+OC_EXPORT void
+oc_table_free(oc_table table);
 
 #ifdef __cplusplus
 }

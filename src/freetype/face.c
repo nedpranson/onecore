@@ -2,6 +2,7 @@
 #ifdef ONECORE_FREETYPE
 
 #include "../unexpected.h"
+#include <assert.h>
 
 oc_error oc_face_new(oc_library library, const char* path, long face_index, oc_face* pface) {
     if (pface == NULL) {
@@ -38,6 +39,45 @@ void oc_face_free(oc_face face) {
 
 inline uint16_t oc_face_get_char_index(oc_face face, uint32_t charcode) {
     return FT_Get_Char_Index(face.ft_face, charcode);
+}
+
+oc_error oc_face_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
+    oc_table table;
+    FT_Error err;
+
+    if (ptable == NULL) {
+        return oc_error_invalid_param;
+    }
+
+    // if other abis allow we can add offset option
+    err = FT_Load_Sfnt_Table(face.ft_face, tag, 0, NULL, &table.size);
+    switch (err) {
+    case FT_Err_Ok:
+        break;
+    case FT_Err_Table_Missing:
+        return oc_error_table_missing;
+    default:
+        return unexpected(err);
+    }
+
+    uint8_t* buffer = malloc(table.size);
+    if (buffer == NULL) {
+        return oc_error_out_of_memory;
+    }
+
+    err = FT_Load_Sfnt_Table(face.ft_face, tag, 0, buffer, &table.size);
+    assert(err == oc_error_ok);
+
+    table.buffer = buffer;
+    table.__handle = buffer;
+
+    *ptable = table;
+
+    return oc_error_ok;
+}
+
+inline void oc_table_free(oc_table table) {
+    free(table.__handle);
 }
 
 #endif // ONECORE_FREETYPE
