@@ -44,6 +44,7 @@ typedef enum {
 
 typedef uint32_t oc_tag;
 
+// todo: make it not __habdle but context and inside oc_free_face just pass it's ctx
 typedef struct oc_table_s {
     const void* data;
     size_t size;
@@ -94,6 +95,7 @@ OC_EXPORT uint16_t
 oc_get_char_index(oc_face face, uint32_t charcode);
 
 // copy variant would be nice which we would not need to free
+// todo: instead of making __handle part of oc_table add a context viud*
 OC_EXPORT oc_error
 oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable);
 

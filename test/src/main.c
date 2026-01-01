@@ -112,6 +112,11 @@ void test_oc_open_memory_face(void) {
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     oc_free_face(face);
 
+    // idk intresting
+    err = oc_open_memory_face(g_library, data, size - 20, 0, &face);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+    oc_free_face(face);
+
     err = oc_open_memory_face(g_library, data, size, 10, &face);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
