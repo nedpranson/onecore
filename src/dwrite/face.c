@@ -187,7 +187,6 @@ static const IDWriteFontFileLoaderVtbl IOCFontFileLoaderVtbl = {
     IOCFontFileLoader_CreateStreamFromKey
 };
 
-
 static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* font_file, long face_index, oc_face* pface) {
     HRESULT err;
     WINBOOL is_supported_fonttype;
@@ -295,8 +294,9 @@ oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_
 }
 
 oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, long face_index, oc_face* pface) {
-    (void)pface;
-    (void)face_index;
+    if (pface == NULL) {
+        return oc_error_invalid_param;
+    }
 
     if (data == NULL) {
         return oc_error_invalid_param;
@@ -307,10 +307,12 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
 
     memory_view key = { data, size };
 
-    // If someone will ever move IOCFontFileLoader to the heap do not forget to add all releases
-    IOCFontFileLoader ioc_font_file_loader = { &IOCFontFileLoaderVtbl, 1 };
+    // declared static to provide a single global instance
+    // IOCFontFileLoader is thread-safe, so shared access is safe
+    static IOCFontFileLoader ioc_font_file_loader = { &IOCFontFileLoaderVtbl, 0 };
     IDWriteFontFileLoader* font_file_loader = (IDWriteFontFileLoader*)&ioc_font_file_loader;
 
+    // todo: move register code to init_library
     err = library.dw_factory->lpVtbl->RegisterFontFileLoader(library.dw_factory, font_file_loader);
     switch (err) {
     case S_OK:
@@ -342,8 +344,6 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
     oc_error result = open_face_from_font_file(library, font_file, face_index, pface);
 
     font_file->lpVtbl->Release(font_file);
-    assert(font_file_loader->lpVtbl->Release(font_file_loader) == 0);
-
     return result;
 }
 
