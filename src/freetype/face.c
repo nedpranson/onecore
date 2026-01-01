@@ -35,7 +35,6 @@ oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_
     }
 }
 
-
 oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, long face_index, oc_face* pface) {
     if (pface == NULL) {
         return oc_error_invalid_param;

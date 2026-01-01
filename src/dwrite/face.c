@@ -4,6 +4,189 @@
 #include "../unexpected.h"
 #include <assert.h>
 
+typedef struct memory_view_s {
+    const void* data;
+    size_t size;
+} memory_view;
+
+typedef struct IOCFontFileStream {
+    const IDWriteFontFileStreamVtbl* lpVtbl;
+    LONG ref_count;
+    memory_view memory_view;
+} IOCFontFileStream;
+
+typedef struct IOCFontFileLoader {
+    const IDWriteFontFileLoaderVtbl* lpVtbl;
+    LONG ref_count;
+} IOCFontFileLoader;
+
+static HRESULT STDMETHODCALLTYPE
+IOCFontFileStream_GetLastWriteTime(IDWriteFontFileStream* This, UINT64* last_writetime) {
+    (void)This;
+    if (last_writetime == NULL) {
+        return E_POINTER;
+    }
+
+    *last_writetime = 0;
+    return S_OK;
+}
+
+static HRESULT STDMETHODCALLTYPE
+IOCFontFileStream_GetFileSize(IDWriteFontFileStream* This, UINT64* size) {
+    IOCFontFileStream* this = (IOCFontFileStream*)This;
+
+    if (size == NULL) {
+        return E_POINTER;
+    }
+
+    *size = this->memory_view.size;
+    return S_OK;
+}
+
+static void STDMETHODCALLTYPE
+IOCFontFileStream_ReleaseFileFragment(IDWriteFontFileStream* This, void* fragment_context) {
+    (void)This;
+    (void)fragment_context;
+}
+
+static HRESULT STDMETHODCALLTYPE
+IOCFontFileStream_ReadFileFragment(
+    IDWriteFontFileStream* This,
+    const void** fragment_start,
+    UINT64 offset,
+    UINT64 fragment_size,
+    void** fragment_context) {
+
+    IOCFontFileStream* this = (IOCFontFileStream*)This;
+
+    if (fragment_start == NULL) {
+        return E_POINTER;
+    }
+    *fragment_start = NULL;
+
+    if (fragment_context == NULL) {
+        return E_POINTER;
+    }
+    *fragment_context = NULL;
+
+    if (offset > this->memory_view.size || fragment_size > this->memory_view.size - offset) {
+        return E_FAIL;
+    }
+
+    *fragment_start = this->memory_view.data + offset;
+    return S_OK;
+}
+
+static ULONG STDMETHODCALLTYPE
+IOCFontFileStream_Release(IDWriteFontFileStream* This) {
+    IOCFontFileStream* this = (IOCFontFileStream*)This;
+
+    ULONG new_count = InterlockedDecrement(&this->ref_count);
+    if (new_count == 0) {
+        free(this);
+    }
+    return new_count;
+}
+
+static ULONG STDMETHODCALLTYPE
+IOCFontFileStream_AddRef(IDWriteFontFileStream* This) {
+    IOCFontFileStream* this = (IOCFontFileStream*)This;
+    return InterlockedIncrement(&this->ref_count);
+}
+
+static HRESULT STDMETHODCALLTYPE
+IOCFontFileStream_QueryInterface(IDWriteFontFileStream* This, REFIID riid, void** ppvObject) {
+    if (ppvObject == NULL) {
+        return E_POINTER;
+    }
+    *ppvObject = NULL;
+
+    if (IsEqualIID(riid, &IID_IUnknown) || IsEqualIID(riid, &IID_IDWriteFontFileStream)) {
+        IOCFontFileStream_AddRef(This);
+        *ppvObject = This;
+        return S_OK;
+    }
+
+    return E_NOINTERFACE;
+}
+
+static const IDWriteFontFileStreamVtbl IOCFontFileStreamVtbl = {
+    IOCFontFileStream_QueryInterface,
+    IOCFontFileStream_AddRef,
+    IOCFontFileStream_Release,
+    IOCFontFileStream_ReadFileFragment,
+    IOCFontFileStream_ReleaseFileFragment,
+    IOCFontFileStream_GetFileSize,
+    IOCFontFileStream_GetLastWriteTime,
+};
+
+static HRESULT STDMETHODCALLTYPE
+IOCFontFileLoader_CreateStreamFromKey(IDWriteFontFileLoader* This, const void* key, UINT32 key_size, IDWriteFontFileStream** stream) {
+    (void)This;
+
+    if (stream == NULL) {
+        return E_POINTER;
+    }
+    *stream = NULL;
+
+    if (key == NULL) {
+        return E_POINTER;
+    }
+
+    if (key_size != sizeof(memory_view)) {
+        return E_INVALIDARG;
+    }
+
+    memory_view view = *(const memory_view*)key;
+
+    IOCFontFileStream* ioc_font_file_stream = malloc(sizeof(IOCFontFileStream));
+    if (ioc_font_file_stream == NULL) {
+        return E_OUTOFMEMORY;
+    }
+
+    ioc_font_file_stream->lpVtbl = &IOCFontFileStreamVtbl;
+    ioc_font_file_stream->ref_count = 1;
+    ioc_font_file_stream->memory_view = view;
+
+    *stream = (IDWriteFontFileStream*)ioc_font_file_stream;
+    return S_OK;
+}
+
+static ULONG STDMETHODCALLTYPE
+IOCFontFileLoader_Release(IDWriteFontFileLoader* This) {
+    IOCFontFileLoader* this = (IOCFontFileLoader*)This;
+    return InterlockedDecrement(&this->ref_count);
+}
+
+static ULONG STDMETHODCALLTYPE
+IOCFontFileLoader_AddRef(IDWriteFontFileLoader* This) {
+    IOCFontFileStream* this = (IOCFontFileStream*)This;
+    return InterlockedIncrement(&this->ref_count);
+}
+
+static HRESULT STDMETHODCALLTYPE
+IOCFontFileLoader_QueryInterface(IDWriteFontFileLoader* This, REFIID riid, void** ppvObject) {
+    if (ppvObject == NULL) {
+        return E_POINTER;
+    }
+    *ppvObject = NULL;
+
+    if (IsEqualIID(riid, &IID_IUnknown) || IsEqualIID(riid, &IID_IDWriteFontFileLoader)) {
+        IOCFontFileLoader_AddRef(This);
+        *ppvObject = This;
+        return S_OK;
+    }
+
+    return E_NOINTERFACE;
+}
+
+static const IDWriteFontFileLoaderVtbl IOCFontFileLoaderVtbl = {
+    IOCFontFileLoader_QueryInterface,
+    IOCFontFileLoader_AddRef,
+    IOCFontFileLoader_Release,
+    IOCFontFileLoader_CreateStreamFromKey
+};
+
 oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_face* pface) {
     if (pface == NULL) {
         return oc_error_invalid_param;
@@ -103,6 +286,42 @@ oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_
     default:
         return unexpected(err);
     }
+}
+
+oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, long face_index, oc_face* pface) {
+    (void)pface;
+    (void)face_index;
+
+    if (data == NULL) {
+        return oc_error_invalid_param;
+    }
+
+    HRESULT err;
+    IDWriteFontFile* font_file;
+
+    memory_view key = { data, size };
+
+    IOCFontFileLoader ioc_font_file_loader = { &IOCFontFileLoaderVtbl, 1 };
+    IDWriteFontFileLoader* font_file_loader = (IDWriteFontFileLoader*)&ioc_font_file_loader;
+
+    err = library.dw_factory->lpVtbl->CreateCustomFontFileReference(
+        library.dw_factory,
+        &key,
+        sizeof(memory_view),
+        font_file_loader,
+        &font_file);
+    font_file_loader->lpVtbl->Release(font_file_loader);
+
+    switch (err) {
+    case S_OK:
+        break;
+    case E_OUTOFMEMORY:
+        return oc_error_out_of_memory;
+    default:
+        return unexpected(err);
+    }
+
+    return S_OK;
 }
 
 void oc_free_face(oc_face face) {

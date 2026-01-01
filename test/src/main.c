@@ -71,7 +71,6 @@ void test_oc_open_face(void) {
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
 }
 
-
 void test_oc_open_memory_face(void) {
     oc_face face;
     oc_error err;
@@ -100,7 +99,7 @@ void test_oc_open_memory_face(void) {
 
     TEST_ASSERT_EQUAL_INT(367112, size);
 
-    char *data = malloc(size);
+    char* data = malloc(size);
     TEST_ASSERT_NOT_NULL(data);
 
     size_t nread = fread(data, 1, size, file);
