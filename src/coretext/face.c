@@ -2,10 +2,6 @@
 #ifdef ONECORE_CORETEXT
 
 static oc_error open_face_from_descriptors(CFArrayRef cf_descriptors_ref, long face_index, oc_face* pface) {
-    if (cf_descriptors_ref == NULL) {
-        return oc_error_out_of_memory;
-    }
-
     CFIndex count = CFArrayGetCount(cf_descriptors_ref);
     if (count == 0) {
         return oc_error_failed_to_open;
@@ -67,6 +63,10 @@ oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_
     CFArrayRef cf_descriptors_ref = CTFontManagerCreateFontDescriptorsFromURL(cf_url_ref);
     CFRelease(cf_url_ref);
 
+    if (cf_descriptors_ref == NULL) {
+        return oc_error_out_of_memory;
+    }
+
     oc_error err = open_face_from_descriptors(cf_descriptors_ref, face_index, pface);
     CFRelease(cf_descriptors_ref);
 
@@ -87,6 +87,10 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
 
     CFArrayRef cf_descriptors_ref = CTFontManagerCreateFontDescriptorsFromData(cf_data_ref);
     CFRelease(cf_data_ref);
+
+    if (cf_descriptors_ref == NULL) {
+        return oc_error_out_of_memory;
+    }
 
     oc_error err = open_face_from_descriptors(cf_descriptors_ref, face_index, pface);
     CFRelease(cf_descriptors_ref);

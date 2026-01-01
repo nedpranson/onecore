@@ -274,8 +274,8 @@ int main(void) {
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
     RUN_TEST(test_oc_init_library);
-    RUN_TEST(test_oc_open_memory_face);
     RUN_TEST(test_oc_open_face);
+    RUN_TEST(test_oc_open_memory_face);
     RUN_TEST(test_oc_get_char_index);
     RUN_TEST(test_oc_get_sfnt_table);
     RUN_TEST(test_oc_get_metrics);
