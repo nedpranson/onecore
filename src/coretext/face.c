@@ -139,18 +139,31 @@ void oc_get_metrics(oc_face face, oc_metrics* pmetrics) {
     pmetrics->underline_thickness = (uint16_t)(CTFontGetUnderlineThickness(face.ct_font_ref) * funits_per_em / fsize);
 }
 
-oc_error oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics) {
+bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics) {
+    if (pglyph_metrics == NULL) {
+        return false;
+    }
+
+    CFIndex glyph_count = CTFontGetGlyphCount(face.ct_font_ref);
+    if (glyph_index >= glyph_count) {
+        return false;
+    }
+
+    CGSize advance;
+    CTFontGetAdvancesForGlyphs(face.ct_font_ref, kCTFontOrientationHorizontal, &glyph_index, &advance, 1);
+
+    CGRect bbox = CTFontGetBoundingRectsForGlyphs(face.ct_font_ref, kCTFontOrientationHorizontal, &glyph_index, NULL, 1);
+
     CGFloat fsize = CTFontGetSize(face.ct_font_ref);
     CGFloat funits_per_em = (CGFloat)CTFontGetUnitsPerEm(face.ct_font_ref);
 
-    CGFloat fadvance = CTFontGetAdvancesForGlyphs(face.ct_font_ref, kCTFontOrientationHorizontal, &glyph_index, NULL, 1);
-    CGRect bbox = CTFontGetBoundingRectsForGlyphs(face.ct_font_ref, kCTFontOrientationHorizontal, &glyph_index, NULL, 1);
-    CGFloat fleftSideBearing = bbox.origin.x;
-    CGFloat frightSideBearing = bbox.size.width - (fadvance + bbox.origin.x);
+    pglyph_metrics->width = (uint16_t)(bbox.size.width * funits_per_em / fsize);
+    pglyph_metrics->height = (uint16_t)(bbox.size.height * funits_per_em / fsize);
+    pglyph_metrics->bearing_x = (int16_t)(bbox.origin.x * funits_per_em / fsize);
+    pglyph_metrics->bearing_y = (int16_t)(bbox.origin.y * funits_per_em / fsize);
+    pglyph_metrics->advance = (uint16_t)(advance.width * funits_per_em / fsize);
 
-    printf("%d\n", (int32_t)(fleftSideBearing * funits_per_em / fsize));
-    printf("%d\n", (int32_t)(frightSideBearing * funits_per_em / fsize));
-    printf("%d\n", (int32_t)(fadvance * funits_per_em / fsize));
+    return true;
 }
 
 #endif // ONECORE_CORETEXT

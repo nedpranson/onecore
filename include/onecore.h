@@ -61,12 +61,11 @@ typedef struct oc_metrics_s {
 } oc_metrics;
 
 typedef struct oc_glyph_metrics_s {
-    uint16_t units_per_em;
-    uint16_t ascent;
-    uint16_t descent;
-    int16_t leading;
-    int16_t underline_position;
-    uint16_t underline_thickness;
+    uint32_t width;
+    uint32_t height;
+    int32_t bearing_x;
+    int32_t bearing_y;
+    uint32_t advance;
 } oc_glyph_metrics;
 
 #define OC_MAKE_TAG(x1, x2, x3, x4) \
@@ -100,7 +99,7 @@ oc_free_table(oc_face face, oc_table table);
 OC_EXPORT void
 oc_get_metrics(oc_face face, oc_metrics* pmetrics);
 
-OC_EXPORT oc_error
+OC_EXPORT bool 
 oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics);
 
 //OC_EXPORT bool

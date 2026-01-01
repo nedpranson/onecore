@@ -92,27 +92,29 @@ void oc_get_metrics(oc_face face, oc_metrics* pmetrics) {
 }
 
 
-oc_error oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics) {
-    (void)pglyph_metrics;
+// todo: add option for verticals and maybe load both hori and vert bearings, advances
+bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics) {
+    if (pglyph_metrics == NULL) {
+        return false;
+    }
 
     // start: not thrad safe here!!!!
     FT_Error err = FT_Load_Glyph(face.ft_face, glyph_index, FT_LOAD_NO_SCALE | FT_LOAD_BITMAP_METRICS_ONLY);
-    switch (err) {
-    case FT_Err_Ok:
-        break;
-    default:
-        return unexpected(err);
+    if (err != FT_Err_Ok) {
+        return false;
     }
     
     FT_GlyphSlot slot = face.ft_face->glyph;
     FT_Glyph_Metrics glyph_metrics = slot->metrics;
     // end: not thrad safe here!!!!
 
-    printf("%ld\n", glyph_metrics.horiBearingX);
-    printf("%ld\n", glyph_metrics.horiBearingY);
-    printf("%ld\n", glyph_metrics.horiAdvance);
+    pglyph_metrics->width = glyph_metrics.width;
+    pglyph_metrics->height = glyph_metrics.height;
+    pglyph_metrics->bearing_x = glyph_metrics.horiBearingX;
+    pglyph_metrics->bearing_y = glyph_metrics.horiBearingY;
+    pglyph_metrics->advance = glyph_metrics.horiAdvance;
 
-    return oc_error_ok;
+    return true;
 }
 
 #endif // ONECORE_FREETYPE
