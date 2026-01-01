@@ -1,5 +1,4 @@
 #include <onecore.h>
-#include <stdint.h>
 #ifdef ONECORE_CORETEXT
 
 oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_face* pface) {
@@ -63,6 +62,48 @@ oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_
     return oc_error_ok;
 }
 
+oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, long face_index, oc_face* pface) {
+    (void)library;
+
+    if (pface == NULL) {
+        return oc_error_invalid_param;
+    }
+
+    CFDataRef cf_data_ref = CFDataCreateWithBytesNoCopy(NULL, data, size, kCFAllocatorNull);
+    if (cf_data_ref == NULL) {
+        return oc_error_out_of_memory;
+    }
+
+    CFArrayRef cf_descriptors_ref = CTFontManagerCreateFontDescriptorsFromData(cf_data_ref);
+    CFRelease(cf_data_ref);
+
+    if (cf_descriptors_ref == NULL) {
+        return oc_error_failed_to_open;
+    }
+
+    if (face_index < 0 || face_index >= CFArrayGetCount(cf_descriptors_ref)) {
+        CFRelease(cf_descriptors_ref);
+        return oc_error_invalid_param;
+    }
+
+    CTFontDescriptorRef ctf_descriptor_ref = (CTFontDescriptorRef)CFArrayGetValueAtIndex(cf_descriptors_ref, face_index);
+    CFRetain(cf_descriptors_ref);
+
+    if (ctf_descriptor_ref == NULL) {
+        return oc_error_out_of_memory;
+    }
+
+    CTFontRef ctf_font_ref = CTFontCreateWithFontDescriptor(ctf_descriptor_ref, 0, NULL);
+    CFRelease(ctf_descriptor_ref);
+
+    if (ctf_font_ref == NULL) {
+        return oc_error_out_of_memory;
+    }
+
+    pface->ct_font_ref = ctf_font_ref;
+    return oc_error_ok;
+}
+
 void oc_free_face(oc_face face) {
     CFRelease(face.ct_font_ref);
 }
@@ -113,7 +154,7 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
         return oc_error_table_missing;
     }
 
-    table.buffer = CFDataGetBytePtr(cf_data_ref);
+    table.data = CFDataGetBytePtr(cf_data_ref);
     table.size = CFDataGetLength(cf_data_ref);
     table.__handle = (void*)cf_data_ref;
 

@@ -157,7 +157,7 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
     }
 
     oc_table table;
-    table.buffer = table_data;
+    table.data = table_data;
     table.size = table_size;
     table.__handle = context;
 

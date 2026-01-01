@@ -17,7 +17,7 @@ oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_
     open_args.flags = FT_OPEN_PATHNAME;
     open_args.pathname = (char*)path;
 
-    // using FT_Open_Face as FT_New_Face fails if file extention does not match file type.
+    // using FT_Open_Face as FT_New_Face fails if file extention does not match file type
     FT_Error err = FT_Open_Face(library.ft_library, &open_args, face_index, &pface->ft_face);
     switch (err) {
     case FT_Err_Ok:
@@ -25,9 +25,33 @@ oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_
     case FT_Err_Out_Of_Memory:
         return oc_error_out_of_memory;
     case FT_Err_Cannot_Open_Resource:
+    case FT_Err_Invalid_File_Format:
+    case FT_Err_Unknown_File_Format:
         return oc_error_failed_to_open;
     case FT_Err_Invalid_Argument:
         return oc_error_invalid_param;
+    default:
+        return unexpected(err);
+    }
+}
+
+
+oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, long face_index, oc_face* pface) {
+    if (pface == NULL) {
+        return oc_error_invalid_param;
+    }
+
+    FT_Error err = FT_New_Memory_Face(library.ft_library, data, size, face_index, &pface->ft_face);
+    switch (err) {
+    case FT_Err_Ok:
+        return oc_error_ok;
+    case FT_Err_Out_Of_Memory:
+        return oc_error_out_of_memory;
+    case FT_Err_Invalid_Argument:
+        return oc_error_invalid_param;
+    case FT_Err_Invalid_File_Format:
+    case FT_Err_Unknown_File_Format:
+        return oc_error_failed_to_open;
     default:
         return unexpected(err);
     }
@@ -68,7 +92,7 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
     err = FT_Load_Sfnt_Table(face.ft_face, tag, 0, buffer, &table.size);
     assert(err == oc_error_ok);
 
-    table.buffer = buffer;
+    table.data = buffer;
     table.__handle = buffer;
 
     *ptable = table;
@@ -91,22 +115,21 @@ void oc_get_metrics(oc_face face, oc_metrics* pmetrics) {
     pmetrics->underline_thickness = face.ft_face->underline_thickness;
 }
 
-
 // todo: add option for verticals and maybe load both hori and vert bearings, advances
 bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics) {
     if (pglyph_metrics == NULL) {
         return false;
     }
 
-    // start: not thrad safe here!!!!
+    // start: not thread safe here!!!!
     FT_Error err = FT_Load_Glyph(face.ft_face, glyph_index, FT_LOAD_NO_SCALE | FT_LOAD_BITMAP_METRICS_ONLY);
     if (err != FT_Err_Ok) {
         return false;
     }
-    
+
     FT_GlyphSlot slot = face.ft_face->glyph;
     FT_Glyph_Metrics glyph_metrics = slot->metrics;
-    // end: not thrad safe here!!!!
+    // end: not thread safe here!!!!
 
     pglyph_metrics->width = glyph_metrics.width;
     pglyph_metrics->height = glyph_metrics.height;

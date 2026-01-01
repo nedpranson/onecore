@@ -71,6 +71,53 @@ void test_oc_open_face(void) {
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
 }
 
+
+void test_oc_open_memory_face(void) {
+    oc_face face;
+    oc_error err;
+
+    err = oc_open_memory_face(g_library, NULL, 0, 0, &face);
+    TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
+
+    err = oc_open_memory_face(g_library, NULL, 5, 0, &face);
+    TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
+
+    char buf[1024];
+    memset(buf, 'a', sizeof(buf));
+
+    err = oc_open_memory_face(g_library, buf, sizeof(buf), 0, &face);
+    TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
+
+    err = oc_open_memory_face(g_library, buf, sizeof(buf), 0, NULL);
+    TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
+
+    FILE* file = fopen("test/files/arial.ttf", "rb");
+    TEST_ASSERT_NOT_NULL(file);
+
+    fseek(file, 0, SEEK_END);
+    long size = ftell(file);
+    rewind(file);
+
+    TEST_ASSERT_EQUAL_INT(367112, size);
+
+    char *data = malloc(size);
+    TEST_ASSERT_NOT_NULL(data);
+
+    size_t nread = fread(data, 1, size, file);
+    fclose(file);
+
+    TEST_ASSERT_EQUAL_INT(size, nread);
+
+    err = oc_open_memory_face(g_library, data, size, 0, &face);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+    oc_free_face(face);
+
+    err = oc_open_memory_face(g_library, data, size, 10, &face);
+    TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
+
+    free(data);
+}
+
 void test_oc_get_char_index(void) {
     oc_face face;
     oc_error err;
@@ -222,6 +269,7 @@ int main(void) {
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
     RUN_TEST(test_oc_init_library);
+    RUN_TEST(test_oc_open_memory_face);
     RUN_TEST(test_oc_open_face);
     RUN_TEST(test_oc_get_char_index);
     RUN_TEST(test_oc_get_sfnt_table);

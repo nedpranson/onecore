@@ -25,9 +25,9 @@ extern "C" {
 #endif
 #endif
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
 
 typedef enum {
     oc_error_ok,
@@ -45,7 +45,7 @@ typedef enum {
 typedef uint32_t oc_tag;
 
 typedef struct oc_table_s {
-    const uint8_t* buffer;
+    const void* data;
     size_t size;
 
     void* __handle;
@@ -80,8 +80,12 @@ oc_free_library(oc_library library);
 OC_EXPORT oc_error
 oc_open_face(oc_library library, const char* path, long face_index, oc_face* pface);
 
-//OC_EXPORT oc_error
-//oc_open_memory_face(oc_library library, const void* data, size_t size, long face_index, oc_face* pface);
+/*
+ * @note:
+ *   You must not deallocate the memory before calling @oc_free_face.
+ */
+OC_EXPORT oc_error
+oc_open_memory_face(oc_library library, const void* data, size_t size, long face_index, oc_face* pface);
 
 OC_EXPORT void
 oc_free_face(oc_face face);
@@ -99,11 +103,11 @@ oc_free_table(oc_face face, oc_table table);
 OC_EXPORT void
 oc_get_metrics(oc_face face, oc_metrics* pmetrics);
 
-OC_EXPORT bool 
+OC_EXPORT bool
 oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics);
 
-//OC_EXPORT bool
-//oc_get_outline(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics);
+// OC_EXPORT bool
+// oc_get_outline(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics);
 
 // oc_render_glyph???
 
