@@ -155,13 +155,7 @@ IOCFontFileLoader_CreateStreamFromKey(IDWriteFontFileLoader* This, const void* k
 static ULONG STDMETHODCALLTYPE
 IOCFontFileLoader_Release(IDWriteFontFileLoader* This) {
     IOCFontFileLoader* this = (IOCFontFileLoader*)This;
-
-    ULONG new_count = InterlockedDecrement(&this->ref_count);
-    printf("new_count: %ld\n", new_count);
-    if (new_count == 0) {
-        free(this);
-    }
-    return new_count;
+    return InterlockedDecrement(&this->ref_count);
 }
 
 static ULONG STDMETHODCALLTYPE
@@ -307,41 +301,18 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
 
     memory_view key = { data, size };
 
-    if (library.memory_font_file_loader == NULL) {
-        IOCFontFileLoader* ioc_font_file_loader = malloc(sizeof(IOCFontFileLoader));
-        if (ioc_font_file_loader == NULL) {
-            return oc_error_out_of_memory;
-        }
+    // not sure if this is safe I am hoping that dwrite does not hold to this loeader
+    IOCFontFileLoader ioc_font_file_loader = { &IOCFontFileLoaderVtbl, 1 };
+    IDWriteFontFileLoader* font_file_loader = (IDWriteFontFileLoader*)&ioc_font_file_loader;
 
-        ioc_font_file_loader->lpVtbl = &IOCFontFileLoaderVtbl;
-        ioc_font_file_loader->ref_count = 1;
-        
-        IDWriteFontFileLoader* font_file_loader = (IDWriteFontFileLoader*)ioc_font_file_loader;
-
-        err = library.dw_factory->lpVtbl->RegisterFontFileLoader(library.dw_factory, font_file_loader);
-        if (err != S_OK) {
-            font_file_loader->lpVtbl->Release(font_file_loader);
-            switch (err) {
-            case E_OUTOFMEMORY:
-                return oc_error_out_of_memory;
-            default:
-                return unexpected(err);
-            }
-        }
-
-        library.memory_font_file_loader = font_file_loader;
-    }
+    library.dw_factory->lpVtbl->RegisterFontFileLoader(library.dw_factory, font_file_loader);
 
     err = library.dw_factory->lpVtbl->CreateCustomFontFileReference(
         library.dw_factory,
         &key,
         sizeof(memory_view),
-        library.memory_font_file_loader,
+        font_file_loader,
         &font_file);
-    //ULONG refs = font_file_loader->lpVtbl->Release(font_file_loader);
-
-    //(void)refs;
-    //assert(refs == 0);
 
     switch (err) {
     case S_OK:
@@ -351,6 +322,14 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
     default:
         return unexpected(err);
     }
+
+    library.dw_factory->lpVtbl->UnregisterFontFileLoader(library.dw_factory, font_file_loader);
+
+    font_file->lpVtbl->Release(font_file);
+    ULONG refs = font_file_loader->lpVtbl->Release(font_file_loader);
+
+    (void)refs;
+    assert(refs == 0);
 
     return S_OK;
 }

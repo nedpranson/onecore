@@ -7,7 +7,6 @@
 
 typedef struct oc_library_s {
     IDWriteFactory* dw_factory;
-    IDWriteFontFileLoader* memory_font_file_loader;
 } oc_library;
 
 typedef struct oc_face_s {
