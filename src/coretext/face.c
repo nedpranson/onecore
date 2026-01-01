@@ -160,7 +160,7 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
     pglyph_metrics->width = (uint16_t)(bbox.size.width * funits_per_em / fsize);
     pglyph_metrics->height = (uint16_t)(bbox.size.height * funits_per_em / fsize);
     pglyph_metrics->bearing_x = (int16_t)(bbox.origin.x * funits_per_em / fsize);
-    pglyph_metrics->bearing_y = (int16_t)(bbox.origin.y * funits_per_em / fsize);
+    pglyph_metrics->bearing_y = (int16_t)((bbox.size.height + bbox.origin.y) * funits_per_em / fsize);
     pglyph_metrics->advance = (uint16_t)(advance.width * funits_per_em / fsize);
 
     return true;

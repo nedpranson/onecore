@@ -181,4 +181,30 @@ void oc_get_metrics(oc_face face, oc_metrics* pmetrics) {
     pmetrics->underline_thickness = metrics.underlineThickness;
 }
 
+bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics) {
+    if (pglyph_metrics == NULL) {
+        return false;
+    }
+
+    DWRITE_GLYPH_METRICS metrics;
+    HRESULT err = face.dw_font_face->lpVtbl->GetDesignGlyphMetrics(
+        face.dw_font_face,
+        &glyph_index,
+        1,
+        &metrics,
+        FALSE);
+
+    if (err != S_OK) {
+        return false;
+    }
+
+    pglyph_metrics->width = metrics.advanceWidth - metrics.leftSideBearing - metrics.rightSideBearing;
+    pglyph_metrics->height = metrics.verticalOriginY - metrics.topSideBearing + metrics.bottomSideBearing;
+    pglyph_metrics->bearing_x = metrics.leftSideBearing;
+    pglyph_metrics->bearing_y = metrics.verticalOriginY - metrics.topSideBearing;
+    pglyph_metrics->advance = metrics.advanceWidth;
+
+    return true;
+}
+
 #endif // ONECORE_DWRITE
