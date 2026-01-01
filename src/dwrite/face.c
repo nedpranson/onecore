@@ -186,6 +186,12 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
         return false;
     }
 
+    // for some reason GetDesignGlyphMetrics does not catch invalid glyph index
+    UINT16 glyph_count = face.dw_font_face->lpVtbl->GetGlyphCount(face.dw_font_face);
+    if (glyph_index >- glyph_count) {
+        return false;
+    }
+
     DWRITE_GLYPH_METRICS metrics;
     HRESULT err = face.dw_font_face->lpVtbl->GetDesignGlyphMetrics(
         face.dw_font_face,
@@ -194,12 +200,11 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
         &metrics,
         FALSE);
 
-    if (err != S_OK) {
-        return false;
-    }
+    (void)err;
+    assert(err == S_OK);
 
     pglyph_metrics->width = metrics.advanceWidth - metrics.leftSideBearing - metrics.rightSideBearing;
-    pglyph_metrics->height = metrics.verticalOriginY - metrics.topSideBearing + metrics.bottomSideBearing;
+    pglyph_metrics->height = metrics.advanceHeight - metrics.topSideBearing;
     pglyph_metrics->bearing_x = metrics.leftSideBearing;
     pglyph_metrics->bearing_y = metrics.verticalOriginY - metrics.topSideBearing;
     pglyph_metrics->advance = metrics.advanceWidth;
