@@ -339,10 +339,12 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
         return unexpected(err);
     }
 
+    oc_error result = open_face_from_font_file(library, font_file, face_index, pface);
+
     font_file->lpVtbl->Release(font_file);
     assert(font_file_loader->lpVtbl->Release(font_file_loader) == 0);
 
-    return S_OK;
+    return result;
 }
 
 void oc_free_face(oc_face face) {
