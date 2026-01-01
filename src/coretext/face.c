@@ -19,8 +19,6 @@ static oc_error open_face_from_descriptors(CFArrayRef cf_descriptors_ref, long f
 
     // font size passed here!
     CTFontRef ctf_font_ref = CTFontCreateWithFontDescriptor(ctf_descriptor_ref, 0, NULL);
-    CFRelease(ctf_descriptor_ref);
-
     if (ctf_font_ref == NULL) {
         return oc_error_out_of_memory;
     }
@@ -64,7 +62,7 @@ oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_
     CFRelease(cf_url_ref);
 
     if (cf_descriptors_ref == NULL) {
-        return oc_error_out_of_memory;
+        return oc_error_failed_to_open;
     }
 
     oc_error err = open_face_from_descriptors(cf_descriptors_ref, face_index, pface);
@@ -80,6 +78,10 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
         return oc_error_invalid_param;
     }
 
+    if (data == NULL) {
+        return oc_error_invalid_param;
+    }
+
     CFDataRef cf_data_ref = CFDataCreateWithBytesNoCopy(NULL, data, size, kCFAllocatorNull);
     if (cf_data_ref == NULL) {
         return oc_error_out_of_memory;
@@ -89,7 +91,7 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
     CFRelease(cf_data_ref);
 
     if (cf_descriptors_ref == NULL) {
-        return oc_error_out_of_memory;
+        return oc_error_failed_to_open;
     }
 
     oc_error err = open_face_from_descriptors(cf_descriptors_ref, face_index, pface);
