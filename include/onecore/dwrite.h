@@ -3,6 +3,7 @@
 // clang-format off
 #include <initguid.h>
 #include <dwrite.h>
+#include <d2d1.h>
 // clang-format on
 
 typedef struct oc_library_s {

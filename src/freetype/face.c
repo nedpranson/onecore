@@ -50,6 +50,7 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
         return oc_error_invalid_param;
     case FT_Err_Invalid_File_Format:
     case FT_Err_Unknown_File_Format:
+    case FT_Err_Invalid_Stream_Operation:
         return oc_error_failed_to_open;
     default:
         return unexpected(err);
@@ -137,6 +138,103 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
     pglyph_metrics->advance = glyph_metrics.horiAdvance;
 
     return true;
+}
+
+typedef struct outline_context {
+    oc_outline_funcs funcs;
+    FT_Vector cur;
+    void* ctx;
+} outline_context;
+
+static int move_to(const FT_Vector* to, void* user) {
+    outline_context* ctx = (outline_context*)user;
+    oc_point cto = { to->x, to->y };
+
+    ctx->funcs.move_to(cto, ctx->ctx);
+    ctx->cur = *to;
+
+    return 0;
+}
+
+static int line_to(const FT_Vector* to, void* user) {
+    outline_context* ctx = (outline_context*)user;
+    oc_point cto = { to->x, to->y };
+
+    ctx->funcs.line_to(cto, ctx->ctx);
+    ctx->cur = *to;
+
+    return 0;
+}
+
+static int conic_to(
+    const FT_Vector* control,
+    const FT_Vector* to,
+    void* user) {
+    outline_context* ctx = (outline_context*)user;
+
+    oc_point p0 = { ctx->cur.x, ctx->cur.y };
+    oc_point p1 = { control->x, control->y };
+    oc_point p2 = { to->x, to->y };
+
+    oc_point c1, c2;
+    c1.x = p0.x + (2 * (p1.x - p0.x)) / 3;
+    c1.y = p0.y + (2 * (p1.y - p0.y)) / 3;
+
+    c2.x = p2.x + (2 * (p1.x - p2.x)) / 3;
+    c2.y = p2.y + (2 * (p1.y - p2.y)) / 3;
+
+    ctx->funcs.cubic_to(c1, c2, p2, ctx->ctx);
+    ctx->cur = *to;
+
+    return 0;
+}
+
+static int cubic_to(
+    const FT_Vector* c1,
+    const FT_Vector* c2,
+    const FT_Vector* to,
+    void* user) {
+    outline_context* ctx = (outline_context*)user;
+
+    oc_point cc1 = { c1->x, c1->y };
+    oc_point cc2 = { c2->x, c2->y };
+    oc_point cto = { to->x, to->y };
+
+    ctx->funcs.cubic_to(cc1, cc2, cto, ctx->ctx);
+    ctx->cur = *to;
+
+    return 0;
+}
+
+void oc_get_outline(oc_face face, uint16_t glyph_index, oc_outline_funcs outline_funcs, void* context) {
+    FT_Error err;
+    // start: not thread safe here!!!!
+    err = FT_Load_Glyph(face.ft_face, glyph_index, FT_LOAD_NO_SCALE | FT_LOAD_NO_BITMAP);
+    if (err != FT_Err_Ok) {
+        return;
+    }
+
+    FT_GlyphSlot slot = face.ft_face->glyph;
+    FT_Outline glyph_outline = slot->outline;
+    // todo: check if glyph format has outline bla bla bla
+    // end: not thread safe here!!!!
+
+    outline_context ctx = { 0 };
+    ctx.funcs = outline_funcs;
+    ctx.ctx = context;
+
+    FT_Outline_Funcs funcs;
+    funcs.move_to = move_to;
+    funcs.line_to = line_to;
+    funcs.conic_to = conic_to;
+    funcs.cubic_to = cubic_to;
+    funcs.shift = 0;
+    funcs.delta = 0;
+
+    err = FT_Outline_Decompose(&glyph_outline, &funcs, &ctx);
+    if (err != FT_Err_Ok) {
+        printf("FT_Outline_Decompose failed: %d\n", err);
+    }
 }
 
 #endif // ONECORE_FREETYPE

@@ -20,6 +20,12 @@ typedef struct IOCFontFileLoader {
     LONG ref_count;
 } IOCFontFileLoader;
 
+typedef struct IOCSimplifiedGeometrySink {
+    const ID2D1SimplifiedGeometrySinkVtbl* lpVtbl;
+    LONG ref_count;
+    void* ctx;
+} IOCSimplifiedGeometrySink;
+
 static HRESULT STDMETHODCALLTYPE
 IOCFontFileStream_GetLastWriteTime(IDWriteFontFileStream* This, UINT64* last_writetime) {
     (void)This;
@@ -138,6 +144,9 @@ IOCFontFileLoader_CreateStreamFromKey(IDWriteFontFileLoader* This, const void* k
     }
 
     memory_view view = *(const memory_view*)key;
+    if (view.data == NULL) {
+        return E_INVALIDARG;
+    }
 
     IOCFontFileStream* ioc_font_file_stream = malloc(sizeof(IOCFontFileStream));
     if (ioc_font_file_stream == NULL) {
@@ -152,6 +161,7 @@ IOCFontFileLoader_CreateStreamFromKey(IDWriteFontFileLoader* This, const void* k
     return S_OK;
 }
 
+// todo: assert of ref_count not being -1
 static ULONG STDMETHODCALLTYPE
 IOCFontFileLoader_Release(IDWriteFontFileLoader* This) {
     IOCFontFileLoader* this = (IOCFontFileLoader*)This;
@@ -185,6 +195,94 @@ static const IDWriteFontFileLoaderVtbl IOCFontFileLoaderVtbl = {
     IOCFontFileLoader_AddRef,
     IOCFontFileLoader_Release,
     IOCFontFileLoader_CreateStreamFromKey
+};
+
+static HRESULT STDMETHODCALLTYPE
+IOCSimplifiedGeometrySink_Close(ID2D1SimplifiedGeometrySink *This) {
+    (void)This;
+    return S_OK;
+}
+
+static void STDMETHODCALLTYPE
+IOCSimplifiedGeometrySink_EndFigure(ID2D1SimplifiedGeometrySink *This, D2D1_FIGURE_END figureEnd) {
+    (void)This;
+    (void)figureEnd;
+}
+
+static void STDMETHODCALLTYPE
+IOCSimplifiedGeometrySink_AddBeziers(ID2D1SimplifiedGeometrySink *This, const D2D1_BEZIER_SEGMENT *beziers, UINT beziersCount) {
+    (void)This;
+    (void)beziers;
+    (void)beziersCount;
+}
+
+static void STDMETHODCALLTYPE
+IOCSimplifiedGeometrySink_AddLines(ID2D1SimplifiedGeometrySink *This, const D2D1_POINT_2F *points, UINT pointsCount) {
+    (void)This;
+    (void)points;
+    (void)pointsCount;
+}
+
+static void STDMETHODCALLTYPE
+IOCSimplifiedGeometrySink_BeginFigure(ID2D1SimplifiedGeometrySink *This, D2D1_POINT_2F startPoint, D2D1_FIGURE_BEGIN figureBegin) {
+    (void)This;
+    (void)startPoint;
+    (void)figureBegin;
+}
+
+static void STDMETHODCALLTYPE
+IOCSimplifiedGeometrySink_SetSegmentFlags(ID2D1SimplifiedGeometrySink *This, D2D1_PATH_SEGMENT vertexFlags) {
+    (void)This;
+    (void)vertexFlags;
+}
+
+
+static void STDMETHODCALLTYPE
+IOCSimplifiedGeometrySink_SetFillMode(ID2D1SimplifiedGeometrySink *This, D2D1_FILL_MODE fillMode) {
+    (void)This;
+    (void)fillMode;
+};
+
+static ULONG STDMETHODCALLTYPE
+IOCSimplifiedGeometrySink_Release(IUnknown* This) {
+    IOCSimplifiedGeometrySink* this = (IOCSimplifiedGeometrySink*)This;
+    return InterlockedDecrement(&this->ref_count);
+}
+
+static ULONG STDMETHODCALLTYPE
+IOCSimplifiedGeometrySink_AddRef(IUnknown* This) {
+    IOCSimplifiedGeometrySink* this = (IOCSimplifiedGeometrySink*)This;
+    return InterlockedIncrement(&this->ref_count);
+}
+
+static HRESULT STDMETHODCALLTYPE
+IOCSimplifiedGeometrySink_QueryInterface(IUnknown* This, REFIID riid, void** ppvObject) {
+    if (ppvObject == NULL) {
+        return E_POINTER;
+    }
+    *ppvObject = NULL;
+
+    if (IsEqualIID(riid, &IID_IUnknown) || IsEqualIID(riid, &IID_IDWriteFontFileLoader)) {
+        IOCSimplifiedGeometrySink_AddRef(This);
+        *ppvObject = This;
+        return S_OK;
+    }
+
+    return E_NOINTERFACE;
+}
+
+
+static const ID2D1SimplifiedGeometrySinkVtbl IOCSimplifiedGeometrySinkVtbl = {
+    { IOCSimplifiedGeometrySink_QueryInterface,
+    IOCSimplifiedGeometrySink_AddRef,
+    IOCSimplifiedGeometrySink_Release },
+    IOCSimplifiedGeometrySink_SetFillMode,
+    IOCSimplifiedGeometrySink_SetSegmentFlags,
+    IOCSimplifiedGeometrySink_BeginFigure,
+    IOCSimplifiedGeometrySink_AddLines,
+    IOCSimplifiedGeometrySink_AddBeziers,
+    IOCSimplifiedGeometrySink_EndFigure,
+    IOCSimplifiedGeometrySink_Close,
 };
 
 static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* font_file, long face_index, oc_face* pface) {
@@ -452,6 +550,35 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
     pglyph_metrics->advance = metrics.advanceWidth;
 
     return true;
+}
+
+
+void oc_get_outline(oc_face face, uint16_t glyph_index, oc_outline_funcs outline_funcs, void* context) {
+    (void)outline_funcs;
+
+    IOCSimplifiedGeometrySink ioc_simplified_geometry_sink = { &IOCSimplifiedGeometrySinkVtbl, 1, context };
+    IDWriteGeometrySink* geometry_sink = (IDWriteGeometrySink*)&ioc_simplified_geometry_sink;
+
+    HRESULT err = face.dw_font_face->lpVtbl->GetGlyphRunOutline(
+        face.dw_font_face,
+        1.0,
+        &glyph_index,
+        NULL,
+        NULL,
+        1,
+        FALSE,
+        FALSE,
+        geometry_sink);
+
+
+    if (err != S_OK) {
+        printf("GetGlyphRunOutline failed: %ld\n", err);
+    }
+
+    ULONG refs = geometry_sink->lpVtbl->Base.Release((IUnknown*)geometry_sink);
+
+    (void)refs;
+    assert(refs == 0);
 }
 
 #endif // ONECORE_DWRITE

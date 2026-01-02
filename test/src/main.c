@@ -111,10 +111,15 @@ void test_oc_open_memory_face(void) {
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     oc_free_face(face);
 
-    // idk intresting
     err = oc_open_memory_face(g_library, data, size - 20, 0, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     oc_free_face(face);
+
+    err = oc_open_memory_face(g_library, data, 0, 100, &face);
+    TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
+
+    err = oc_open_memory_face(g_library, data, 0, 0, &face);
+    TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
 
     err = oc_open_memory_face(g_library, data, size, 10, &face);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
@@ -261,6 +266,37 @@ void test_oc_get_glyph_metrics(void) {
     TEST_ASSERT_EQUAL(ok, false);
 }
 
+static void
+move_to(oc_point to, void* context) {
+    (void)context;
+    printf("move_to: %d %d\n", to.x, to.y);
+}
+
+static void
+line_to(oc_point to, void* context) {
+    (void)context;
+    printf("line_to: %d %d\n", to.x, to.y);
+}
+
+static void
+cubic_to(oc_point c1, oc_point c2, oc_point to, void* context) {
+    (void)context;
+    printf("cubic_to: c1(%d %d) c2(%d %d) to(%d %d)\n",
+        c1.x, c1.y, c2.x, c2.y, to.x, to.y);
+}
+
+void test_oc_get_outline(void) {
+    uint16_t idx = oc_get_char_index(g_arial_ttf, 'G');
+    TEST_ASSERT_EQUAL_INT16(42, idx);
+
+    oc_outline_funcs funcs;
+    funcs.move_to = move_to;
+    funcs.line_to = line_to;
+    funcs.cubic_to = cubic_to;
+
+    oc_get_outline(g_arial_ttf, idx, funcs, NULL);
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -279,6 +315,7 @@ int main(void) {
     RUN_TEST(test_oc_get_sfnt_table);
     RUN_TEST(test_oc_get_metrics);
     RUN_TEST(test_oc_get_glyph_metrics);
+    RUN_TEST(test_oc_get_outline);
 
     oc_free_face(g_arial_ttf);
     oc_free_library(g_library);

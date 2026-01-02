@@ -3,6 +3,7 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_TRUETYPE_TABLES_H
+#include FT_OUTLINE_H
 
 typedef struct oc_library_s {
     FT_Library ft_library;

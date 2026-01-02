@@ -69,6 +69,21 @@ typedef struct oc_glyph_metrics_s {
     uint32_t advance;
 } oc_glyph_metrics;
 
+typedef struct oc_point_s {
+    int32_t x;
+    int32_t y;
+} oc_point;
+
+typedef void (*oc_outline_move_to)(oc_point to, void* context);
+typedef void (*oc_outline_line_to)(oc_point to, void* context);
+typedef void (*oc_outline_cubic_to)(oc_point c1, oc_point c2, oc_point to, void* context);
+
+typedef struct oc_outline_funcs_s {
+    oc_outline_move_to move_to;
+    oc_outline_line_to line_to;
+    oc_outline_cubic_to cubic_to;
+} oc_outline_funcs;
+
 #define OC_MAKE_TAG(x1, x2, x3, x4) \
     (((uint8_t)x1) << 24 | ((uint8_t)x2) << 16 | ((uint8_t)x3) << 8 | ((uint8_t)x4))
 
@@ -95,21 +110,22 @@ OC_EXPORT uint16_t
 oc_get_char_index(oc_face face, uint32_t charcode);
 
 // copy variant would be nice which we would not need to free
-// todo: instead of making __handle part of oc_table add a context viud*
 OC_EXPORT oc_error
 oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable);
 
 OC_EXPORT void
 oc_free_table(oc_face face, oc_table table);
 
+// todo: add scaled variant
 OC_EXPORT void
 oc_get_metrics(oc_face face, oc_metrics* pmetrics);
 
+// todo: add scaled variant
 OC_EXPORT bool
 oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics);
 
-// OC_EXPORT bool
-// oc_get_outline(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics);
+OC_EXPORT void
+oc_get_outline(oc_face face, uint16_t glyph_index, oc_outline_funcs outline_fucs, void* context);
 
 // oc_render_glyph???
 
