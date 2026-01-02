@@ -178,6 +178,7 @@ static int conic_to(
     outline_context* ctx = (outline_context*)user;
 
     FT_Vector cubic[2];
+    // todo: look at that +1
     cubic[0].x = (2 * control->x + 1) / 3;
     cubic[0].y = (2 * control->y + 1) / 3;
     cubic[1] = cubic[0];

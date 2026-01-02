@@ -206,6 +206,7 @@ IOCSimplifiedGeometrySink_Close(ID2D1SimplifiedGeometrySink *This) {
 
 static void STDMETHODCALLTYPE
 IOCSimplifiedGeometrySink_EndFigure(ID2D1SimplifiedGeometrySink *This, D2D1_FIGURE_END figureEnd) {
+    // todo: impl close
     (void)This;
     (void)figureEnd;
 }
