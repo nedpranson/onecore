@@ -3,6 +3,7 @@
 
 #include "../unexpected.h"
 #include <assert.h>
+#include <math.h>
 
 typedef struct memory_view_s {
     const void* data;
@@ -22,8 +23,9 @@ typedef struct IOCFontFileLoader {
 
 typedef struct IOCSimplifiedGeometrySink {
     const ID2D1SimplifiedGeometrySinkVtbl* lpVtbl;
-    LONG ref_count;
+    const oc_outline_funcs* funcs;
     void* ctx;
+    LONG ref_count;
 } IOCSimplifiedGeometrySink;
 
 static HRESULT STDMETHODCALLTYPE
@@ -211,26 +213,42 @@ IOCSimplifiedGeometrySink_EndFigure(ID2D1SimplifiedGeometrySink *This, D2D1_FIGU
 
 static void STDMETHODCALLTYPE
 IOCSimplifiedGeometrySink_AddBeziers(ID2D1SimplifiedGeometrySink *This, const D2D1_BEZIER_SEGMENT *beziers, UINT beziersCount) {
-    (void)This;
-    for (UINT32 i = 0; i < beziersCount; i++)
-        printf("cubic_to: c1(%f %f) c2(%f %f) to(%f %f)\n",
-            beziers[i].point1.x, beziers[i].point1.y,
-            beziers[i].point2.x, beziers[i].point2.y,
-            beziers[i].point3.x, beziers[i].point3.y);
+    IOCSimplifiedGeometrySink* this = (IOCSimplifiedGeometrySink*)This;
+
+    oc_point points[3];
+    for (UINT32 i = 0; i < beziersCount; i++) {
+        points[0].x = ceilf(beziers[i].point1.x);
+        points[0].y = ceilf(beziers[i].point1.y);
+
+        points[1].x = ceilf(beziers[i].point2.x);
+        points[1].y = ceilf(beziers[i].point2.y);
+
+        points[2].x = ceilf(beziers[i].point3.x);
+        points[2].y = ceilf(beziers[i].point3.y);
+
+        this->funcs->cubic_to(points[0], points[1], points[2], this->ctx);
+    }
 }
 
 static void STDMETHODCALLTYPE
 IOCSimplifiedGeometrySink_AddLines(ID2D1SimplifiedGeometrySink *This, const D2D1_POINT_2F *points, UINT pointsCount) {
-    (void)This;
-    for (UINT32 i = 0; i < pointsCount; i++)
-        printf("line_to: %f %f\n", points[i].x, points[i].y);
+    IOCSimplifiedGeometrySink* this = (IOCSimplifiedGeometrySink*)This;
+
+    oc_point point;
+    for (UINT32 i = 0; i < pointsCount; i++) {
+        point.x = ceilf(points[i].x);
+        point.y = ceilf(points[i].y);
+        this->funcs->line_to(point, this->ctx);
+    }
 }
 
 static void STDMETHODCALLTYPE
 IOCSimplifiedGeometrySink_BeginFigure(ID2D1SimplifiedGeometrySink *This, D2D1_POINT_2F startPoint, D2D1_FIGURE_BEGIN figureBegin) {
-    (void)This;
     (void)figureBegin;
-    printf("move_to: %f %f\n", startPoint.x, startPoint.y);
+    IOCSimplifiedGeometrySink* this = (IOCSimplifiedGeometrySink*)This;
+
+    oc_point point = { ceilf(startPoint.x), ceilf(startPoint.y) };
+    this->funcs->line_to(point, this->ctx);
 }
 
 static void STDMETHODCALLTYPE
@@ -557,14 +575,21 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
 
 
 void oc_get_outline(oc_face face, uint16_t glyph_index, oc_outline_funcs outline_funcs, void* context) {
-    (void)outline_funcs;
+    IOCSimplifiedGeometrySink ioc_simplified_geometry_sink;
+    ioc_simplified_geometry_sink.lpVtbl = &IOCSimplifiedGeometrySinkVtbl;
+    ioc_simplified_geometry_sink.funcs = &outline_funcs;
+    ioc_simplified_geometry_sink.ref_count = 1;
+    ioc_simplified_geometry_sink.ctx = context;
 
-    IOCSimplifiedGeometrySink ioc_simplified_geometry_sink = { &IOCSimplifiedGeometrySinkVtbl, 1, context };
     IDWriteGeometrySink* geometry_sink = (IDWriteGeometrySink*)&ioc_simplified_geometry_sink;
 
+    DWRITE_FONT_METRICS metrics;
+    face.dw_font_face->lpVtbl->GetMetrics(face.dw_font_face, &metrics);
+
+    // dwrite does not call line_to at the end to the beg
     HRESULT err = face.dw_font_face->lpVtbl->GetGlyphRunOutline(
         face.dw_font_face,
-        1.0,
+        metrics.designUnitsPerEm,
         &glyph_index,
         NULL,
         NULL,

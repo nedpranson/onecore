@@ -142,29 +142,34 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
 
 typedef struct outline_context {
     oc_outline_funcs funcs;
-    FT_Vector cur;
+    FT_Vector origin;
     void* ctx;
 } outline_context;
 
 static int move_to(const FT_Vector* to, void* user) {
     outline_context* ctx = (outline_context*)user;
-    oc_point cto = { to->x, to->y };
+    oc_point point = { to->x, to->y };
 
-    ctx->funcs.move_to(cto, ctx->ctx);
-    ctx->cur = *to;
+    ctx->funcs.move_to(point, ctx->ctx);
+    ctx->origin = *to;
 
     return 0;
 }
 
 static int line_to(const FT_Vector* to, void* user) {
     outline_context* ctx = (outline_context*)user;
-    oc_point cto = { to->x, to->y };
+    oc_point point = { to->x, to->y };
 
-    ctx->funcs.line_to(cto, ctx->ctx);
-    ctx->cur = *to;
+    ctx->funcs.line_to(point, ctx->ctx);
+    ctx->origin = *to;
 
     return 0;
 }
+
+typedef struct oc_points_2f {
+    float x;
+    float y;
+} oc_points_2f ;
 
 static int conic_to(
     const FT_Vector* control,
@@ -172,19 +177,23 @@ static int conic_to(
     void* user) {
     outline_context* ctx = (outline_context*)user;
 
-    oc_point p0 = { ctx->cur.x, ctx->cur.y };
-    oc_point p1 = { control->x, control->y };
-    oc_point p2 = { to->x, to->y };
+    FT_Vector cubic[2];
+    cubic[0].x = (2 * control->x + 1) / 3;
+    cubic[0].y = (2 * control->y + 1) / 3;
+    cubic[1] = cubic[0];
+    cubic[0].x += (ctx->origin.x + 1) / 3;
+    cubic[0].y += (ctx->origin.y + 1) / 3;
+    cubic[1].x += (to->x + 1) / 3;
+    cubic[1].y += (to->y + 1) / 3;
 
-    oc_point c1, c2;
-    c1.x = p0.x + (2 * (p1.x - p0.x)) / 3;
-    c1.y = p0.y + (2 * (p1.y - p0.y)) / 3;
+    oc_point points[3] = {
+        { cubic[0].x, cubic[0].y },
+        { cubic[1].x, cubic[1].y },
+        { to->x, to->y }
+    };
 
-    c2.x = p2.x + (2 * (p1.x - p2.x)) / 3;
-    c2.y = p2.y + (2 * (p1.y - p2.y)) / 3;
-
-    ctx->funcs.cubic_to(c1, c2, p2, ctx->ctx);
-    ctx->cur = *to;
+    ctx->funcs.cubic_to(points[0], points[1], points[2], ctx->ctx);
+    ctx->origin = *to;
 
     return 0;
 }
@@ -196,12 +205,14 @@ static int cubic_to(
     void* user) {
     outline_context* ctx = (outline_context*)user;
 
-    oc_point cc1 = { c1->x, c1->y };
-    oc_point cc2 = { c2->x, c2->y };
-    oc_point cto = { to->x, to->y };
+    oc_point points[3] = {
+        { c1->x, c1->y },
+        { c2->x, c2->y },
+        { to->x, to->y }
+    };
 
-    ctx->funcs.cubic_to(cc1, cc2, cto, ctx->ctx);
-    ctx->cur = *to;
+    ctx->funcs.cubic_to(points[0], points[1], points[2], ctx->ctx);
+    ctx->origin = *to;
 
     return 0;
 }

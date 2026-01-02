@@ -1,0 +1,8 @@
+DWRITE_FONT_SIMULATIONS_BOLD
+https://github.com/wine-mirror/wine/blob/a82d717ce63965bec9a06eb1452b3d09b78a6021/dlls/dwrite/freetype.c#L443
+
+conic -> cubic
+https://github.com/wine-mirror/wine/blob/a82d717ce63965bec9a06eb1452b3d09b78a6021/dlls/dwrite/freetype.c#L331
+
+measuring_modes
+https://github.com/wine-mirror/wine/blob/a82d717ce63965bec9a06eb1452b3d09b78a6021/dlls/dwrite/font.c#L6133
