@@ -3,7 +3,6 @@
 
 #include "../unexpected.h"
 #include <assert.h>
-#include <math.h>
 
 typedef struct memory_view_s {
     const void* data;
@@ -217,14 +216,14 @@ IOCSimplifiedGeometrySink_AddBeziers(ID2D1SimplifiedGeometrySink *This, const D2
 
     oc_point points[3];
     for (UINT32 i = 0; i < beziersCount; i++) {
-        points[0].x = ceilf(beziers[i].point1.x);
-        points[0].y = -ceilf(beziers[i].point1.y);
+        points[0].x = beziers[i].point1.x;
+        points[0].y = -beziers[i].point1.y;
 
-        points[1].x = ceilf(beziers[i].point2.x);
-        points[1].y = -ceilf(beziers[i].point2.y);
+        points[1].x = beziers[i].point2.x;
+        points[1].y = -beziers[i].point2.y;
 
-        points[2].x = ceilf(beziers[i].point3.x);
-        points[2].y = -ceilf(beziers[i].point3.y);
+        points[2].x = beziers[i].point3.x;
+        points[2].y = -beziers[i].point3.y;
 
         this->funcs->cubic_to(points[0], points[1], points[2], this->ctx);
     }
@@ -236,8 +235,8 @@ IOCSimplifiedGeometrySink_AddLines(ID2D1SimplifiedGeometrySink *This, const D2D1
 
     oc_point point;
     for (UINT32 i = 0; i < pointsCount; i++) {
-        point.x = ceilf(points[i].x);
-        point.y = -ceilf(points[i].y);
+        point.x = points[i].x;
+        point.y = -points[i].y;
         this->funcs->line_to(point, this->ctx);
     }
 }
@@ -247,8 +246,8 @@ IOCSimplifiedGeometrySink_BeginFigure(ID2D1SimplifiedGeometrySink *This, D2D1_PO
     (void)figureBegin;
     IOCSimplifiedGeometrySink* this = (IOCSimplifiedGeometrySink*)This;
 
-    oc_point point = { ceilf(startPoint.x), -ceilf(startPoint.y) };
-    this->funcs->line_to(point, this->ctx);
+    oc_point point = { startPoint.x, -startPoint.y };
+    this->funcs->move_to(point, this->ctx);
 }
 
 static void STDMETHODCALLTYPE

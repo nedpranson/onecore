@@ -203,4 +203,56 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
     return true;
 }
 
+typedef struct context_s {
+    oc_outline_funcs* funcs;
+    void* ctx;
+} context;
+
+static void oc_path_applier(void* info, const CGPathElement* element) {
+    (void)info;
+switch (element->type) {
+        case kCGPathElementMoveToPoint:
+            printf("move_to: %f %f\n",
+                   element->points[0].x,
+                   element->points[0].y);
+            break;
+
+        case kCGPathElementAddLineToPoint:
+            printf("line_to: %f %f\n",
+                   element->points[0].x,
+                   element->points[0].y);
+            break;
+
+        case kCGPathElementAddQuadCurveToPoint:
+            printf("quad_to: c(%f %f) to(%f %f)\n",
+                   element->points[0].x, element->points[0].y,
+                   element->points[1].x, element->points[1].y);
+            break;
+
+        case kCGPathElementAddCurveToPoint:
+            printf("cubic_to: c1(%f %f) c2(%f %f) to(%f %f)\n",
+                   element->points[0].x, element->points[0].y,
+                   element->points[1].x, element->points[1].y,
+                   element->points[2].x, element->points[2].y);
+            break;
+
+        case kCGPathElementCloseSubpath:
+            printf("close\n");
+            break;
+    }
+}
+
+void oc_get_outline(oc_face face, uint16_t glyph_index, oc_outline_funcs outline_funcs, void* context) {
+    (void)outline_funcs;
+    (void)context;
+    CGPathRef path = CTFontCreatePathForGlyph(face.ct_font_ref, glyph_index, NULL);
+    if (path != NULL) {
+        printf("CTFontCreatePathForGlyph failed\n");
+        return;
+    }
+
+    CGPathApply(path, NULL, oc_path_applier);
+    CGPathRelease(path);
+}
+
 #endif // ONECORE_CORETEXT

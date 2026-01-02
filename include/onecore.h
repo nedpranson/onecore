@@ -82,6 +82,7 @@ typedef struct oc_outline_funcs_s {
     oc_outline_move_to move_to;
     oc_outline_line_to line_to;
     oc_outline_cubic_to cubic_to;
+    // todo: add oc_outline_close;
 } oc_outline_funcs;
 
 #define OC_MAKE_TAG(x1, x2, x3, x4) \
@@ -125,7 +126,7 @@ OC_EXPORT bool
 oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics);
 
 OC_EXPORT void
-oc_get_outline(oc_face face, uint16_t glyph_index, oc_outline_funcs outline_fucs, void* context);
+oc_get_outline(oc_face face, uint16_t glyph_index, oc_outline_funcs outline_funcs, void* context);
 
 // oc_render_glyph???
 
