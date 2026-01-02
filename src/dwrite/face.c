@@ -212,22 +212,25 @@ IOCSimplifiedGeometrySink_EndFigure(ID2D1SimplifiedGeometrySink *This, D2D1_FIGU
 static void STDMETHODCALLTYPE
 IOCSimplifiedGeometrySink_AddBeziers(ID2D1SimplifiedGeometrySink *This, const D2D1_BEZIER_SEGMENT *beziers, UINT beziersCount) {
     (void)This;
-    (void)beziers;
-    (void)beziersCount;
+    for (UINT32 i = 0; i < beziersCount; i++)
+        printf("cubic_to: c1(%f %f) c2(%f %f) to(%f %f)\n",
+            beziers[i].point1.x, beziers[i].point1.y,
+            beziers[i].point2.x, beziers[i].point2.y,
+            beziers[i].point3.x, beziers[i].point3.y);
 }
 
 static void STDMETHODCALLTYPE
 IOCSimplifiedGeometrySink_AddLines(ID2D1SimplifiedGeometrySink *This, const D2D1_POINT_2F *points, UINT pointsCount) {
     (void)This;
-    (void)points;
-    (void)pointsCount;
+    for (UINT32 i = 0; i < pointsCount; i++)
+        printf("line_to: %f %f\n", points[i].x, points[i].y);
 }
 
 static void STDMETHODCALLTYPE
 IOCSimplifiedGeometrySink_BeginFigure(ID2D1SimplifiedGeometrySink *This, D2D1_POINT_2F startPoint, D2D1_FIGURE_BEGIN figureBegin) {
     (void)This;
-    (void)startPoint;
     (void)figureBegin;
+    printf("move_to: %f %f\n", startPoint.x, startPoint.y);
 }
 
 static void STDMETHODCALLTYPE
