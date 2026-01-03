@@ -199,20 +199,20 @@ static const IDWriteFontFileLoaderVtbl IOCFontFileLoaderVtbl = {
 };
 
 static HRESULT STDMETHODCALLTYPE
-IOCSimplifiedGeometrySink_Close(ID2D1SimplifiedGeometrySink *This) {
+IOCSimplifiedGeometrySink_Close(ID2D1SimplifiedGeometrySink* This) {
     (void)This;
     return S_OK;
 }
 
 static void STDMETHODCALLTYPE
-IOCSimplifiedGeometrySink_EndFigure(ID2D1SimplifiedGeometrySink *This, D2D1_FIGURE_END figureEnd) {
+IOCSimplifiedGeometrySink_EndFigure(ID2D1SimplifiedGeometrySink* This, D2D1_FIGURE_END figureEnd) {
     // todo: impl close
     (void)This;
     (void)figureEnd;
 }
 
 static void STDMETHODCALLTYPE
-IOCSimplifiedGeometrySink_AddBeziers(ID2D1SimplifiedGeometrySink *This, const D2D1_BEZIER_SEGMENT *beziers, UINT beziersCount) {
+IOCSimplifiedGeometrySink_AddBeziers(ID2D1SimplifiedGeometrySink* This, const D2D1_BEZIER_SEGMENT* beziers, UINT beziersCount) {
     IOCSimplifiedGeometrySink* this = (IOCSimplifiedGeometrySink*)This;
 
     oc_point points[3];
@@ -231,7 +231,7 @@ IOCSimplifiedGeometrySink_AddBeziers(ID2D1SimplifiedGeometrySink *This, const D2
 }
 
 static void STDMETHODCALLTYPE
-IOCSimplifiedGeometrySink_AddLines(ID2D1SimplifiedGeometrySink *This, const D2D1_POINT_2F *points, UINT pointsCount) {
+IOCSimplifiedGeometrySink_AddLines(ID2D1SimplifiedGeometrySink* This, const D2D1_POINT_2F* points, UINT pointsCount) {
     IOCSimplifiedGeometrySink* this = (IOCSimplifiedGeometrySink*)This;
 
     oc_point point;
@@ -243,7 +243,7 @@ IOCSimplifiedGeometrySink_AddLines(ID2D1SimplifiedGeometrySink *This, const D2D1
 }
 
 static void STDMETHODCALLTYPE
-IOCSimplifiedGeometrySink_BeginFigure(ID2D1SimplifiedGeometrySink *This, D2D1_POINT_2F startPoint, D2D1_FIGURE_BEGIN figureBegin) {
+IOCSimplifiedGeometrySink_BeginFigure(ID2D1SimplifiedGeometrySink* This, D2D1_POINT_2F startPoint, D2D1_FIGURE_BEGIN figureBegin) {
     (void)figureBegin;
     IOCSimplifiedGeometrySink* this = (IOCSimplifiedGeometrySink*)This;
 
@@ -252,14 +252,13 @@ IOCSimplifiedGeometrySink_BeginFigure(ID2D1SimplifiedGeometrySink *This, D2D1_PO
 }
 
 static void STDMETHODCALLTYPE
-IOCSimplifiedGeometrySink_SetSegmentFlags(ID2D1SimplifiedGeometrySink *This, D2D1_PATH_SEGMENT vertexFlags) {
+IOCSimplifiedGeometrySink_SetSegmentFlags(ID2D1SimplifiedGeometrySink* This, D2D1_PATH_SEGMENT vertexFlags) {
     (void)This;
     (void)vertexFlags;
 }
 
-
 static void STDMETHODCALLTYPE
-IOCSimplifiedGeometrySink_SetFillMode(ID2D1SimplifiedGeometrySink *This, D2D1_FILL_MODE fillMode) {
+IOCSimplifiedGeometrySink_SetFillMode(ID2D1SimplifiedGeometrySink* This, D2D1_FILL_MODE fillMode) {
     (void)This;
     (void)fillMode;
 };
@@ -292,11 +291,10 @@ IOCSimplifiedGeometrySink_QueryInterface(IUnknown* This, REFIID riid, void** ppv
     return E_NOINTERFACE;
 }
 
-
 static const ID2D1SimplifiedGeometrySinkVtbl IOCSimplifiedGeometrySinkVtbl = {
     { IOCSimplifiedGeometrySink_QueryInterface,
-    IOCSimplifiedGeometrySink_AddRef,
-    IOCSimplifiedGeometrySink_Release },
+        IOCSimplifiedGeometrySink_AddRef,
+        IOCSimplifiedGeometrySink_Release },
     IOCSimplifiedGeometrySink_SetFillMode,
     IOCSimplifiedGeometrySink_SetSegmentFlags,
     IOCSimplifiedGeometrySink_BeginFigure,
@@ -573,7 +571,6 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
     return true;
 }
 
-
 void oc_get_outline(oc_face face, uint16_t glyph_index, oc_outline_funcs outline_funcs, void* context) {
     IOCSimplifiedGeometrySink ioc_simplified_geometry_sink;
     ioc_simplified_geometry_sink.lpVtbl = &IOCSimplifiedGeometrySinkVtbl;
@@ -597,7 +594,6 @@ void oc_get_outline(oc_face face, uint16_t glyph_index, oc_outline_funcs outline
         FALSE,
         FALSE,
         geometry_sink);
-
 
     if (err != S_OK) {
         printf("GetGlyphRunOutline failed: %ld\n", err);

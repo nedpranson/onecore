@@ -214,35 +214,35 @@ static void oc_path_applier(void* info, const CGPathElement* element) {
     outline_context* ctx = (outline_context*)info;
     CGFloat fsize = ctx->fsize;
     CGFloat funits_per_em = ctx->funits_per_em;
-switch (element->type) {
-        case kCGPathElementMoveToPoint:
-            printf("move_to: %f %f\n",
-                   element->points[0].x * funits_per_em / fsize,
-                   element->points[0].y * funits_per_em / fsize);
-            break;
+    switch (element->type) {
+    case kCGPathElementMoveToPoint:
+        printf("move_to: %f %f\n",
+            element->points[0].x * funits_per_em / fsize,
+            element->points[0].y * funits_per_em / fsize);
+        break;
 
-        case kCGPathElementAddLineToPoint:
-            printf("line_to: %f %f\n",
-                   element->points[0].x * funits_per_em / fsize,
-                   element->points[0].y * funits_per_em / fsize);
-            break;
+    case kCGPathElementAddLineToPoint:
+        printf("line_to: %f %f\n",
+            element->points[0].x * funits_per_em / fsize,
+            element->points[0].y * funits_per_em / fsize);
+        break;
 
-        case kCGPathElementAddQuadCurveToPoint:
-            printf("quad_to: c(%f %f) to(%f %f)\n",
-                   element->points[0].x * funits_per_em / fsize, element->points[0].y * funits_per_em / fsize,
-                   element->points[1].x * funits_per_em / fsize, element->points[1].y * funits_per_em / fsize);
-            break;
+    case kCGPathElementAddQuadCurveToPoint:
+        printf("quad_to: c(%f %f) to(%f %f)\n",
+            element->points[0].x * funits_per_em / fsize, element->points[0].y * funits_per_em / fsize,
+            element->points[1].x * funits_per_em / fsize, element->points[1].y * funits_per_em / fsize);
+        break;
 
-        case kCGPathElementAddCurveToPoint:
-            printf("cubic_to: c1(%f %f) c2(%f %f) to(%f %f)\n",
-                   element->points[0].x * funits_per_em / fsize, element->points[0].y * funits_per_em / fsize,
-                   element->points[1].x * funits_per_em / fsize, element->points[1].y * funits_per_em / fsize,
-                   element->points[2].x * funits_per_em / fsize, element->points[2].y * funits_per_em / fsize);
-            break;
+    case kCGPathElementAddCurveToPoint:
+        printf("cubic_to: c1(%f %f) c2(%f %f) to(%f %f)\n",
+            element->points[0].x * funits_per_em / fsize, element->points[0].y * funits_per_em / fsize,
+            element->points[1].x * funits_per_em / fsize, element->points[1].y * funits_per_em / fsize,
+            element->points[2].x * funits_per_em / fsize, element->points[2].y * funits_per_em / fsize);
+        break;
 
-        case kCGPathElementCloseSubpath:
-            printf("close\n");
-            break;
+    case kCGPathElementCloseSubpath:
+        printf("close\n");
+        break;
     }
 }
 

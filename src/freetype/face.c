@@ -74,6 +74,7 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
     }
 
     // if other abis allow we can add offset option
+    table.size = 0;
     err = FT_Load_Sfnt_Table(face.ft_face, tag, 0, NULL, &table.size);
     switch (err) {
     case FT_Err_Ok:
@@ -141,79 +142,74 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
 }
 
 typedef struct outline_context {
-    oc_outline_funcs funcs;
-    FT_Vector origin;
+    oc_outline_funcs* funcs;
     void* ctx;
+
+    FT_Vector x2origin;
 } outline_context;
 
 static int move_to(const FT_Vector* to, void* user) {
     outline_context* ctx = (outline_context*)user;
-    oc_point point = { to->x, to->y };
+    oc_point point = { to->x >> 1, to->y >> 1 };
 
-    ctx->funcs.move_to(point, ctx->ctx);
-    ctx->origin = *to;
+    ctx->funcs->move_to(point, ctx->ctx);
+    ctx->x2origin = *to;
 
     return 0;
 }
 
-static int line_to(const FT_Vector* to, void* user) {
+static int line_to(const FT_Vector* x2to, void* user) {
     outline_context* ctx = (outline_context*)user;
-    oc_point point = { to->x, to->y };
+    oc_point point = { x2to->x >> 1, x2to->y >> 1 };
 
-    ctx->funcs.line_to(point, ctx->ctx);
-    ctx->origin = *to;
+    ctx->funcs->line_to(point, ctx->ctx);
+    ctx->x2origin = *x2to;
 
     return 0;
 }
 
-typedef struct oc_points_2f {
+typedef struct point_2f {
     float x;
     float y;
-} oc_points_2f ;
+} point_2f;
 
-static int conic_to(
-    const FT_Vector* control,
-    const FT_Vector* to,
-    void* user) {
+static int conic_to(const FT_Vector* x2control, const FT_Vector* x2to, void* user) {
     outline_context* ctx = (outline_context*)user;
 
-    FT_Vector cubic[2];
-    // todo: look at that +1
-    cubic[0].x = (2 * control->x + 1) / 3;
-    cubic[0].y = (2 * control->y + 1) / 3;
-    cubic[1] = cubic[0];
-    cubic[0].x += (ctx->origin.x + 1) / 3;
-    cubic[0].y += (ctx->origin.y + 1) / 3;
-    cubic[1].x += (to->x + 1) / 3;
-    cubic[1].y += (to->y + 1) / 3;
+    point_2f forigin = { (float)ctx->x2origin.x * 0.5f, (float)ctx->x2origin.y * 0.5f };
+    point_2f fto = { (float)x2to->x * 0.5f, (float)x2to->y * 0.5f };
+
+    // comes extremely closes to dwrites internal implemintation
+    // but is not 100% perfect
+    point_2f cubic[2];
+    cubic[0].x = forigin.x + (float)(x2control->x - ctx->x2origin.x) / 3.0f;
+    cubic[0].y = forigin.y + (float)(x2control->y - ctx->x2origin.y) / 3.0f;
+    cubic[1].x = fto.x + (float)(x2control->x - x2to->x) / 3.0f;
+    cubic[1].y = fto.y + (float)(x2control->y - x2to->y) / 3.0f;
 
     oc_point points[3] = {
         { cubic[0].x, cubic[0].y },
         { cubic[1].x, cubic[1].y },
-        { to->x, to->y }
+        { x2to->x >> 1, x2to->y >> 1 }
     };
 
-    ctx->funcs.cubic_to(points[0], points[1], points[2], ctx->ctx);
-    ctx->origin = *to;
+    ctx->funcs->cubic_to(points[0], points[1], points[2], ctx->ctx);
+    ctx->x2origin = *x2to;
 
     return 0;
 }
 
-static int cubic_to(
-    const FT_Vector* c1,
-    const FT_Vector* c2,
-    const FT_Vector* to,
-    void* user) {
+static int cubic_to(const FT_Vector* x2c1, const FT_Vector* x2c2, const FT_Vector* x2to, void* user) {
     outline_context* ctx = (outline_context*)user;
 
     oc_point points[3] = {
-        { c1->x, c1->y },
-        { c2->x, c2->y },
-        { to->x, to->y }
+        { x2c1->x >> 1, x2c1->y >> 1 },
+        { x2c2->x >> 1, x2c2->y >> 1 },
+        { x2to->x >> 1, x2to->y >> 1 }
     };
 
-    ctx->funcs.cubic_to(points[0], points[1], points[2], ctx->ctx);
-    ctx->origin = *to;
+    ctx->funcs->cubic_to(points[0], points[1], points[2], ctx->ctx);
+    ctx->x2origin = *x2to;
 
     return 0;
 }
@@ -232,15 +228,17 @@ void oc_get_outline(oc_face face, uint16_t glyph_index, oc_outline_funcs outline
     // end: not thread safe here!!!!
 
     outline_context ctx = { 0 };
-    ctx.funcs = outline_funcs;
+    ctx.funcs = &outline_funcs;
     ctx.ctx = context;
 
+    // shift is set to one as we want all point to be multiplied by 2
+    // to restore conic 'to' position to its original floating point value
     FT_Outline_Funcs funcs;
     funcs.move_to = move_to;
     funcs.line_to = line_to;
     funcs.conic_to = conic_to;
     funcs.cubic_to = cubic_to;
-    funcs.shift = 0;
+    funcs.shift = 1;
     funcs.delta = 0;
 
     err = FT_Outline_Decompose(&glyph_outline, &funcs, &ctx);
