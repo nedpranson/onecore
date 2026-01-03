@@ -267,9 +267,15 @@ void test_oc_get_glyph_metrics(void) {
 }
 
 static void
-move_to(oc_point to, void* context) {
+start_at(oc_point at, void* context) {
     (void)context;
-    printf("move_to: %d %d\n", to.x, to.y);
+    printf("start_at: %d %d\n", at.x, at.y);
+}
+
+static void
+end_at(oc_point at, void* context) {
+    (void)context;
+    printf("end_at: %d %d\n", at.x, at.y);
 }
 
 static void
@@ -286,15 +292,26 @@ cubic_to(oc_point c1, oc_point c2, oc_point to, void* context) {
 }
 
 void test_oc_get_outline(void) {
-    uint16_t idx = oc_get_char_index(g_arial_ttf, 'G');
-    TEST_ASSERT_EQUAL_INT16(42, idx);
+    static const oc_outline_funcs funcs = {
+        start_at,
+        end_at,
+        line_to,
+        cubic_to
+    };
 
-    oc_outline_funcs funcs;
-    funcs.move_to = move_to;
-    funcs.line_to = line_to;
-    funcs.cubic_to = cubic_to;
+    uint16_t idx;
 
-    oc_get_outline(g_arial_ttf, idx, funcs, NULL);
+    //idx = oc_get_char_index(g_arial_ttf, 'G');
+    //TEST_ASSERT_EQUAL_INT16(42, idx);
+    //oc_get_outline(g_arial_ttf, idx, &funcs, NULL);
+
+    //idx = oc_get_char_index(g_arial_ttf, 'i');
+    //TEST_ASSERT_EQUAL_INT16(76, idx);
+    //oc_get_outline(g_arial_ttf, idx, &funcs, NULL);
+
+    idx = oc_get_char_index(g_arial_ttf, 'S');
+    TEST_ASSERT_EQUAL_INT16(54, idx);
+    oc_get_outline(g_arial_ttf, idx, &funcs, NULL);
 }
 
 int main(void) {

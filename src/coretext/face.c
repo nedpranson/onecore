@@ -209,7 +209,7 @@ typedef struct point_2f {
 } point_2f;
 
 typedef struct outline_context {
-    oc_outline_funcs* funcs;
+    const oc_outline_funcs* funcs;
     void* ctx;
     CGPoint origin;
     CGFloat fsize;
@@ -228,7 +228,7 @@ static void oc_path_applier(void* info, const CGPathElement* element) {
             element->points[0].y * funits_per_em / fsize
         };
 
-        ctx->funcs->move_to(point, ctx->ctx);
+        ctx->funcs->start_at(point, ctx->ctx);
         ctx->origin = element->points[0];
     }; break;
     case kCGPathElementAddLineToPoint: {
@@ -271,12 +271,12 @@ static void oc_path_applier(void* info, const CGPathElement* element) {
         ctx->origin = element->points[2];
     } break;
     case kCGPathElementCloseSubpath:
-        // printf("close\n");
+        printf("close\n");
         break;
     }
 }
 
-void oc_get_outline(oc_face face, uint16_t glyph_index, oc_outline_funcs outline_funcs, void* context) {
+void oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context) {
     CGPathRef path = CTFontCreatePathForGlyph(face.ct_font_ref, glyph_index, NULL);
     if (path == NULL) {
         printf("CTFontCreatePathForGlyph failed\n");
@@ -284,7 +284,7 @@ void oc_get_outline(oc_face face, uint16_t glyph_index, oc_outline_funcs outline
     }
 
     outline_context ctx = { 0 };
-    ctx.funcs = &outline_funcs;
+    ctx.funcs = outline_funcs;
     ctx.ctx = context;
     ctx.fsize = CTFontGetSize(face.ct_font_ref);
     ctx.funits_per_em = CTFontGetUnitsPerEm(face.ct_font_ref);

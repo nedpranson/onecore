@@ -142,7 +142,7 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
 }
 
 typedef struct outline_context {
-    oc_outline_funcs* funcs;
+    const oc_outline_funcs* funcs;
     void* ctx;
 
     FT_Vector x2origin;
@@ -152,7 +152,7 @@ static int move_to(const FT_Vector* to, void* user) {
     outline_context* ctx = (outline_context*)user;
     oc_point point = { to->x >> 1, to->y >> 1 };
 
-    ctx->funcs->move_to(point, ctx->ctx);
+    ctx->funcs->start_at(point, ctx->ctx);
     ctx->x2origin = *to;
 
     return 0;
@@ -161,6 +161,10 @@ static int move_to(const FT_Vector* to, void* user) {
 static int line_to(const FT_Vector* x2to, void* user) {
     outline_context* ctx = (outline_context*)user;
     oc_point point = { x2to->x >> 1, x2to->y >> 1 };
+
+    // need to cancel line to somehow
+
+    printf("curr: (%ld %ld)\n", ctx->x2origin.x >> 1, ctx->x2origin.y >> 1);
 
     ctx->funcs->line_to(point, ctx->ctx);
     ctx->x2origin = *x2to;
@@ -214,11 +218,12 @@ static int cubic_to(const FT_Vector* x2c1, const FT_Vector* x2c2, const FT_Vecto
     return 0;
 }
 
-void oc_get_outline(oc_face face, uint16_t glyph_index, oc_outline_funcs outline_funcs, void* context) {
+void oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context) {
     FT_Error err;
     // start: not thread safe here!!!!
     err = FT_Load_Glyph(face.ft_face, glyph_index, FT_LOAD_NO_SCALE | FT_LOAD_NO_BITMAP);
     if (err != FT_Err_Ok) {
+        printf("FT_Load_Glyph failed: %d\n", err);
         return;
     }
 
@@ -228,20 +233,21 @@ void oc_get_outline(oc_face face, uint16_t glyph_index, oc_outline_funcs outline
     // end: not thread safe here!!!!
 
     outline_context ctx = { 0 };
-    ctx.funcs = &outline_funcs;
+    ctx.funcs = outline_funcs;
     ctx.ctx = context;
 
     // shift is set to one as we want all point to be multiplied by 2
     // to restore conic 'to' position to its original floating point value
-    FT_Outline_Funcs funcs;
-    funcs.move_to = move_to;
-    funcs.line_to = line_to;
-    funcs.conic_to = conic_to;
-    funcs.cubic_to = cubic_to;
-    funcs.shift = 1;
-    funcs.delta = 0;
+    static const FT_Outline_Funcs decompose_funcs = {
+        move_to,
+        line_to,
+        conic_to,
+        cubic_to,
+        1,
+        0,
+    };
 
-    err = FT_Outline_Decompose(&glyph_outline, &funcs, &ctx);
+    err = FT_Outline_Decompose(&glyph_outline, &decompose_funcs, &ctx);
     if (err != FT_Err_Ok) {
         printf("FT_Outline_Decompose failed: %d\n", err);
     }

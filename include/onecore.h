@@ -45,14 +45,14 @@ typedef enum {
 typedef uint32_t oc_tag;
 
 // todo: make it not __habdle but context and inside oc_free_face just pass it's ctx
-typedef struct oc_table_s {
+typedef struct oc_table {
     const void* data;
     size_t size;
 
     void* __handle;
 } oc_table;
 
-typedef struct oc_metrics_s {
+typedef struct oc_metrics {
     uint16_t units_per_em;
     uint16_t ascent;
     uint16_t descent;
@@ -61,7 +61,7 @@ typedef struct oc_metrics_s {
     uint16_t underline_thickness;
 } oc_metrics;
 
-typedef struct oc_glyph_metrics_s {
+typedef struct oc_glyph_metrics {
     uint32_t width;
     uint32_t height;
     int32_t bearing_x;
@@ -69,20 +69,21 @@ typedef struct oc_glyph_metrics_s {
     uint32_t advance;
 } oc_glyph_metrics;
 
-typedef struct oc_point_s {
+typedef struct oc_point {
     int32_t x;
     int32_t y;
 } oc_point;
 
-typedef void (*oc_outline_move_to)(oc_point to, void* context);
+typedef void (*oc_outline_start_at)(oc_point at, void* context);
+typedef void (*oc_outline_end_at)(oc_point at, void* context);
 typedef void (*oc_outline_line_to)(oc_point to, void* context);
 typedef void (*oc_outline_cubic_to)(oc_point c1, oc_point c2, oc_point to, void* context);
 
-typedef struct oc_outline_funcs_s {
-    oc_outline_move_to move_to;
+typedef struct oc_outline_funcs {
+    oc_outline_start_at start_at;
+    oc_outline_end_at end_at;
     oc_outline_line_to line_to;
     oc_outline_cubic_to cubic_to;
-    // todo: add oc_outline_close;
 } oc_outline_funcs;
 
 #define OC_MAKE_TAG(x1, x2, x3, x4) \
@@ -125,8 +126,10 @@ oc_get_metrics(oc_face face, oc_metrics* pmetrics);
 OC_EXPORT bool
 oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics);
 
+// make outline_funcs inner funcs nullable, we should not care
+// return bool ok
 OC_EXPORT void
-oc_get_outline(oc_face face, uint16_t glyph_index, oc_outline_funcs outline_funcs, void* context);
+oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context);
 
 // oc_render_glyph???
 
