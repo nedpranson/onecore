@@ -126,9 +126,7 @@ oc_get_metrics(oc_face face, oc_metrics* pmetrics);
 OC_EXPORT bool
 oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics);
 
-// make outline_funcs inner funcs nullable, we should not care
-// return bool ok
-OC_EXPORT void
+OC_EXPORT bool
 oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context);
 
 // oc_render_glyph???

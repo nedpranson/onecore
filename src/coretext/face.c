@@ -283,11 +283,14 @@ static void oc_path_applier(void* info, const CGPathElement* element) {
     }
 }
 
-void oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context) {
+bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context) {
+    if (outline_funcs == NULL) {
+        return false;
+    }
+
     CGPathRef path = CTFontCreatePathForGlyph(face.ct_font_ref, glyph_index, NULL);
     if (path == NULL) {
-        printf("CTFontCreatePathForGlyph failed\n");
-        return;
+        return false;
     }
 
     outline_context ctx = { 0 };
@@ -298,6 +301,8 @@ void oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
 
     CGPathApply(path, &ctx, oc_path_applier);
     CGPathRelease(path);
+
+    return true;
 }
 
 #endif // ONECORE_CORETEXT

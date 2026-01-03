@@ -298,16 +298,24 @@ void test_oc_get_outline(void) {
         line_to,
         cubic_to
     };
+    (void)funcs;
 
     uint16_t idx;
+    bool ok;
+
+    idx = oc_get_char_index(g_arial_ttf, 'i');
+    TEST_ASSERT_EQUAL_INT16(76, idx);
+
+    ok = oc_get_outline(g_arial_ttf, idx, NULL, NULL);
+    TEST_ASSERT_EQUAL(ok, false);
+
+    ok = oc_get_outline(g_arial_ttf, 4444, NULL, NULL);
+    TEST_ASSERT_EQUAL(ok, false);
 
     //idx = oc_get_char_index(g_arial_ttf, 'G');
     //TEST_ASSERT_EQUAL_INT16(42, idx);
     //oc_get_outline(g_arial_ttf, idx, &funcs, NULL);
 
-    idx = oc_get_char_index(g_arial_ttf, 'i');
-    TEST_ASSERT_EQUAL_INT16(76, idx);
-    oc_get_outline(g_arial_ttf, idx, &funcs, NULL);
 
     //idx = oc_get_char_index(g_arial_ttf, 'S');
     //TEST_ASSERT_EQUAL_INT16(54, idx);

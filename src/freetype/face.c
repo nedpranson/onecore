@@ -224,13 +224,16 @@ static int cubic_to(const FT_Vector* x2c1, const FT_Vector* x2c2, const FT_Vecto
     return 0;
 }
 
-void oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context) {
+bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context) {
     FT_Error err;
+    if (outline_funcs == NULL) {
+        return false;
+    }
+
     // start: not thread safe here!!!!
     err = FT_Load_Glyph(face.ft_face, glyph_index, FT_LOAD_NO_SCALE | FT_LOAD_NO_BITMAP);
     if (err != FT_Err_Ok) {
-        printf("FT_Load_Glyph failed: %d\n", err);
-        return;
+        return false;
     }
 
     FT_GlyphSlot slot = face.ft_face->glyph;
@@ -255,13 +258,14 @@ void oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
 
     err = FT_Outline_Decompose(&glyph_outline, &decompose_funcs, &ctx);
     if (err != FT_Err_Ok) {
-        printf("FT_Outline_Decompose failed: %d\n", err);
-        return;
+        return false;
     }
 
     if (ctx.figure_started) {
         ctx.funcs->end_figure(ctx.ctx);
     }
+
+    return true;
 }
 
 #endif // ONECORE_FREETYPE

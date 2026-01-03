@@ -587,7 +587,11 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
     return true;
 }
 
-void oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context) {
+bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context) {
+    if (outline_funcs == NULL) {
+        return false;
+    }
+
     IOCSimplifiedGeometrySink ioc_simplified_geometry_sink = { 0 };
     ioc_simplified_geometry_sink.lpVtbl = &IOCSimplifiedGeometrySinkVtbl;
     ioc_simplified_geometry_sink.funcs = outline_funcs;
@@ -612,13 +616,15 @@ void oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
         geometry_sink);
 
     if (err != S_OK) {
-        printf("GetGlyphRunOutline failed: %ld\n", err);
+        return false;
     }
 
     ULONG refs = geometry_sink->lpVtbl->Base.Release((IUnknown*)geometry_sink);
 
     (void)refs;
     assert(refs == 0);
+
+    return true;
 }
 
 #endif // ONECORE_DWRITE
