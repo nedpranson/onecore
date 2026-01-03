@@ -212,7 +212,7 @@ IOCSimplifiedGeometrySink_EndFigure(ID2D1SimplifiedGeometrySink* This, D2D1_FIGU
     IOCSimplifiedGeometrySink* this = (IOCSimplifiedGeometrySink*)This;
 
     if (this->origin.x != this->start.x || this->origin.y != this->start.y) {
-        oc_point point = { this->start.x, this->start.y };
+        oc_point point = { this->start.x, -this->start.y };
         this->funcs->line_to(point, this->ctx);
     }
 
@@ -264,6 +264,7 @@ IOCSimplifiedGeometrySink_BeginFigure(ID2D1SimplifiedGeometrySink* This, D2D1_PO
     oc_point point = { startPoint.x, -startPoint.y };
     this->funcs->start_figure(point, this->ctx);
     this->start = startPoint;
+    this->origin = startPoint;
 }
 
 static void STDMETHODCALLTYPE

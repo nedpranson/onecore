@@ -211,6 +211,7 @@ typedef struct point_2f {
 typedef struct outline_context {
     const oc_outline_funcs* funcs;
     void* ctx;
+    CGPoint start;
     CGPoint origin;
     CGFloat fsize;
     CGFloat funits_per_em;
@@ -229,6 +230,7 @@ static void oc_path_applier(void* info, const CGPathElement* element) {
         };
 
         ctx->funcs->start_figure(point, ctx->ctx);
+        ctx->start = element->points[0];
         ctx->origin = element->points[0];
     }; break;
     case kCGPathElementAddLineToPoint: {
@@ -271,6 +273,11 @@ static void oc_path_applier(void* info, const CGPathElement* element) {
         ctx->origin = element->points[2];
     } break;
     case kCGPathElementCloseSubpath:
+        if (ctx->origin.x != ctx->start.x || ctx->origin.y != ctx->start.y) {
+            oc_point point = { ctx->start.x * funits_per_em / fsize, ctx->start.y * funits_per_em / fsize };
+            ctx->funcs->line_to(point, ctx->ctx);
+        }
+
         ctx->funcs->end_figure(ctx->ctx);
         break;
     }
