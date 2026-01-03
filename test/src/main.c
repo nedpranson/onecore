@@ -273,7 +273,7 @@ start_figure(oc_point at, void* context) {
 }
 
 static void
-end_figure( void* context) {
+end_figure(void* context) {
     (void)context;
     printf("end_figure\n");
 }

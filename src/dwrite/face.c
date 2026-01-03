@@ -23,6 +23,8 @@ typedef struct IOCFontFileLoader {
 typedef struct IOCSimplifiedGeometrySink {
     const ID2D1SimplifiedGeometrySinkVtbl* lpVtbl;
     const oc_outline_funcs* funcs;
+    D2D1_POINT_2F start;
+    D2D1_POINT_2F origin;
     void* ctx;
     LONG ref_count;
 } IOCSimplifiedGeometrySink;
@@ -209,6 +211,11 @@ IOCSimplifiedGeometrySink_EndFigure(ID2D1SimplifiedGeometrySink* This, D2D1_FIGU
     (void)figureEnd;
     IOCSimplifiedGeometrySink* this = (IOCSimplifiedGeometrySink*)This;
 
+    if (this->origin.x != this->start.x || this->origin.y != this->start.y) {
+        oc_point point = { this->start.x, this->start.y };
+        this->funcs->line_to(point, this->ctx);
+    }
+
     this->funcs->end_figure(this->ctx);
 }
 
@@ -229,6 +236,9 @@ IOCSimplifiedGeometrySink_AddBeziers(ID2D1SimplifiedGeometrySink* This, const D2
 
         this->funcs->cubic_to(points[0], points[1], points[2], this->ctx);
     }
+
+    assert(beziersCount > 0);
+    this->origin = beziers[beziersCount - 1].point3;
 }
 
 static void STDMETHODCALLTYPE
@@ -241,6 +251,9 @@ IOCSimplifiedGeometrySink_AddLines(ID2D1SimplifiedGeometrySink* This, const D2D1
         point.y = -points[i].y;
         this->funcs->line_to(point, this->ctx);
     }
+
+    assert(pointsCount > 0);
+    this->origin = points[pointsCount - 1];
 }
 
 static void STDMETHODCALLTYPE
@@ -250,6 +263,7 @@ IOCSimplifiedGeometrySink_BeginFigure(ID2D1SimplifiedGeometrySink* This, D2D1_PO
 
     oc_point point = { startPoint.x, -startPoint.y };
     this->funcs->start_figure(point, this->ctx);
+    this->start = startPoint;
 }
 
 static void STDMETHODCALLTYPE
@@ -573,7 +587,7 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
 }
 
 void oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context) {
-    IOCSimplifiedGeometrySink ioc_simplified_geometry_sink;
+    IOCSimplifiedGeometrySink ioc_simplified_geometry_sink = { 0 };
     ioc_simplified_geometry_sink.lpVtbl = &IOCSimplifiedGeometrySinkVtbl;
     ioc_simplified_geometry_sink.funcs = outline_funcs;
     ioc_simplified_geometry_sink.ref_count = 1;

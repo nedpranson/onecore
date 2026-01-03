@@ -146,14 +146,20 @@ typedef struct outline_context {
     void* ctx;
 
     FT_Vector x2origin;
+    bool figure_started;
 } outline_context;
 
 static int move_to(const FT_Vector* to, void* user) {
     outline_context* ctx = (outline_context*)user;
     oc_point point = { to->x >> 1, to->y >> 1 };
 
+    if (ctx->figure_started) {
+        ctx->funcs->end_figure(ctx->ctx);
+    }
+
     ctx->funcs->start_figure(point, ctx->ctx);
     ctx->x2origin = *to;
+    ctx->figure_started = true;
 
     return 0;
 }
@@ -250,6 +256,11 @@ void oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
     err = FT_Outline_Decompose(&glyph_outline, &decompose_funcs, &ctx);
     if (err != FT_Err_Ok) {
         printf("FT_Outline_Decompose failed: %d\n", err);
+        return;
+    }
+
+    if (ctx.figure_started) {
+        ctx.funcs->end_figure(ctx.ctx);
     }
 }
 
