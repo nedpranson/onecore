@@ -152,7 +152,7 @@ static int move_to(const FT_Vector* to, void* user) {
     outline_context* ctx = (outline_context*)user;
     oc_point point = { to->x >> 1, to->y >> 1 };
 
-    ctx->funcs->start_at(point, ctx->ctx);
+    ctx->funcs->start_figure(point, ctx->ctx);
     ctx->x2origin = *to;
 
     return 0;
@@ -164,7 +164,7 @@ static int line_to(const FT_Vector* x2to, void* user) {
 
     // need to cancel line to somehow
 
-    printf("curr: (%ld %ld)\n", ctx->x2origin.x >> 1, ctx->x2origin.y >> 1);
+    //printf("curr: (%ld %ld)\n", ctx->x2origin.x >> 1, ctx->x2origin.y >> 1);
 
     ctx->funcs->line_to(point, ctx->ctx);
     ctx->x2origin = *x2to;

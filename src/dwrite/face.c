@@ -206,9 +206,10 @@ IOCSimplifiedGeometrySink_Close(ID2D1SimplifiedGeometrySink* This) {
 
 static void STDMETHODCALLTYPE
 IOCSimplifiedGeometrySink_EndFigure(ID2D1SimplifiedGeometrySink* This, D2D1_FIGURE_END figureEnd) {
-    // todo: impl close
-    (void)This;
     (void)figureEnd;
+    IOCSimplifiedGeometrySink* this = (IOCSimplifiedGeometrySink*)This;
+
+    this->funcs->end_figure(this->ctx);
 }
 
 static void STDMETHODCALLTYPE
@@ -248,7 +249,7 @@ IOCSimplifiedGeometrySink_BeginFigure(ID2D1SimplifiedGeometrySink* This, D2D1_PO
     IOCSimplifiedGeometrySink* this = (IOCSimplifiedGeometrySink*)This;
 
     oc_point point = { startPoint.x, -startPoint.y };
-    this->funcs->move_to(point, this->ctx);
+    this->funcs->start_figure(point, this->ctx);
 }
 
 static void STDMETHODCALLTYPE
@@ -571,10 +572,10 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
     return true;
 }
 
-void oc_get_outline(oc_face face, uint16_t glyph_index, oc_outline_funcs outline_funcs, void* context) {
+void oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context) {
     IOCSimplifiedGeometrySink ioc_simplified_geometry_sink;
     ioc_simplified_geometry_sink.lpVtbl = &IOCSimplifiedGeometrySinkVtbl;
-    ioc_simplified_geometry_sink.funcs = &outline_funcs;
+    ioc_simplified_geometry_sink.funcs = outline_funcs;
     ioc_simplified_geometry_sink.ref_count = 1;
     ioc_simplified_geometry_sink.ctx = context;
 

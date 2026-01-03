@@ -74,14 +74,14 @@ typedef struct oc_point {
     int32_t y;
 } oc_point;
 
-typedef void (*oc_outline_start_at)(oc_point at, void* context);
-typedef void (*oc_outline_end_at)(oc_point at, void* context);
+typedef void (*oc_outline_start_figure)(oc_point at, void* context);
+typedef void (*oc_outline_end_figure)(void* context);
 typedef void (*oc_outline_line_to)(oc_point to, void* context);
 typedef void (*oc_outline_cubic_to)(oc_point c1, oc_point c2, oc_point to, void* context);
 
 typedef struct oc_outline_funcs {
-    oc_outline_start_at start_at;
-    oc_outline_end_at end_at;
+    oc_outline_start_figure start_figure;
+    oc_outline_end_figure end_figure;
     oc_outline_line_to line_to;
     oc_outline_cubic_to cubic_to;
 } oc_outline_funcs;

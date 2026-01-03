@@ -228,7 +228,7 @@ static void oc_path_applier(void* info, const CGPathElement* element) {
             element->points[0].y * funits_per_em / fsize
         };
 
-        ctx->funcs->start_at(point, ctx->ctx);
+        ctx->funcs->start_figure(point, ctx->ctx);
         ctx->origin = element->points[0];
     }; break;
     case kCGPathElementAddLineToPoint: {
@@ -271,7 +271,7 @@ static void oc_path_applier(void* info, const CGPathElement* element) {
         ctx->origin = element->points[2];
     } break;
     case kCGPathElementCloseSubpath:
-        printf("close\n");
+        ctx->funcs->end_figure(ctx->ctx);
         break;
     }
 }
