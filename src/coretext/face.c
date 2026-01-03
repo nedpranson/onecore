@@ -203,9 +203,15 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
     return true;
 }
 
-typedef struct outline_context_s {
+typedef struct point_2f {
+    float x;
+    float y;
+} point_2f;
+
+typedef struct outline_context {
     oc_outline_funcs* funcs;
     void* ctx;
+    CGPoint origin;
     CGFloat fsize;
     CGFloat funits_per_em;
 } outline_context;
@@ -214,48 +220,70 @@ static void oc_path_applier(void* info, const CGPathElement* element) {
     outline_context* ctx = (outline_context*)info;
     CGFloat fsize = ctx->fsize;
     CGFloat funits_per_em = ctx->funits_per_em;
+
     switch (element->type) {
-    case kCGPathElementMoveToPoint:
-        printf("move_to: %f %f\n",
+    case kCGPathElementMoveToPoint: {
+        oc_point point = {
             element->points[0].x * funits_per_em / fsize,
-            element->points[0].y * funits_per_em / fsize);
-        break;
+            element->points[0].y * funits_per_em / fsize
+        };
 
-    case kCGPathElementAddLineToPoint:
-        printf("line_to: %f %f\n",
+        ctx->funcs->move_to(point, ctx->ctx);
+        ctx->origin = element->points[0];
+    }; break;
+    case kCGPathElementAddLineToPoint: {
+        oc_point point = {
             element->points[0].x * funits_per_em / fsize,
-            element->points[0].y * funits_per_em / fsize);
-        break;
+            element->points[0].y * funits_per_em / fsize
+        };
 
-    case kCGPathElementAddQuadCurveToPoint:
-        printf("quad_to: c(%f %f) to(%f %f)\n",
-            element->points[0].x * funits_per_em / fsize, element->points[0].y * funits_per_em / fsize,
-            element->points[1].x * funits_per_em / fsize, element->points[1].y * funits_per_em / fsize);
-        break;
+        ctx->funcs->line_to(point, ctx->ctx);
+        ctx->origin = element->points[0];
+    } break;
+    case kCGPathElementAddQuadCurveToPoint: {
+        point_2f forigin = { ctx->origin.x * funits_per_em / fsize, ctx->origin.y * funits_per_em / fsize };
+        point_2f fcontrol = { element->points[0].x * funits_per_em / fsize, element->points[0].y * funits_per_em / fsize };
+        point_2f fto = { element->points[1].x * funits_per_em / fsize, element->points[1].y * funits_per_em / fsize };
 
-    case kCGPathElementAddCurveToPoint:
-        printf("cubic_to: c1(%f %f) c2(%f %f) to(%f %f)\n",
-            element->points[0].x * funits_per_em / fsize, element->points[0].y * funits_per_em / fsize,
-            element->points[1].x * funits_per_em / fsize, element->points[1].y * funits_per_em / fsize,
-            element->points[2].x * funits_per_em / fsize, element->points[2].y * funits_per_em / fsize);
-        break;
+        point_2f cubic[2];
+        cubic[0].x = forigin.x + 2.0f * (fcontrol.x - forigin.x) / 3.0f;
+        cubic[0].y = forigin.y + 2.0f * (fcontrol.y - forigin.y) / 3.0f;
+        cubic[1].x = fto.x + 2.0f * (fcontrol.x - fto.x) / 3.0f;
+        cubic[1].y = fto.y + 2.0f * (fcontrol.y - fto.y) / 3.0f;
 
+        oc_point points[3] = {
+            { cubic[0].x, cubic[0].y },
+            { cubic[1].x, cubic[1].y },
+            { fto.x, fto.y }
+        };
+
+        ctx->funcs->cubic_to(points[0], points[1], points[2], ctx->ctx);
+        ctx->origin = element->points[1];
+    }; break;
+    case kCGPathElementAddCurveToPoint: {
+        oc_point points[3] = {
+            { element->points[0].x * funits_per_em / fsize, element->points[0].y * funits_per_em / fsize },
+            { element->points[1].x * funits_per_em / fsize, element->points[1].y * funits_per_em / fsize },
+            { element->points[2].x * funits_per_em / fsize, element->points[2].y * funits_per_em / fsize },
+        };
+
+        ctx->funcs->cubic_to(points[0], points[1], points[2], ctx->ctx);
+        ctx->origin = element->points[2];
+    } break;
     case kCGPathElementCloseSubpath:
-        printf("close\n");
+        // printf("close\n");
         break;
     }
 }
 
 void oc_get_outline(oc_face face, uint16_t glyph_index, oc_outline_funcs outline_funcs, void* context) {
-    (void)outline_funcs;
-    (void)context;
     CGPathRef path = CTFontCreatePathForGlyph(face.ct_font_ref, glyph_index, NULL);
     if (path == NULL) {
         printf("CTFontCreatePathForGlyph failed\n");
         return;
     }
 
-    outline_context ctx;
+    outline_context ctx = { 0 };
     ctx.funcs = &outline_funcs;
     ctx.ctx = context;
     ctx.fsize = CTFontGetSize(face.ct_font_ref);
