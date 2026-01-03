@@ -170,7 +170,7 @@ static int line_to(const FT_Vector* x2to, void* user) {
 
     // need to cancel line to somehow
 
-    //printf("curr: (%ld %ld)\n", ctx->x2origin.x >> 1, ctx->x2origin.y >> 1);
+    // printf("curr: (%ld %ld)\n", ctx->x2origin.x >> 1, ctx->x2origin.y >> 1);
 
     ctx->funcs->line_to(point, ctx->ctx);
     ctx->x2origin = *x2to;

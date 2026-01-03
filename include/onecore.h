@@ -123,6 +123,7 @@ OC_EXPORT void
 oc_get_metrics(oc_face face, oc_metrics* pmetrics);
 
 // todo: add scaled variant
+// returning bools is hmm lazy
 OC_EXPORT bool
 oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics);
 
