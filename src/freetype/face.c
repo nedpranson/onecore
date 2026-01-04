@@ -181,6 +181,12 @@ bool oc_get_glyph_metrics_scaled(oc_face face, uint16_t glyph_index, oc_glyph_me
     FT_Glyph_Metrics glyph_metrics = slot->metrics;
     // end: not thread safe here!!!!
 
+    printf("w: %f\n", glyph_metrics.width / 64.0);
+    printf("h: %f\n", glyph_metrics.height / 64.0);
+    printf("bx: %f\n", glyph_metrics.horiBearingX / 64.0);
+    printf("by: %f\n", glyph_metrics.horiBearingY / 64.0);
+    printf("adv: %f\n", glyph_metrics.horiAdvance / 64.0);
+
     pglyph_metrics->width = glyph_metrics.width >> 6;
     pglyph_metrics->height = glyph_metrics.height >> 6;
     pglyph_metrics->bearing_x = glyph_metrics.horiBearingX >> 6;

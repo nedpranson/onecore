@@ -218,6 +218,8 @@ bool oc_get_glyph_metrics_scaled(oc_face face, uint16_t glyph_index, oc_glyph_me
 
     CGRect bbox = CTFontGetBoundingRectsForGlyphs(face.ct_font_ref, kCTFontOrientationHorizontal, &glyph_index, NULL, 1);
 
+    // coretext does not have hinting!!!!!!!!
+
     pglyph_metrics->width = bbox.size.width;
     pglyph_metrics->height = bbox.size.height;
     pglyph_metrics->bearing_x = bbox.origin.x;

@@ -15,7 +15,7 @@ extern "C" {
 #endif
 #endif
 
-#if !defined(ONECORE_DPI)
+#if !defined(ONECORE_DEFAULT_DPI)
 #if defined(__APPLE__) && defined(__MACH__)
 #define ONECORE_DEFAULT_DPI 72
 #else
