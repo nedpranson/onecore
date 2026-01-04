@@ -6,6 +6,10 @@
 #include <d2d1.h>
 #include <dwrite.h>
 
+#define DW(x) _Generic((x),                       \
+    oc_library: ((IDWriteFactory*)(x).internals), \
+    oc_face: ((IDWriteFontFace*)(x).internals))
+
 typedef struct memory_view_s {
     const void* data;
     size_t size;
@@ -92,11 +96,13 @@ static ULONG STDMETHODCALLTYPE
 IOCFontFileStream_Release(IDWriteFontFileStream* This) {
     IOCFontFileStream* this = (IOCFontFileStream*)This;
 
-    ULONG new_count = InterlockedDecrement(&this->ref_count);
-    if (new_count == 0) {
+    LONG refs = InterlockedDecrement(&this->ref_count);
+    if (refs == 0) {
         free(this);
     }
-    return new_count;
+
+    assert(refs != -1);
+    return refs;
 }
 
 static ULONG STDMETHODCALLTYPE
@@ -166,11 +172,13 @@ IOCFontFileLoader_CreateStreamFromKey(IDWriteFontFileLoader* This, const void* k
     return S_OK;
 }
 
-// todo: assert of ref_count not being -1
 static ULONG STDMETHODCALLTYPE
 IOCFontFileLoader_Release(IDWriteFontFileLoader* This) {
     IOCFontFileLoader* this = (IOCFontFileLoader*)This;
-    return InterlockedDecrement(&this->ref_count);
+
+    LONG refs = InterlockedDecrement(&this->ref_count);
+    assert(refs != -1);
+    return refs;
 }
 
 static ULONG STDMETHODCALLTYPE
@@ -284,7 +292,10 @@ IOCSimplifiedGeometrySink_SetFillMode(ID2D1SimplifiedGeometrySink* This, D2D1_FI
 static ULONG STDMETHODCALLTYPE
 IOCSimplifiedGeometrySink_Release(IUnknown* This) {
     IOCSimplifiedGeometrySink* this = (IOCSimplifiedGeometrySink*)This;
-    return InterlockedDecrement(&this->ref_count);
+
+    LONG refs = InterlockedDecrement(&this->ref_count);
+    assert(refs != -1);
+    return refs;
 }
 
 static ULONG STDMETHODCALLTYPE
@@ -322,32 +333,47 @@ static const ID2D1SimplifiedGeometrySinkVtbl IOCSimplifiedGeometrySinkVtbl = {
     IOCSimplifiedGeometrySink_Close,
 };
 
+IOCFontFileLoader ioc_font_file_loader = { &IOCFontFileLoaderVtbl, 0 };
+IDWriteFontFileLoader* font_file_loader = (IDWriteFontFileLoader*)&ioc_font_file_loader;
+
 oc_error oc_init_library(oc_library* plibrary) {
     if (plibrary == NULL) {
         return oc_error_invalid_param;
     }
 
-    HRESULT err = DWriteCreateFactory(
+    IDWriteFactory* dw_factory;
+    HRESULT err;
+
+    err = DWriteCreateFactory(
         DWRITE_FACTORY_TYPE_SHARED,
         &IID_IDWriteFactory,
-        (IUnknown**)&plibrary->handle);
+        (IUnknown**)&dw_factory);
 
     switch (err) {
     case S_OK:
-        return oc_error_ok;
+        break;
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
         return unexpected(err);
     }
+
+    err = dw_factory->lpVtbl->RegisterFontFileLoader(dw_factory, font_file_loader);
+    if (err != S_OK) {
+        dw_factory->lpVtbl->Release(dw_factory);
+        return unexpected(err);
+    }
+
+    plibrary->internals = dw_factory;
+    return oc_error_ok;
 }
 
-void oc_free_library(oc_library library) {
-    IDWriteFactory* dw_factory = (IDWriteFactory*)library.handle;
-    dw_factory->lpVtbl->Release(dw_factory);
+inline void oc_free_library(oc_library library) {
+    DW(library)->lpVtbl->UnregisterFontFileLoader(DW(library), font_file_loader);
+    DW(library)->lpVtbl->Release(DW(library));
 }
 
-static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* font_file, long face_index, oc_face* pface) {
+static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* font_file, uint32_t face_index, oc_face* pface) {
     HRESULT err;
     WINBOOL is_supported_fonttype;
 
@@ -376,12 +402,11 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
         return oc_error_failed_to_open;
     }
 
-    IDWriteFactory* dw_factory = (IDWriteFactory*)library.handle;
     IDWriteFontFace* dw_font_face;
 
     // todo: we should handle simulations
-    err = dw_factory->lpVtbl->CreateFontFace(
-        dw_factory,
+    err = DW(library)->lpVtbl->CreateFontFace(
+        DW(library),
         face_type,
         1,
         &font_file,
@@ -400,11 +425,11 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
         return unexpected(err);
     }
 
-    pface->handle = dw_font_face;
+    pface->internals = dw_font_face;
     return oc_error_ok;
 }
 
-oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_face* pface) {
+oc_error oc_open_face(oc_library library, const char* path, uint32_t face_index, oc_face* pface) {
     if (pface == NULL) {
         return oc_error_invalid_param;
     }
@@ -414,8 +439,6 @@ oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_
     }
 
     HRESULT err;
-    IDWriteFactory* dw_factory = (IDWriteFactory*)library.handle;
-
     int wlen = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0) - 1;
     if (wlen == -1) {
         return oc_error_failed_to_open;
@@ -436,8 +459,8 @@ oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_
     assert(ok != 0);
 
     IDWriteFontFile* font_file;
-    err = dw_factory->lpVtbl->CreateFontFileReference(
-        dw_factory,
+    err = DW(library)->lpVtbl->CreateFontFileReference(
+        DW(library),
         wpath,
         NULL,
         &font_file);
@@ -460,7 +483,7 @@ oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_
     return result;
 }
 
-oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, long face_index, oc_face* pface) {
+oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, uint32_t face_index, oc_face* pface) {
     if (pface == NULL) {
         return oc_error_invalid_param;
     }
@@ -470,35 +493,16 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
     }
 
     HRESULT err;
-    IDWriteFactory* dw_factory = (IDWriteFactory*)library.handle;
     IDWriteFontFile* font_file;
 
     memory_view key = { data, size };
 
-    // declared static to provide a single global instance
-    // IOCFontFileLoader is thread-safe, so shared access is safe
-    static IOCFontFileLoader ioc_font_file_loader = { &IOCFontFileLoaderVtbl, 0 };
-    IDWriteFontFileLoader* font_file_loader = (IDWriteFontFileLoader*)&ioc_font_file_loader;
-
-    // todo: move register code to init_library
-    err = dw_factory->lpVtbl->RegisterFontFileLoader(dw_factory, font_file_loader);
-    switch (err) {
-    case S_OK:
-        break;
-    case E_OUTOFMEMORY:
-        return oc_error_out_of_memory;
-    default:
-        return unexpected(err);
-    }
-
-    err = dw_factory->lpVtbl->CreateCustomFontFileReference(
-        dw_factory,
+    err = DW(library)->lpVtbl->CreateCustomFontFileReference(
+        DW(library),
         &key,
         sizeof(memory_view),
         font_file_loader,
         &font_file);
-
-    dw_factory->lpVtbl->UnregisterFontFileLoader(dw_factory, font_file_loader);
 
     switch (err) {
     case S_OK:
@@ -515,17 +519,15 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
     return result;
 }
 
-void oc_free_face(oc_face face) {
-    IDWriteFontFace* dw_font_face = (IDWriteFontFace*)face.handle;
-    dw_font_face->lpVtbl->Release(dw_font_face);
+inline void oc_free_face(oc_face face) {
+    DW(face)->lpVtbl->Release(DW(face));
 }
 
 uint16_t oc_get_char_index(oc_face face, uint32_t charcode) {
-    IDWriteFontFace* dw_font_face = (IDWriteFontFace*)face.handle;
     UINT16 index;
 
-    HRESULT err = dw_font_face->lpVtbl->GetGlyphIndices(
-        dw_font_face,
+    HRESULT err = DW(face)->lpVtbl->GetGlyphIndices(
+        DW(face),
         &charcode,
         1,
         &index);
@@ -547,9 +549,8 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
     void* context;
     WINBOOL exists;
 
-    IDWriteFontFace* dw_font_face = (IDWriteFontFace*)face.handle;
-    HRESULT err = dw_font_face->lpVtbl->TryGetFontTable(
-        dw_font_face,
+    HRESULT err = DW(face)->lpVtbl->TryGetFontTable(
+        DW(face),
         _byteswap_ulong(tag), // swapping bytes because windows table tags are little-endian
         &table_data,
         &table_size,
@@ -579,15 +580,12 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
 }
 
 inline void oc_free_table(oc_face face, oc_table table) {
-    IDWriteFontFace* dw_font_face = (IDWriteFontFace*)face.handle;
-    dw_font_face->lpVtbl->ReleaseFontTable(dw_font_face, table.__handle);
+    DW(face)->lpVtbl->ReleaseFontTable(DW(face), table.__handle);
 }
 
 void oc_get_metrics(oc_face face, oc_metrics* pmetrics) {
-    IDWriteFontFace* dw_font_face = (IDWriteFontFace*)face.handle;
-
     DWRITE_FONT_METRICS metrics;
-    dw_font_face->lpVtbl->GetMetrics(dw_font_face, &metrics);
+    DW(face)->lpVtbl->GetMetrics(DW(face), &metrics);
 
     pmetrics->units_per_em = metrics.designUnitsPerEm;
     pmetrics->ascent = metrics.ascent;
@@ -602,16 +600,15 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
         return false;
     }
 
-    IDWriteFontFace* dw_font_face = (IDWriteFontFace*)face.handle;
     // for some reason GetDesignGlyphMetrics does not catch invalid glyph index
-    UINT16 glyph_count = dw_font_face->lpVtbl->GetGlyphCount(dw_font_face);
+    UINT16 glyph_count = DW(face)->lpVtbl->GetGlyphCount(DW(face));
     if (glyph_index >= glyph_count) {
         return false;
     }
 
     DWRITE_GLYPH_METRICS metrics;
-    HRESULT err = dw_font_face->lpVtbl->GetDesignGlyphMetrics(
-        dw_font_face,
+    HRESULT err = DW(face)->lpVtbl->GetDesignGlyphMetrics(
+        DW(face),
         &glyph_index,
         1,
         &metrics,
@@ -634,7 +631,6 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
         return false;
     }
 
-    IDWriteFontFace* dw_font_face = (IDWriteFontFace*)face.handle;
     IOCSimplifiedGeometrySink ioc_simplified_geometry_sink = { 0 };
     ioc_simplified_geometry_sink.lpVtbl = &IOCSimplifiedGeometrySinkVtbl;
     ioc_simplified_geometry_sink.funcs = outline_funcs;
@@ -644,11 +640,11 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
     IDWriteGeometrySink* geometry_sink = (IDWriteGeometrySink*)&ioc_simplified_geometry_sink;
 
     DWRITE_FONT_METRICS metrics;
-    dw_font_face->lpVtbl->GetMetrics(dw_font_face, &metrics);
+    DW(face)->lpVtbl->GetMetrics(DW(face), &metrics);
 
     // dwrite does not call line_to at the end to the beg
-    HRESULT err = dw_font_face->lpVtbl->GetGlyphRunOutline(
-        dw_font_face,
+    HRESULT err = DW(face)->lpVtbl->GetGlyphRunOutline(
+        DW(face),
         metrics.designUnitsPerEm,
         &glyph_index,
         NULL,

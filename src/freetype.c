@@ -43,7 +43,7 @@ inline void oc_free_library(oc_library library) {
     FT_Done_FreeType(FT(library));
 }
 
-oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_face* pface) {
+oc_error oc_open_face(oc_library library, const char* path, uint32_t face_index, oc_face* pface) {
     if (pface == NULL) {
         return oc_error_invalid_param;
     }
@@ -95,7 +95,7 @@ oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_
     return oc_error_ok;
 }
 
-oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, long face_index, oc_face* pface) {
+oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, uint32_t face_index, oc_face* pface) {
     if (pface == NULL) {
         return oc_error_invalid_param;
     }
@@ -327,7 +327,12 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
 
     FT_GlyphSlot slot = FT(face)->glyph;
     FT_Outline glyph_outline = slot->outline;
-    // todo: check if glyph format has outline bla bla bla
+
+    if (slot->format != FT_GLYPH_FORMAT_OUTLINE && slot->format != FT_GLYPH_FORMAT_COMPOSITE) {
+        FACE_UNLOCK(face);
+        return false;
+    }
+
     FACE_UNLOCK(face);
 
     outline_context ctx = { 0 };

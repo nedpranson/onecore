@@ -102,7 +102,7 @@ OC_EXPORT oc_error
 oc_open_face(
     oc_library library,
     const char* path,
-    long face_index,
+    uint32_t face_index,
     oc_face* pface);
 
 /*
@@ -114,7 +114,7 @@ oc_open_memory_face(
     oc_library library,
     const void* data,
     size_t size,
-    long face_index,
+    uint32_t face_index,
     oc_face* pface);
 
 OC_EXPORT oc_error

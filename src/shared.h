@@ -7,6 +7,7 @@
 #include <stdio.h>
 
 #if defined(_WIN32) || defined(__CYGWIN__)
+// perhaps use SRWLOCK as i do not need safe recursion for locks
 #include <windows.h>
 typedef CRITICAL_SECTION mutex_t;
 
