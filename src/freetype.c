@@ -2,28 +2,45 @@
 #ifdef ONECORE_FREETYPE
 
 #include <ft2build.h>
+#include <pthread.h>
 #include FT_FREETYPE_H
 #include FT_TRUETYPE_TABLES_H
 #include FT_OUTLINE_H
+
+struct face_internals {
+    FT_Face face;
+    mutex_t lock;
+};
+
+#define FT(x) _Generic((x),                  \
+    oc_library: ((FT_Library)(x).internals), \
+    oc_face: ((struct face_internals*)(x).internals)->face)
+
+#define FACE_LOCK(x) mutex_lock(&((struct face_internals*)x.internals)->lock)
+#define FACE_UNLOCK(x) mutex_unlock(&((struct face_internals*)x.internals)->lock)
 
 oc_error oc_init_library(oc_library* plibrary) {
     if (plibrary == NULL) {
         return oc_error_invalid_param;
     }
 
-    FT_Error err = FT_Init_FreeType((FT_Library*)&plibrary->handle);
+    FT_Library library;
+    FT_Error err = FT_Init_FreeType(&library);
     switch (err) {
     case FT_Err_Ok:
-        return oc_error_ok;
+        break;
     case FT_Err_Out_Of_Memory:
         return oc_error_out_of_memory;
     default:
         return unexpected(err);
     }
+
+    plibrary->internals = library;
+    return oc_error_ok;
 }
 
-void oc_free_library(oc_library library) {
-    FT_Done_FreeType(library.handle);
+inline void oc_free_library(oc_library library) {
+    FT_Done_FreeType(FT(library));
 }
 
 oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_face* pface) {
@@ -43,7 +60,7 @@ oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_
     open_args.pathname = (char*)path;
 
     // using FT_Open_Face as FT_New_Face fails if file extention does not match file type
-    err = FT_Open_Face(library.handle, &open_args, face_index, &face);
+    err = FT_Open_Face(FT(library), &open_args, face_index, &face);
     switch (err) {
     case FT_Err_Ok:
         break;
@@ -65,7 +82,16 @@ oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_
         return unexpected(err);
     }
 
-    pface->handle = face;
+    struct face_internals* internals = malloc(sizeof(struct face_internals));
+    if (internals == NULL) {
+        FT_Done_Face(face);
+        return oc_error_out_of_memory;
+    }
+
+    internals->face = face;
+    mutex_init(&internals->lock);
+
+    pface->internals = internals;
     return oc_error_ok;
 }
 
@@ -77,7 +103,7 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
     FT_Face face;
     FT_Error err;
 
-    err = FT_New_Memory_Face(library.handle, data, size, face_index, &face);
+    err = FT_New_Memory_Face(FT(library), data, size, face_index, &face);
     switch (err) {
     case FT_Err_Ok:
         break;
@@ -99,16 +125,28 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
         return unexpected(err);
     }
 
-    pface->handle = face;
+    struct face_internals* internals = malloc(sizeof(struct face_internals));
+    if (internals == NULL) {
+        FT_Done_Face(face);
+        return oc_error_out_of_memory;
+    }
+
+    internals->face = face;
+    mutex_init(&internals->lock);
+
+    pface->internals = internals;
     return oc_error_ok;
 }
 
 void oc_free_face(oc_face face) {
-    FT_Done_Face(face.handle);
+    FT_Done_Face(FT(face));
+
+    mutex_destroy(&((struct face_internals*)face.internals)->lock);
+    free(face.internals);
 }
 
 inline uint16_t oc_get_char_index(oc_face face, uint32_t charcode) {
-    return FT_Get_Char_Index(face.handle, charcode);
+    return FT_Get_Char_Index(FT(face), charcode);
 }
 
 oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
@@ -121,7 +159,7 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
 
     // if other abis allow we can add offset option
     table.size = 0;
-    err = FT_Load_Sfnt_Table(face.handle, tag, 0, NULL, &table.size);
+    err = FT_Load_Sfnt_Table(FT(face), tag, 0, NULL, &table.size);
     switch (err) {
     case FT_Err_Ok:
         break;
@@ -136,7 +174,7 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
         return oc_error_out_of_memory;
     }
 
-    err = FT_Load_Sfnt_Table(face.handle, tag, 0, buffer, &table.size);
+    err = FT_Load_Sfnt_Table(FT(face), tag, 0, buffer, &table.size);
     assert(err == oc_error_ok);
 
     table.data = buffer;
@@ -153,14 +191,13 @@ inline void oc_free_table(oc_face face, oc_table table) {
 }
 
 void oc_get_metrics(oc_face face, oc_metrics* pmetrics) {
-    FT_Face ft_face = face.handle;
-    pmetrics->units_per_em = ft_face->units_per_EM;
-    pmetrics->ascent = ft_face->ascender;
-    pmetrics->descent = -ft_face->descender;
-    pmetrics->leading = ft_face->height - ft_face->ascender + ft_face->descender;
+    pmetrics->units_per_em = FT(face)->units_per_EM;
+    pmetrics->ascent = FT(face)->ascender;
+    pmetrics->descent = -FT(face)->descender;
+    pmetrics->leading = FT(face)->height - FT(face)->ascender + FT(face)->descender;
     // reverting ajusted underline position by freetype
-    pmetrics->underline_position = ft_face->underline_position + (ft_face->underline_thickness >> 1);
-    pmetrics->underline_thickness = ft_face->underline_thickness;
+    pmetrics->underline_position = FT(face)->underline_position + (FT(face)->underline_thickness >> 1);
+    pmetrics->underline_thickness = FT(face)->underline_thickness;
 }
 
 // todo: add option for verticals and maybe load both hori and vert bearings, advances
@@ -169,16 +206,18 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
         return false;
     }
 
-    // start: not thread safe here!!!!
-    FT_Face ft_face = face.handle;
-    FT_Error err = FT_Load_Glyph(ft_face, glyph_index, FT_LOAD_NO_SCALE | FT_LOAD_BITMAP_METRICS_ONLY);
+    FACE_LOCK(face);
+
+    FT_Error err = FT_Load_Glyph(FT(face), glyph_index, FT_LOAD_NO_SCALE | FT_LOAD_BITMAP_METRICS_ONLY);
     if (err != FT_Err_Ok) {
+        FACE_UNLOCK(face);
         return false;
     }
 
-    FT_GlyphSlot slot = ft_face->glyph;
+    FT_GlyphSlot slot = FT(face)->glyph;
     FT_Glyph_Metrics glyph_metrics = slot->metrics;
-    // end: not thread safe here!!!!
+
+    FACE_UNLOCK(face);
 
     pglyph_metrics->width = glyph_metrics.width;
     pglyph_metrics->height = glyph_metrics.height;
@@ -278,17 +317,18 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
         return false;
     }
 
-    // start: not thread safe here!!!!
-    FT_Face ft_face = face.handle;
-    err = FT_Load_Glyph(ft_face, glyph_index, FT_LOAD_NO_SCALE | FT_LOAD_NO_BITMAP);
+    FACE_LOCK(face);
+
+    err = FT_Load_Glyph(FT(face), glyph_index, FT_LOAD_NO_SCALE | FT_LOAD_NO_BITMAP);
     if (err != FT_Err_Ok) {
+        FACE_UNLOCK(face);
         return false;
     }
 
-    FT_GlyphSlot slot = ft_face->glyph;
+    FT_GlyphSlot slot = FT(face)->glyph;
     FT_Outline glyph_outline = slot->outline;
     // todo: check if glyph format has outline bla bla bla
-    // end: not thread safe here!!!!
+    FACE_UNLOCK(face);
 
     outline_context ctx = { 0 };
     ctx.funcs = outline_funcs;

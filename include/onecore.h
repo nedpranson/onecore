@@ -39,11 +39,11 @@ typedef enum {
 typedef uint32_t oc_tag;
 
 typedef struct oc_library {
-    void* handle;
+    void* internals;
 } oc_library;
 
 typedef struct oc_face {
-    void* handle;
+    void* internals;
 } oc_face;
 
 // todo: make it not __habdle but context and inside oc_free_face just pass it's ctx
