@@ -266,6 +266,27 @@ void test_oc_get_glyph_metrics(void) {
     TEST_ASSERT_EQUAL(ok, false);
 }
 
+void test_oc_get_glyph_metrics_scaled(void) {
+    uint16_t idx;
+    oc_glyph_metrics glyph_metrics;
+    bool ok;
+
+    idx = oc_get_char_index(g_arial_ttf, 'y');
+    TEST_ASSERT_EQUAL_INT16(92, idx);
+
+    ok = oc_get_glyph_metrics(g_arial_ttf, idx, NULL);
+    TEST_ASSERT_EQUAL(false, ok);
+
+    ok = oc_get_glyph_metrics_scaled(g_arial_ttf, idx, &glyph_metrics);
+    TEST_ASSERT_EQUAL(true, ok);
+
+    TEST_ASSERT_EQUAL_UINT32(8, glyph_metrics.width);
+    TEST_ASSERT_EQUAL_UINT32(12, glyph_metrics.height);
+    TEST_ASSERT_EQUAL_INT32(0, glyph_metrics.bearing_x);
+    TEST_ASSERT_EQUAL_INT32(9, glyph_metrics.bearing_y);
+    TEST_ASSERT_EQUAL_UINT32(8, glyph_metrics.advance);
+}
+
 typedef struct outline_end_check {
     oc_point* line_point;
     oc_point* figure_point;
@@ -286,8 +307,7 @@ typedef struct outline_context {
     outline_end_check* checks_end;
 } outline_context;
 
-static void
-start_figure(oc_point at, void* context) {
+static void start_figure(oc_point at, void* context) {
     outline_context* ctx = (outline_context*)context;
     TEST_ASSERT_NOT_EQUAL(ctx->line_points_end, ctx->line_points);
 
@@ -296,8 +316,7 @@ start_figure(oc_point at, void* context) {
     TEST_ASSERT_INT16_WITHIN(1, test_figure.y, at.y);
 }
 
-static void
-end_figure(void* context) {
+static void end_figure(void* context) {
     outline_context* ctx = (outline_context*)context;
     TEST_ASSERT_NOT_EQUAL(ctx->checks_end, ctx->checks);
 
@@ -307,8 +326,7 @@ end_figure(void* context) {
     TEST_ASSERT_EQUAL(check.cubic_point, ctx->cubic_points);
 }
 
-static void
-line_to(oc_point to, void* context) {
+static void line_to(oc_point to, void* context) {
     outline_context* ctx = (outline_context*)context;
     TEST_ASSERT_NOT_EQUAL(ctx->line_points_end, ctx->line_points);
 
@@ -477,6 +495,7 @@ int main(void) {
     RUN_TEST(test_oc_get_sfnt_table);
     RUN_TEST(test_oc_get_metrics);
     RUN_TEST(test_oc_get_glyph_metrics);
+    RUN_TEST(test_oc_get_glyph_metrics_scaled);
     RUN_TEST(test_oc_get_outline);
 
     oc_free_face(g_arial_ttf);

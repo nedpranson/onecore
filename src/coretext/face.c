@@ -203,6 +203,30 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
     return true;
 }
 
+bool oc_get_glyph_metrics_scaled(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics) {
+    if (pglyph_metrics == NULL) {
+        return false;
+    }
+
+    CFIndex glyph_count = CTFontGetGlyphCount(face.ct_font_ref);
+    if (glyph_index >= glyph_count) {
+        return false;
+    }
+
+    CGSize advance;
+    CTFontGetAdvancesForGlyphs(face.ct_font_ref, kCTFontOrientationHorizontal, &glyph_index, &advance, 1);
+
+    CGRect bbox = CTFontGetBoundingRectsForGlyphs(face.ct_font_ref, kCTFontOrientationHorizontal, &glyph_index, NULL, 1);
+
+    pglyph_metrics->width = bbox.size.width;
+    pglyph_metrics->height = bbox.size.height;
+    pglyph_metrics->bearing_x = bbox.origin.x;
+    pglyph_metrics->bearing_y = (bbox.size.height + bbox.origin.y);
+    pglyph_metrics->advance = advance.width;
+
+    return true;
+}
+
 typedef struct point_2f {
     float x;
     float y;

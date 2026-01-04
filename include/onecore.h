@@ -15,7 +15,15 @@ extern "C" {
 #endif
 #endif
 
-#if !defined(ONECORE_DWRITE) && !defined(ONECORE_FREETYPE)
+#if !defined(ONECORE_DPI)
+#if defined(__APPLE__) && defined(__MACH__)
+#define ONECORE_DEFAULT_DPI 72
+#else
+#define ONECORE_DEFAULT_DPI 96
+#endif
+#endif
+
+#if !defined(ONECORE_DWRITE) && !defined(ONECORE_FREETYPE) && !defined(ONECORE_CORETEXT)
 #if defined(_WIN32) || defined(__CYGWIN__)
 #define ONECORE_DWRITE
 #elif defined(__APPLE__) && defined(__MACH__)
@@ -95,15 +103,31 @@ oc_init_library(oc_library* plibrary);
 OC_EXPORT void
 oc_free_library(oc_library library);
 
+// pass font_size and dpi stuff somehow
 OC_EXPORT oc_error
-oc_open_face(oc_library library, const char* path, long face_index, oc_face* pface);
+oc_open_face(
+    oc_library library,
+    const char* path,
+    long face_index, 
+    oc_face* pface);
 
 /*
  * @note:
  *   You must not deallocate the memory before calling @oc_free_face.
  */
 OC_EXPORT oc_error
-oc_open_memory_face(oc_library library, const void* data, size_t size, long face_index, oc_face* pface);
+oc_open_memory_face(
+    oc_library library,
+    const void* data,
+    size_t size,
+    long face_index,
+    oc_face* pface);
+
+OC_EXPORT oc_error
+oc_set_size(oc_face face, float desired_size, unsigned short dpi);
+
+OC_EXPORT float 
+oc_get_size(oc_face face);
 
 OC_EXPORT void
 oc_free_face(oc_face face);
@@ -118,6 +142,10 @@ oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable);
 OC_EXPORT void
 oc_free_table(oc_face face, oc_table table);
 
+// on windows dpi is 92 on mac 72
+// oc_set_size(oc_face face, float points, uint8_t dpi);
+// after implementing scaling (for scalable fonts) then tidy up the code base
+
 // todo: add scaled variant
 OC_EXPORT void
 oc_get_metrics(oc_face face, oc_metrics* pmetrics);
@@ -126,6 +154,9 @@ oc_get_metrics(oc_face face, oc_metrics* pmetrics);
 // returning bools is hmm lazy
 OC_EXPORT bool
 oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics);
+
+OC_EXPORT bool
+oc_get_glyph_metrics_scaled(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics);
 
 OC_EXPORT bool
 oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context);

@@ -13,15 +13,18 @@ oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_
         return oc_error_invalid_param;
     }
 
+    FT_Error err;
+    FT_Face face;
+
     FT_Open_Args open_args = { 0 };
     open_args.flags = FT_OPEN_PATHNAME;
     open_args.pathname = (char*)path;
 
     // using FT_Open_Face as FT_New_Face fails if file extention does not match file type
-    FT_Error err = FT_Open_Face(library.ft_library, &open_args, face_index, &pface->ft_face);
+    err = FT_Open_Face(library.ft_library, &open_args, face_index, &face);
     switch (err) {
     case FT_Err_Ok:
-        return oc_error_ok;
+        break;
     case FT_Err_Out_Of_Memory:
         return oc_error_out_of_memory;
     case FT_Err_Cannot_Open_Resource:
@@ -33,6 +36,15 @@ oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_
     default:
         return unexpected(err);
     }
+
+    err = FT_Set_Char_Size(face, 0, 12 * 64.0, ONECORE_DEFAULT_DPI, ONECORE_DEFAULT_DPI);
+    if (err != FT_Err_Ok) {
+        FT_Done_Face(face);
+        return unexpected(err);
+    }
+
+    pface->ft_face = face;
+    return oc_error_ok;
 }
 
 oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, long face_index, oc_face* pface) {
@@ -40,10 +52,13 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
         return oc_error_invalid_param;
     }
 
-    FT_Error err = FT_New_Memory_Face(library.ft_library, data, size, face_index, &pface->ft_face);
+    FT_Face face;
+    FT_Error err;
+
+    err = FT_New_Memory_Face(library.ft_library, data, size, face_index, &face);
     switch (err) {
     case FT_Err_Ok:
-        return oc_error_ok;
+        break;
     case FT_Err_Out_Of_Memory:
         return oc_error_out_of_memory;
     case FT_Err_Invalid_Argument:
@@ -55,6 +70,15 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
     default:
         return unexpected(err);
     }
+
+    err = FT_Set_Char_Size(face, 0, 12 * 64, ONECORE_DEFAULT_DPI, ONECORE_DEFAULT_DPI);
+    if (err != FT_Err_Ok) {
+        FT_Done_Face(face);
+        return unexpected(err);
+    }
+
+    pface->ft_face = face;
+    return oc_error_ok;
 }
 
 void oc_free_face(oc_face face) {
@@ -137,6 +161,31 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
     pglyph_metrics->bearing_x = glyph_metrics.horiBearingX;
     pglyph_metrics->bearing_y = glyph_metrics.horiBearingY;
     pglyph_metrics->advance = glyph_metrics.horiAdvance;
+
+    return true;
+}
+
+
+bool oc_get_glyph_metrics_scaled(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics) {
+    if (pglyph_metrics == NULL) {
+        return false;
+    }
+
+    // start: not thread safe here!!!!
+    FT_Error err = FT_Load_Glyph(face.ft_face, glyph_index, FT_LOAD_BITMAP_METRICS_ONLY);
+    if (err != FT_Err_Ok) {
+        return false;
+    }
+
+    FT_GlyphSlot slot = face.ft_face->glyph;
+    FT_Glyph_Metrics glyph_metrics = slot->metrics;
+    // end: not thread safe here!!!!
+
+    pglyph_metrics->width = glyph_metrics.width >> 6;
+    pglyph_metrics->height = glyph_metrics.height >> 6;
+    pglyph_metrics->bearing_x = glyph_metrics.horiBearingX >> 6;
+    pglyph_metrics->bearing_y = glyph_metrics.horiBearingY >> 6;
+    pglyph_metrics->advance = glyph_metrics.horiAdvance >> 6;
 
     return true;
 }
