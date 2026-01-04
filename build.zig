@@ -41,14 +41,9 @@ pub fn build(b: *std.Build) void {
     lib.addCSourceFiles(.{
         .root = b.path("src"),
         .files = &.{
-            "freetype/library.c",
-            "freetype/face.c",
-
-            "dwrite/library.c",
-            "dwrite/face.c",
-
-            "coretext/library.c",
-            "coretext/face.c",
+            "freetype.c",
+            "dwrite.c",
+            "coretext.c",
         },
         .flags = &.{
             "-Wall",

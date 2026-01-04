@@ -23,16 +23,6 @@ extern "C" {
 #endif
 #endif
 
-#if !defined(ONECORE_DWRITE) && !defined(ONECORE_FREETYPE) && !defined(ONECORE_CORETEXT)
-#if defined(_WIN32) || defined(__CYGWIN__)
-#define ONECORE_DWRITE
-#elif defined(__APPLE__) && defined(__MACH__)
-#define ONECORE_CORETEXT
-#else
-#define ONECORE_FREETYPE
-#endif
-#endif
-
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -46,11 +36,15 @@ typedef enum {
     oc_error_unexpected,
 } oc_error;
 
-#include "onecore/coretext.h"
-#include "onecore/dwrite.h"
-#include "onecore/freetype.h"
-
 typedef uint32_t oc_tag;
+
+typedef struct oc_library {
+    void* handle;
+} oc_library;
+
+typedef struct oc_face {
+    void* handle;
+} oc_face;
 
 // todo: make it not __habdle but context and inside oc_free_face just pass it's ctx
 typedef struct oc_table {
@@ -108,7 +102,7 @@ OC_EXPORT oc_error
 oc_open_face(
     oc_library library,
     const char* path,
-    long face_index, 
+    long face_index,
     oc_face* pface);
 
 /*
@@ -126,7 +120,7 @@ oc_open_memory_face(
 OC_EXPORT oc_error
 oc_set_size(oc_face face, float desired_size, unsigned short dpi);
 
-OC_EXPORT float 
+OC_EXPORT float
 oc_get_size(oc_face face);
 
 OC_EXPORT void
@@ -155,8 +149,14 @@ oc_get_metrics(oc_face face, oc_metrics* pmetrics);
 OC_EXPORT bool
 oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics);
 
-OC_EXPORT bool
-oc_get_glyph_metrics_scaled(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics);
+// scaling is a hard problem to solve cuz of hinting
+// so we will just not implement it yet first we need to add rendering
+// then look how fonts looks if it's bad then we can look how freetype handled hinting
+// and implement scaled function with some flags
+// though we can add simple sclae function, but it would require us to change all
+// glyph_metric data from ints to floats, we could use 26.6perhaps;
+// OC_EXPORT bool
+// oc_get_glyph_metrics_scaled(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics);
 
 OC_EXPORT bool
 oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context);

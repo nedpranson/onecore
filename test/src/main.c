@@ -1,4 +1,6 @@
 #include <onecore.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unity.h>
 
 oc_library g_library;
@@ -266,26 +268,7 @@ void test_oc_get_glyph_metrics(void) {
     TEST_ASSERT_EQUAL(ok, false);
 }
 
-void test_oc_get_glyph_metrics_scaled(void) {
-    uint16_t idx;
-    oc_glyph_metrics glyph_metrics;
-    bool ok;
-
-    idx = oc_get_char_index(g_arial_ttf, 'y');
-    TEST_ASSERT_EQUAL_INT16(92, idx);
-
-    ok = oc_get_glyph_metrics(g_arial_ttf, idx, NULL);
-    TEST_ASSERT_EQUAL(false, ok);
-
-    ok = oc_get_glyph_metrics_scaled(g_arial_ttf, idx, &glyph_metrics);
-    TEST_ASSERT_EQUAL(true, ok);
-
-    TEST_ASSERT_EQUAL_UINT32(8, glyph_metrics.width);
-    TEST_ASSERT_EQUAL_UINT32(12, glyph_metrics.height);
-    TEST_ASSERT_EQUAL_INT32(0, glyph_metrics.bearing_x);
-    TEST_ASSERT_EQUAL_INT32(9, glyph_metrics.bearing_y);
-    TEST_ASSERT_EQUAL_UINT32(8, glyph_metrics.advance);
-}
+void test_oc_get_glyph_metrics_scaled(void) { }
 
 typedef struct outline_end_check {
     oc_point* line_point;

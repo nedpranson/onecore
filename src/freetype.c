@@ -1,8 +1,30 @@
-#include <onecore.h>
+#include "shared.h"
 #ifdef ONECORE_FREETYPE
 
-#include "../unexpected.h"
-#include <assert.h>
+#include <ft2build.h>
+#include FT_FREETYPE_H
+#include FT_TRUETYPE_TABLES_H
+#include FT_OUTLINE_H
+
+oc_error oc_init_library(oc_library* plibrary) {
+    if (plibrary == NULL) {
+        return oc_error_invalid_param;
+    }
+
+    FT_Error err = FT_Init_FreeType((FT_Library*)&plibrary->handle);
+    switch (err) {
+    case FT_Err_Ok:
+        return oc_error_ok;
+    case FT_Err_Out_Of_Memory:
+        return oc_error_out_of_memory;
+    default:
+        return unexpected(err);
+    }
+}
+
+void oc_free_library(oc_library library) {
+    FT_Done_FreeType(library.handle);
+}
 
 oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_face* pface) {
     if (pface == NULL) {
@@ -21,7 +43,7 @@ oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_
     open_args.pathname = (char*)path;
 
     // using FT_Open_Face as FT_New_Face fails if file extention does not match file type
-    err = FT_Open_Face(library.ft_library, &open_args, face_index, &face);
+    err = FT_Open_Face(library.handle, &open_args, face_index, &face);
     switch (err) {
     case FT_Err_Ok:
         break;
@@ -43,7 +65,7 @@ oc_error oc_open_face(oc_library library, const char* path, long face_index, oc_
         return unexpected(err);
     }
 
-    pface->ft_face = face;
+    pface->handle = face;
     return oc_error_ok;
 }
 
@@ -55,7 +77,7 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
     FT_Face face;
     FT_Error err;
 
-    err = FT_New_Memory_Face(library.ft_library, data, size, face_index, &face);
+    err = FT_New_Memory_Face(library.handle, data, size, face_index, &face);
     switch (err) {
     case FT_Err_Ok:
         break;
@@ -77,16 +99,16 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
         return unexpected(err);
     }
 
-    pface->ft_face = face;
+    pface->handle = face;
     return oc_error_ok;
 }
 
 void oc_free_face(oc_face face) {
-    FT_Done_Face(face.ft_face);
+    FT_Done_Face(face.handle);
 }
 
 inline uint16_t oc_get_char_index(oc_face face, uint32_t charcode) {
-    return FT_Get_Char_Index(face.ft_face, charcode);
+    return FT_Get_Char_Index(face.handle, charcode);
 }
 
 oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
@@ -99,7 +121,7 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
 
     // if other abis allow we can add offset option
     table.size = 0;
-    err = FT_Load_Sfnt_Table(face.ft_face, tag, 0, NULL, &table.size);
+    err = FT_Load_Sfnt_Table(face.handle, tag, 0, NULL, &table.size);
     switch (err) {
     case FT_Err_Ok:
         break;
@@ -114,7 +136,7 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
         return oc_error_out_of_memory;
     }
 
-    err = FT_Load_Sfnt_Table(face.ft_face, tag, 0, buffer, &table.size);
+    err = FT_Load_Sfnt_Table(face.handle, tag, 0, buffer, &table.size);
     assert(err == oc_error_ok);
 
     table.data = buffer;
@@ -131,13 +153,14 @@ inline void oc_free_table(oc_face face, oc_table table) {
 }
 
 void oc_get_metrics(oc_face face, oc_metrics* pmetrics) {
-    pmetrics->units_per_em = face.ft_face->units_per_EM;
-    pmetrics->ascent = face.ft_face->ascender;
-    pmetrics->descent = -face.ft_face->descender;
-    pmetrics->leading = face.ft_face->height - face.ft_face->ascender + face.ft_face->descender;
+    FT_Face ft_face = face.handle;
+    pmetrics->units_per_em = ft_face->units_per_EM;
+    pmetrics->ascent = ft_face->ascender;
+    pmetrics->descent = -ft_face->descender;
+    pmetrics->leading = ft_face->height - ft_face->ascender + ft_face->descender;
     // reverting ajusted underline position by freetype
-    pmetrics->underline_position = face.ft_face->underline_position + (face.ft_face->underline_thickness >> 1);
-    pmetrics->underline_thickness = face.ft_face->underline_thickness;
+    pmetrics->underline_position = ft_face->underline_position + (ft_face->underline_thickness >> 1);
+    pmetrics->underline_thickness = ft_face->underline_thickness;
 }
 
 // todo: add option for verticals and maybe load both hori and vert bearings, advances
@@ -147,12 +170,13 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
     }
 
     // start: not thread safe here!!!!
-    FT_Error err = FT_Load_Glyph(face.ft_face, glyph_index, FT_LOAD_NO_SCALE | FT_LOAD_BITMAP_METRICS_ONLY);
+    FT_Face ft_face = face.handle;
+    FT_Error err = FT_Load_Glyph(ft_face, glyph_index, FT_LOAD_NO_SCALE | FT_LOAD_BITMAP_METRICS_ONLY);
     if (err != FT_Err_Ok) {
         return false;
     }
 
-    FT_GlyphSlot slot = face.ft_face->glyph;
+    FT_GlyphSlot slot = ft_face->glyph;
     FT_Glyph_Metrics glyph_metrics = slot->metrics;
     // end: not thread safe here!!!!
 
@@ -161,37 +185,6 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
     pglyph_metrics->bearing_x = glyph_metrics.horiBearingX;
     pglyph_metrics->bearing_y = glyph_metrics.horiBearingY;
     pglyph_metrics->advance = glyph_metrics.horiAdvance;
-
-    return true;
-}
-
-
-bool oc_get_glyph_metrics_scaled(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics) {
-    if (pglyph_metrics == NULL) {
-        return false;
-    }
-
-    // start: not thread safe here!!!!
-    FT_Error err = FT_Load_Glyph(face.ft_face, glyph_index, FT_LOAD_BITMAP_METRICS_ONLY);
-    if (err != FT_Err_Ok) {
-        return false;
-    }
-
-    FT_GlyphSlot slot = face.ft_face->glyph;
-    FT_Glyph_Metrics glyph_metrics = slot->metrics;
-    // end: not thread safe here!!!!
-
-    printf("w: %f\n", glyph_metrics.width / 64.0);
-    printf("h: %f\n", glyph_metrics.height / 64.0);
-    printf("bx: %f\n", glyph_metrics.horiBearingX / 64.0);
-    printf("by: %f\n", glyph_metrics.horiBearingY / 64.0);
-    printf("adv: %f\n", glyph_metrics.horiAdvance / 64.0);
-
-    pglyph_metrics->width = glyph_metrics.width >> 6;
-    pglyph_metrics->height = glyph_metrics.height >> 6;
-    pglyph_metrics->bearing_x = glyph_metrics.horiBearingX >> 6;
-    pglyph_metrics->bearing_y = glyph_metrics.horiBearingY >> 6;
-    pglyph_metrics->advance = glyph_metrics.horiAdvance >> 6;
 
     return true;
 }
@@ -286,12 +279,13 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
     }
 
     // start: not thread safe here!!!!
-    err = FT_Load_Glyph(face.ft_face, glyph_index, FT_LOAD_NO_SCALE | FT_LOAD_NO_BITMAP);
+    FT_Face ft_face = face.handle;
+    err = FT_Load_Glyph(ft_face, glyph_index, FT_LOAD_NO_SCALE | FT_LOAD_NO_BITMAP);
     if (err != FT_Err_Ok) {
         return false;
     }
 
-    FT_GlyphSlot slot = face.ft_face->glyph;
+    FT_GlyphSlot slot = ft_face->glyph;
     FT_Outline glyph_outline = slot->outline;
     // todo: check if glyph format has outline bla bla bla
     // end: not thread safe here!!!!
