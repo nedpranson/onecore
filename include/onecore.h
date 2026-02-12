@@ -38,23 +38,26 @@ typedef enum {
 
 typedef uint32_t oc_tag;
 
-typedef struct oc_library {
+typedef struct {
     void* internals;
 } oc_library;
 
-typedef struct oc_face {
+// we can even cache some stuff here
+// so we would not need to call those expensive dll functions
+typedef struct {
     void* internals;
 } oc_face;
 
 // todo: make it not __habdle but context and inside oc_free_face just pass it's ctx
-typedef struct oc_table {
+typedef struct {
     const void* data;
     size_t size;
 
     void* __handle;
 } oc_table;
 
-typedef struct oc_metrics {
+// cache this
+typedef struct {
     uint16_t units_per_em;
     uint16_t ascent;
     uint16_t descent;
@@ -63,7 +66,7 @@ typedef struct oc_metrics {
     uint16_t underline_thickness;
 } oc_metrics;
 
-typedef struct oc_glyph_metrics {
+typedef struct {
     uint32_t width;
     uint32_t height;
     int32_t bearing_x;
@@ -71,17 +74,24 @@ typedef struct oc_glyph_metrics {
     uint32_t advance;
 } oc_glyph_metrics;
 
-typedef struct oc_point {
+typedef struct {
     int32_t x;
     int32_t y;
 } oc_point;
+
+typedef struct {
+    uint32_t rows;
+    uint32_t width;
+    int32_t pitch;
+    unsigned char* buffer;
+} oc_bitmap;
 
 typedef void (*oc_outline_start_figure)(oc_point at, void* context);
 typedef void (*oc_outline_end_figure)(void* context);
 typedef void (*oc_outline_line_to)(oc_point to, void* context);
 typedef void (*oc_outline_cubic_to)(oc_point c1, oc_point c2, oc_point to, void* context);
 
-typedef struct oc_outline_funcs {
+typedef struct {
     oc_outline_start_figure start_figure;
     oc_outline_end_figure end_figure;
     oc_outline_line_to line_to;
@@ -161,7 +171,11 @@ oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyp
 OC_EXPORT bool
 oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context);
 
-// oc_render_glyph???
+OC_EXPORT bool
+oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bitmap* pbitmap);
+
+OC_EXPORT void
+oc_free_bitmap(oc_bitmap bitmap);
 
 #ifdef __cplusplus
 }

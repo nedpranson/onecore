@@ -345,7 +345,7 @@ oc_error oc_init_library(oc_library* plibrary) {
     HRESULT err;
 
     err = DWriteCreateFactory(
-        DWRITE_FACTORY_TYPE_SHARED,
+        DWRITE_FACTORY_TYPE_ISOLATED,
         &IID_IDWriteFactory,
         (IUnknown**)&dw_factory);
 
@@ -360,6 +360,7 @@ oc_error oc_init_library(oc_library* plibrary) {
 
     err = dw_factory->lpVtbl->RegisterFontFileLoader(dw_factory, font_file_loader);
     if (err != S_OK) {
+        // DWRITE_E_ALREADYREGISTERED;
         dw_factory->lpVtbl->Release(dw_factory);
         return unexpected(err);
     }

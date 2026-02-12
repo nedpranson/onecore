@@ -362,4 +362,45 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
     return true;
 }
 
+bool oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bitmap* pbitmap) {
+    FT_Error err;
+    if (pbitmap == NULL) {
+        return false;
+    }
+
+    FACE_LOCK(face);
+
+    err = FT_Load_Glyph(FT(face), glyph_index, FT_LOAD_RENDER);
+    if (err != FT_Err_Ok) {
+        FACE_UNLOCK(face);
+        return false;
+    }
+
+    FT_Bitmap bitmap = FT(face)->glyph->bitmap;
+    size_t size = bitmap.rows * abs(bitmap.pitch);
+
+    unsigned char* buffer = malloc(size);
+
+    if (buffer == NULL) {
+        FACE_UNLOCK(face);
+        return false;
+    }
+
+    memcpy(buffer, bitmap.buffer, size);
+
+    FACE_UNLOCK(face);
+
+    bitmap.buffer = buffer;
+    pbitmap->rows = bitmap.rows;
+    pbitmap->width = bitmap.width;
+    pbitmap->pitch = bitmap.pitch;
+    pbitmap->buffer = bitmap.buffer;
+
+    return true;
+}
+
+void oc_free_bitmap(oc_bitmap bitmap) {
+    free(bitmap.buffer);
+}
+
 #endif // ONECORE_FREETYPE
