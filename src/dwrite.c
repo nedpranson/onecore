@@ -736,7 +736,7 @@ bool oc_render_glyph(oc_library lib, oc_face face, uint16_t glyph_index, oc_bitm
         float g = src_buffer[i * 3 + 1];
         float b = src_buffer[i * 3 + 2];
 
-        dst_buffer[i] = r * 0.2989 + g * 0.587 + b * 0.114;
+        dst_buffer[i] = (float)(r + 2 * b + g) / 4.0f;
     }
     free(src_buffer);
 
