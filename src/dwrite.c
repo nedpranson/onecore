@@ -692,7 +692,7 @@ bool oc_render_glyph(oc_library lib, oc_face face, uint16_t glyph_index, oc_bitm
         &glyph_run,
         1.0,
         NULL,
-        DWRITE_RENDERING_MODE_ALIASED,
+        DWRITE_RENDERING_MODE_NATURAL,
         DWRITE_MEASURING_MODE_NATURAL,
         0.0f,
         0.0f,
@@ -702,7 +702,7 @@ bool oc_render_glyph(oc_library lib, oc_face face, uint16_t glyph_index, oc_bitm
     }
 
     RECT bounds;
-    hr = analysis->lpVtbl->GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_ALIASED_1x1, &bounds);
+    hr = analysis->lpVtbl->GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
     if (hr != S_OK) {
         analysis->lpVtbl->Release(analysis);
         return false;
@@ -711,28 +711,39 @@ bool oc_render_glyph(oc_library lib, oc_face face, uint16_t glyph_index, oc_bitm
     uint32_t rows = bounds.bottom - bounds.top;
     uint32_t width = bounds.right - bounds.left;
  
-    unsigned char* buffer = malloc(rows * width);
-    if (buffer == NULL) {
+    unsigned char* src_buffer = malloc(rows * width * 3);
+    unsigned char* dst_buffer = malloc(rows * width);
+    if (src_buffer == NULL || dst_buffer == NULL) {
         analysis->lpVtbl->Release(analysis);
         return false;
     }
 
     hr = analysis->lpVtbl->CreateAlphaTexture(
         analysis,
-        DWRITE_TEXTURE_ALIASED_1x1,
+        DWRITE_TEXTURE_CLEARTYPE_3x1,
         &bounds,
-        buffer,
+        src_buffer,
         rows * width);
     analysis->lpVtbl->Release(analysis);
     if (hr != S_OK) {
-        free(buffer);
+        free(src_buffer);
+        free(dst_buffer);
         return false;
     }
+
+    for (size_t i = 0; i < rows * width; i++) {
+        float r = src_buffer[i * 3 + 0];
+        float g = src_buffer[i * 3 + 1];
+        float b = src_buffer[i * 3 + 2];
+
+        dst_buffer[i] = r * 0.2989 + g * 0.587 + b * 0.114;
+    }
+    free(src_buffer);
 
     pbitmap->rows = rows;
     pbitmap->width = width;
     pbitmap->pitch = width;
-    pbitmap->buffer = buffer;
+    pbitmap->buffer = dst_buffer;
 
     return true;
 }

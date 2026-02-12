@@ -172,6 +172,7 @@ OC_EXPORT bool
 oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context);
 
 // todo: do not ppass oc_library!!
+// todo: do not alloc buffer it should be passed by user
 OC_EXPORT bool
 oc_render_glyph(oc_library lib, oc_face face, uint16_t glyph_index, oc_bitmap* pbitmap);
 
