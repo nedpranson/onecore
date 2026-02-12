@@ -723,7 +723,7 @@ bool oc_render_glyph(oc_library lib, oc_face face, uint16_t glyph_index, oc_bitm
         DWRITE_TEXTURE_CLEARTYPE_3x1,
         &bounds,
         src_buffer,
-        rows * width);
+        rows * width * 3);
     analysis->lpVtbl->Release(analysis);
     if (hr != S_OK) {
         free(src_buffer);
