@@ -6,6 +6,7 @@
 #include FT_FREETYPE_H
 #include FT_TRUETYPE_TABLES_H
 #include FT_OUTLINE_H
+#include FT_GLYPH_H
 
 struct face_internals {
     FT_Face face;
@@ -362,46 +363,83 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
     return true;
 }
 
-bool oc_render_glyph(oc_library lib, oc_face face, uint16_t glyph_index, oc_bitmap* pbitmap) {
-    (void)lib;
+OC_EXPORT oc_error 
+oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer) {
     FT_Error err;
-    if (pbitmap == NULL) {
-        return false;
+    if (pbbox == NULL) {
+        return oc_error_invalid_param;
     }
+        
+    FACE_LOCK(face);     
 
-    FACE_LOCK(face);
-
-    err = FT_Load_Glyph(FT(face), glyph_index, FT_LOAD_RENDER);
+    err = FT_Load_Glyph(FT(face), glyph_index, FT_LOAD_BITMAP_METRICS_ONLY);
     if (err != FT_Err_Ok) {
         FACE_UNLOCK(face);
-        return false;
+        switch (err) {
+        case FT_Err_Out_Of_Memory:
+            return oc_error_out_of_memory;
+        default:
+            return unexpected(err);
+        }
     }
 
     FT_Bitmap bitmap = FT(face)->glyph->bitmap;
-    size_t size = bitmap.rows * abs(bitmap.pitch);
-
-    unsigned char* buffer = malloc(size);
+    if ((int)bitmap.width != bitmap.pitch) {
+        FACE_UNLOCK(face);
+        // todo: implement diffrent types
+        return oc_error_unexpected;
+    }
 
     if (buffer == NULL) {
         FACE_UNLOCK(face);
-        return false;
+
+        pbbox->height = bitmap.rows;
+        pbbox->width = bitmap.width;
+
+        return oc_error_ok;
     }
 
-    memcpy(buffer, bitmap.buffer, size);
+    if (pbbox->height != bitmap.rows || pbbox->width != bitmap.width) {
+        FACE_UNLOCK(face);
+        return oc_error_insufficient_buffer;
+    }
 
+    FT_Glyph glyph;
+    FT_BitmapGlyph glyph_bitmap;
+
+    err = FT_Get_Glyph(FT(face)->glyph, &glyph);
     FACE_UNLOCK(face);
 
-    bitmap.buffer = buffer;
-    pbitmap->rows = bitmap.rows;
-    pbitmap->width = bitmap.width;
-    pbitmap->pitch = bitmap.pitch;
-    pbitmap->buffer = bitmap.buffer;
+    switch (err) {
+    case FT_Err_Ok:
+        break;
+    case FT_Err_Out_Of_Memory:
+        return oc_error_out_of_memory;
+    default:
+        return unexpected(err);
+    }
 
-    return true;
-}
+    err = FT_Glyph_To_Bitmap(&glyph, FT_RENDER_MODE_NORMAL, NULL, 1);
+    glyph_bitmap = (FT_BitmapGlyph)glyph;
 
-void oc_free_bitmap(oc_bitmap bitmap) {
-    free(bitmap.buffer);
+    if (err != FT_Err_Ok) {
+        FT_Done_Glyph(glyph);
+        switch (err) {
+        case FT_Err_Out_Of_Memory:
+            return oc_error_out_of_memory;
+        default:
+            return unexpected(err);
+        }
+    }
+
+    assert(glyph_bitmap->bitmap.rows == bitmap.rows);
+    assert(glyph_bitmap->bitmap.width == bitmap.width);
+    assert(glyph_bitmap->bitmap.pitch== bitmap.pitch);
+
+    memcpy(buffer, glyph_bitmap->bitmap.buffer, bitmap.rows * bitmap.width);
+
+    FT_Done_Glyph(glyph);
+    return oc_error_ok;
 }
 
 #endif // ONECORE_FREETYPE

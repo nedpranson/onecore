@@ -30,9 +30,10 @@ extern "C" {
 typedef enum {
     oc_error_ok,
     oc_error_invalid_param,
-    oc_error_failed_to_open,
     oc_error_table_missing,
     oc_error_out_of_memory,
+    oc_error_failed_to_open,
+    oc_error_insufficient_buffer,
     oc_error_unexpected,
 } oc_error;
 
@@ -80,11 +81,9 @@ typedef struct {
 } oc_point;
 
 typedef struct {
-    uint32_t rows;
     uint32_t width;
-    int32_t pitch;
-    unsigned char* buffer;
-} oc_bitmap;
+    uint32_t height;
+} oc_bbox;
 
 typedef void (*oc_outline_start_figure)(oc_point at, void* context);
 typedef void (*oc_outline_end_figure)(void* context);
@@ -127,8 +126,8 @@ oc_open_memory_face(
     uint32_t face_index,
     oc_face* pface);
 
-OC_EXPORT oc_error
-oc_set_size(oc_face face, float desired_size, unsigned short dpi);
+// OC_EXPORT oc_error
+// oc_set_size(oc_face face, float desired_size, unsigned short dpi);
 
 OC_EXPORT float
 oc_get_size(oc_face face);
@@ -157,7 +156,10 @@ oc_get_metrics(oc_face face, oc_metrics* pmetrics);
 // todo: add scaled variant
 // returning bools is hmm lazy
 OC_EXPORT bool
-oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics);
+oc_get_glyph_metrics(
+    oc_face face,
+    uint16_t glyph_index,
+    oc_glyph_metrics* pglyph_metrics);
 
 // scaling is a hard problem to solve cuz of hinting
 // so we will just not implement it yet first we need to add rendering
@@ -169,15 +171,21 @@ oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyp
 // oc_get_glyph_metrics_scaled(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics);
 
 OC_EXPORT bool
-oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context);
+oc_get_outline(
+    oc_face face,
+    uint16_t glyph_index,
+    const oc_outline_funcs*
+    outline_funcs,
+    void* context);
 
-// todo: do not ppass oc_library!!
-// todo: do not alloc buffer it should be passed by user
-OC_EXPORT bool
-oc_render_glyph(oc_library lib, oc_face face, uint16_t glyph_index, oc_bitmap* pbitmap);
-
-OC_EXPORT void
-oc_free_bitmap(oc_bitmap bitmap);
+// todo: add comments here explaining that every backend will generate diffrent glyph textures
+//       so if u want it modified by every backend it would be recomended to raster it using glyph outlines
+OC_EXPORT oc_error 
+oc_render_glyph(
+    oc_face face,
+    uint16_t glyph_index,
+    oc_bbox* pbbox,
+    unsigned char* buffer);
 
 #ifdef __cplusplus
 }
