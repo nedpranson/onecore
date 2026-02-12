@@ -362,7 +362,8 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
     return true;
 }
 
-bool oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bitmap* pbitmap) {
+bool oc_render_glyph(oc_library lib, oc_face face, uint16_t glyph_index, oc_bitmap* pbitmap) {
+    (void)lib;
     FT_Error err;
     if (pbitmap == NULL) {
         return false;

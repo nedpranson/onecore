@@ -468,7 +468,7 @@ void test_oc_render_glyph(void) {
     TEST_ASSERT_EQUAL_INT16(36, idx);
 
     oc_bitmap bitmap;
-    ok = oc_render_glyph(g_arial_ttf, idx, &bitmap);
+    ok = oc_render_glyph(g_library, g_arial_ttf, idx, &bitmap);
     TEST_ASSERT_EQUAL(ok, true);
 
     unsigned char A[] = {
@@ -486,12 +486,12 @@ void test_oc_render_glyph(void) {
         0, 216, 191,   0,   0,   0,   0,   0,   0,  51, 255, 129
     };
 
-    // for (size_t y = 0; y < bitmap.rows; y++) {
-    //     for (size_t x = 0; x < bitmap.width; x++) {
-    //         printf("%03d ", bitmap.buffer[y * bitmap.width + x]);
-    //     }
-    //     printf("\n");
-    // }
+    for (size_t y = 0; y < bitmap.rows; y++) {
+        for (size_t x = 0; x < bitmap.width; x++) {
+            printf("%03d ", bitmap.buffer[y * bitmap.width + x]);
+        }
+        printf("\n");
+    }
 
     TEST_ASSERT_EQUAL_UINT8_ARRAY(A, bitmap.buffer, sizeof(A));
 

@@ -1,3 +1,4 @@
+#include "onecore.h"
 #include "shared.h"
 #ifdef ONECORE_DWRITE
 
@@ -665,6 +666,79 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
     assert(refs == 0);
 
     return true;
+}
+
+
+bool oc_render_glyph(oc_library lib, oc_face face, uint16_t glyph_index, oc_bitmap* pbitmap) {
+    HRESULT hr;
+    if (pbitmap == NULL) {
+        return false;
+    }
+
+    DWRITE_GLYPH_RUN glyph_run;
+    glyph_run.fontFace = DW(face);
+    glyph_run.fontEmSize = 12.0f * (float)ONECORE_DEFAULT_DPI / 72.0f;
+    glyph_run.glyphCount = 1;
+    glyph_run.glyphIndices = &glyph_index;
+    glyph_run.glyphAdvances = NULL;
+    glyph_run.glyphOffsets = NULL;
+    glyph_run.isSideways = FALSE;
+    glyph_run.bidiLevel = 0;
+
+    IDWriteGlyphRunAnalysis* analysis; 
+
+    hr = DW(lib)->lpVtbl->CreateGlyphRunAnalysis(
+        DW(lib),
+        &glyph_run,
+        1.0,
+        NULL,
+        DWRITE_RENDERING_MODE_ALIASED,
+        DWRITE_MEASURING_MODE_NATURAL,
+        0.0f,
+        0.0f,
+        &analysis);
+    if (hr != S_OK) {
+        return false;
+    }
+
+    RECT bounds;
+    hr = analysis->lpVtbl->GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_ALIASED_1x1, &bounds);
+    if (hr != S_OK) {
+        analysis->lpVtbl->Release(analysis);
+        return false;
+    }
+
+    uint32_t rows = bounds.bottom - bounds.top;
+    uint32_t width = bounds.right - bounds.left;
+ 
+    unsigned char* buffer = malloc(rows * width);
+    if (buffer == NULL) {
+        analysis->lpVtbl->Release(analysis);
+        return false;
+    }
+
+    hr = analysis->lpVtbl->CreateAlphaTexture(
+        analysis,
+        DWRITE_TEXTURE_ALIASED_1x1,
+        &bounds,
+        buffer,
+        rows * width);
+    analysis->lpVtbl->Release(analysis);
+    if (hr != S_OK) {
+        free(buffer);
+        return false;
+    }
+
+    pbitmap->rows = rows;
+    pbitmap->width = width;
+    pbitmap->pitch = width;
+    pbitmap->buffer = buffer;
+
+    return true;
+}
+
+void oc_free_bitmap(oc_bitmap bitmap) {
+    free(bitmap.buffer);
 }
 
 #endif // ONECORE_DWRITE

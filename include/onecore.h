@@ -171,8 +171,9 @@ oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyp
 OC_EXPORT bool
 oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context);
 
+// todo: do not ppass oc_library!!
 OC_EXPORT bool
-oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bitmap* pbitmap);
+oc_render_glyph(oc_library lib, oc_face face, uint16_t glyph_index, oc_bitmap* pbitmap);
 
 OC_EXPORT void
 oc_free_bitmap(oc_bitmap bitmap);
