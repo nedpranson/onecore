@@ -7,9 +7,14 @@
 #include <d2d1.h>
 #include <dwrite.h>
 
+struct face_internals {
+    IDWriteFontFace* face;
+    IDWriteFactory* library;
+};
+
 #define DW(x) _Generic((x),                       \
     oc_library: ((IDWriteFactory*)(x).internals), \
-    oc_face: ((IDWriteFontFace*)(x).internals))
+    oc_face: ((struct face_internals*)(x).internals)->face)
 
 typedef struct memory_view_s {
     const void* data;
@@ -431,6 +436,8 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
     // alloc struct { dw_font_face, dw_library }
 
     pface->internals = dw_font_face;
+    pface->font_size = 12.0f;
+
     return oc_error_ok;
 }
 
@@ -671,92 +678,95 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
     return true;
 }
 
-oc_error 
-oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer) {
-    return oc_error_unexpected;
-}
+// todo: allow bbox to be bigger then glyph bbox
+//       just modify it back to required size or sum
+//       or mb just pass in buffer_size, not sure
 
-// bool oc_render_glyph(oc_library lib, oc_face face, uint16_t glyph_index, oc_bitmap* pbitmap) {
-//     HRESULT hr;
-//     if (pbitmap == NULL) {
-//         return false;
-//     }
-//
-//     DWRITE_GLYPH_RUN glyph_run;
-//     glyph_run.fontFace = DW(face);
-//     glyph_run.fontEmSize = 12.0f * (float)ONECORE_DEFAULT_DPI / 72.0f;
-//     glyph_run.glyphCount = 1;
-//     glyph_run.glyphIndices = &glyph_index;
-//     glyph_run.glyphAdvances = NULL;
-//     glyph_run.glyphOffsets = NULL;
-//     glyph_run.isSideways = FALSE;
-//     glyph_run.bidiLevel = 0;
-//
-//     IDWriteGlyphRunAnalysis* analysis; 
-//
-//     hr = DW(lib)->lpVtbl->CreateGlyphRunAnalysis(
-//         DW(lib),
-//         &glyph_run,
-//         1.0,
-//         NULL,
-//         DWRITE_RENDERING_MODE_NATURAL,
-//         DWRITE_MEASURING_MODE_NATURAL,
-//         0.0f,
-//         0.0f,
-//         &analysis);
-//     if (hr != S_OK) {
-//         return false;
-//     }
-//
-//     RECT bounds;
-//     hr = analysis->lpVtbl->GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
-//     if (hr != S_OK) {
-//         analysis->lpVtbl->Release(analysis);
-//         return false;
-//     }
-//
-//     uint32_t rows = bounds.bottom - bounds.top;
-//     uint32_t width = bounds.right - bounds.left;
-//
-//     unsigned char* src_buffer = malloc(rows * width * 3);
-//     unsigned char* dst_buffer = malloc(rows * width);
-//     if (src_buffer == NULL || dst_buffer == NULL) {
-//         analysis->lpVtbl->Release(analysis);
-//         return false;
-//     }
-//
-//     hr = analysis->lpVtbl->CreateAlphaTexture(
-//         analysis,
-//         DWRITE_TEXTURE_CLEARTYPE_3x1,
-//         &bounds,
-//         src_buffer,
-//         rows * width * 3);
-//     analysis->lpVtbl->Release(analysis);
-//     if (hr != S_OK) {
-//         free(src_buffer);
-//         free(dst_buffer);
-//         return false;
-//     }
-//
-//     for (size_t i = 0; i < rows * width; i++) {
-//         float r = src_buffer[i * 3 + 0];
-//         float g = src_buffer[i * 3 + 1];
-//         float b = src_buffer[i * 3 + 2];
-//
-//         dst_buffer[i] = (float)(r + 2 * b + g) / 4.0f;
-//     }
-//     free(src_buffer);
-//
-//     pbitmap->rows = rows;
-//     pbitmap->width = width;
-//     pbitmap->pitch = width;
-//     pbitmap->buffer = dst_buffer;
-//
-//     return true;
-// }
-//
-// void oc_free_bitmap(oc_bitmap bitmap) {
-//     free(bitmap.buffer);
-// }
+oc_error
+oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer) {
+    IDWriteFactory* library = ((struct face_internals*)face.internals)->library;
+    HRESULT hr;
+
+    if (pbbox == NULL) {
+        return oc_error_invalid_param;
+    }
+
+    DWRITE_GLYPH_RUN glyph_run = {0};
+    glyph_run.fontFace = DW(face);
+    glyph_run.fontEmSize = face.font_size * (float)ONECORE_DEFAULT_DPI / 72.0f;
+    glyph_run.glyphCount = 1;
+    glyph_run.glyphIndices = &glyph_index;
+
+    IDWriteGlyphRunAnalysis* analysis; 
+
+    hr = library->lpVtbl->CreateGlyphRunAnalysis(
+        library,
+        &glyph_run,
+        1.0f,
+        NULL,
+        DWRITE_RENDERING_MODE_NATURAL,
+        DWRITE_MEASURING_MODE_NATURAL,
+        0.0f,
+        0.0f,
+        &analysis);
+    switch (hr) {
+    case S_OK:
+        break;
+    case E_OUTOFMEMORY:
+        return oc_error_out_of_memory;
+    default:
+        return oc_error_unexpected;
+    }
+
+    RECT bounds;
+    hr = analysis->lpVtbl->GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
+    if (hr != S_OK) {
+        analysis->lpVtbl->Release(analysis);
+        return oc_error_unexpected;
+    }
+
+    if (buffer == NULL) {
+        analysis->lpVtbl->Release(analysis);
+
+        pbbox->height = bounds.bottom - bounds.top;
+        pbbox->width = bounds.right - bounds.left;
+
+        return oc_error_ok;
+    }
+
+    if (pbbox->height != (ULONG)(bounds.bottom - bounds.top) || pbbox->width != (ULONG)(bounds.right - bounds.left)) {
+        return oc_error_insufficient_buffer;
+    }
+
+    unsigned char* buffer_3x = malloc(pbbox->height * pbbox->width * 3);
+    if (buffer_3x == NULL) {
+        analysis->lpVtbl->Release(analysis);
+        return oc_error_out_of_memory;
+    }
+
+    hr = analysis->lpVtbl->CreateAlphaTexture(
+        analysis,
+        DWRITE_TEXTURE_CLEARTYPE_3x1,
+        &bounds,
+        buffer_3x,
+        pbbox->height * pbbox->width * 3);
+    analysis->lpVtbl->Release(analysis);
+
+    if (hr != S_OK) {
+        free(buffer_3x);
+        return oc_error_unexpected;
+    }
+
+    for (uint32_t i = 0; i < pbbox->width * pbbox->height; i++) {
+        float r = buffer_3x[i * 3 + 0];
+        float g = buffer_3x[i * 3 + 1];
+        float b = buffer_3x[i * 3 + 2];
+
+        buffer[i] = (float)(r + 2 * b + g) / 4.0f;
+    }
+
+    free(buffer_3x);
+    return oc_error_ok;
+}
 
 #endif // ONECORE_DWRITE

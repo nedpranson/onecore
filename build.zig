@@ -26,6 +26,10 @@ pub fn build(b: *std.Build) void {
         .windows => lib.linkSystemLibrary("dwrite"),
         else => |tag| {
             if (tag.isDarwin()) {
+                lib.addSystemFrameworkPath(.{ .cwd_relative = "/home/nedas/Work/macos-sdk/Frameworks" });
+                lib.addSystemIncludePath(.{ .cwd_relative = "/home/nedas/Work/macos-sdk/include" });
+                lib.addLibraryPath(.{ .cwd_relative = "/home/nedas/Work/macos-sdk/lib" });
+
                 lib.linkFramework("CoreFoundation");
                 lib.linkFramework("CoreGraphics");
                 lib.linkFramework("CoreText");
@@ -62,6 +66,8 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    lib_tests.addFrameworkPath(b.path("../macos-sdk/Frameworks"));
+
     lib_tests.linkLibC();
     lib_tests.linkLibrary(lib);
 
@@ -82,6 +88,12 @@ pub fn build(b: *std.Build) void {
             "-Werror",
         },
     });
+
+    if (target.result.os.tag.isDarwin()) {
+        lib_tests.addSystemFrameworkPath(.{ .cwd_relative = "/home/nedas/Work/macos-sdk/Frameworks" });
+        lib_tests.addSystemIncludePath(.{ .cwd_relative = "/home/nedas/Work/macos-sdk/include" });
+        lib_tests.addLibraryPath(.{ .cwd_relative = "/home/nedas/Work/macos-sdk/lib" });
+    }
 
     const run_lib_tests = b.addRunArtifact(lib_tests);
 

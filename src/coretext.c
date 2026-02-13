@@ -2,6 +2,7 @@
 #ifdef ONECORE_CORETEXT
 
 #include <CoreText/CoreText.h>
+#include <math.h>
 
 inline oc_error oc_init_library(oc_library* plibrary) {
     return plibrary == NULL ? oc_error_invalid_param : oc_error_ok;
@@ -40,6 +41,8 @@ static oc_error open_face_from_descriptors(CFArrayRef cf_descriptors_ref, uint32
     //}
 
     pface->internals = (void*)ctf_font_ref;
+    pface->font_size = 12.0f;
+
     return oc_error_ok;
 }
 
@@ -312,6 +315,64 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
     CGPathRelease(path);
 
     return true;
+}
+
+oc_error
+oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer) {
+    CGRect bounds;
+    CTFontGetBoundingRectsForGlyphs(
+        face.internals,
+        kCTFontOrientationHorizontal,
+        &glyph_index,
+        &bounds,
+        1);
+
+    uint32_t height = ceil(bounds.size.width);
+    uint32_t width = ceil(bounds.size.width);
+
+    if (buffer == NULL) {
+        pbbox->height = height;
+        pbbox->width = width;
+
+        return oc_error_ok;
+    }
+
+    CGColorSpaceRef gray = CGColorSpaceCreateDeviceGray();
+    if (gray == NULL) {
+        return oc_error_out_of_memory;
+    }
+
+    CGContextRef ctx = CGBitmapContextCreate(
+        buffer,
+        width,
+        height,
+        8,              // bits per component
+        width,
+        gray,
+        kCGImageAlphaNone);
+    CGColorSpaceRelease(gray);
+    if (ctx == NULL) {
+        return oc_error_unexpected;
+    }
+
+    CGContextSetTextDrawingMode(ctx, kCGTextFill);
+
+    CGContextTranslateCTM(ctx, 0, height);
+    CGContextScaleCTM(ctx, 1.0, -1.0);
+
+    CGContextTranslateCTM(ctx, -bounds.origin.x, -bounds.origin.y);
+
+    CGPoint pos = CGPointZero;
+
+    CTFontDrawGlyphs(
+        face.internals,
+        &glyph_index,
+        &pos,
+        1,
+        ctx);
+    CGContextRelease(ctx);
+
+    return oc_error_unexpected;
 }
 
 #endif // ONECORE_CORETEXT

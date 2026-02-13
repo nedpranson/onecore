@@ -89,10 +89,16 @@ oc_error oc_open_face(oc_library library, const char* path, uint32_t face_index,
         return oc_error_out_of_memory;
     }
 
+    // todo: think
+    // as dwrite and freetype needs say 2 args
+    // we can add void* oc_face::reserved
+
     internals->face = face;
     mutex_init(&internals->lock);
 
     pface->internals = internals;
+    pface->font_size = 12.0f;
+
     return oc_error_ok;
 }
 
@@ -363,6 +369,8 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
     return true;
 }
 
+// copy glyph obj as fast as possible only then check for
+// if it is even valid
 OC_EXPORT oc_error 
 oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer) {
     FT_Error err;

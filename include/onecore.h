@@ -47,9 +47,10 @@ typedef struct {
 // so we would not need to call those expensive dll functions
 typedef struct {
     void* internals;
+    float font_size; // actual size of a font
 } oc_face;
 
-// todo: make it not __habdle but context and inside oc_free_face just pass it's ctx
+// todo: make it not __handle but context and inside oc_free_face just pass it's ctx
 typedef struct {
     const void* data;
     size_t size;
@@ -81,8 +82,8 @@ typedef struct {
 } oc_point;
 
 typedef struct {
-    uint32_t width;
     uint32_t height;
+    uint32_t width;
 } oc_bbox;
 
 typedef void (*oc_outline_start_figure)(oc_point at, void* context);
@@ -129,8 +130,8 @@ oc_open_memory_face(
 // OC_EXPORT oc_error
 // oc_set_size(oc_face face, float desired_size, unsigned short dpi);
 
-OC_EXPORT float
-oc_get_size(oc_face face);
+// OC_EXPORT float
+// oc_get_size(oc_face face);
 
 OC_EXPORT void
 oc_free_face(oc_face face);
