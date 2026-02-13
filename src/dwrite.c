@@ -435,7 +435,16 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
     // dw_font_face needs to have ref to dw_library
     // alloc struct { dw_font_face, dw_library }
 
-    pface->internals = dw_font_face;
+    struct face_internals* internals = malloc(sizeof(struct face_internals));
+    if (internals == NULL) {
+        dw_font_face->lpVtbl->Release(dw_font_face);
+        return oc_error_out_of_memory;
+    }
+
+    internals->face = dw_font_face;
+    internals->library = DW(library);
+
+    pface->internals = internals;
     pface->font_size = 12.0f;
 
     return oc_error_ok;
@@ -531,8 +540,9 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
     return result;
 }
 
-inline void oc_free_face(oc_face face) {
+void oc_free_face(oc_face face) {
     DW(face)->lpVtbl->Release(DW(face));
+    free(face.internals);
 }
 
 uint16_t oc_get_char_index(oc_face face, uint32_t charcode) {
@@ -715,14 +725,14 @@ oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned cha
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return oc_error_unexpected;
+        return unexpected(hr);
     }
 
     RECT bounds;
     hr = analysis->lpVtbl->GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
     if (hr != S_OK) {
         analysis->lpVtbl->Release(analysis);
-        return oc_error_unexpected;
+        return unexpected(hr);
     }
 
     if (buffer == NULL) {
@@ -754,7 +764,7 @@ oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned cha
 
     if (hr != S_OK) {
         free(buffer_3x);
-        return oc_error_unexpected;
+        return unexpected(hr);
     }
 
     for (uint32_t i = 0; i < pbbox->width * pbbox->height; i++) {
