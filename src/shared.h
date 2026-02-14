@@ -6,6 +6,12 @@
 #include <onecore.h>
 #include <stdio.h>
 
+#if defined(__APPLE__) && defined(__MACH__)
+#define ONECORE_SYSTEM_DPI 72
+#else
+#define ONECORE_SYSTEM_DPI 96
+#endif
+
 #if defined(_WIN32) || defined(__CYGWIN__)
 // perhaps use SRWLOCK as i do not need safe recursion for locks
 #include <windows.h>
@@ -70,5 +76,25 @@ static inline oc_error __unexpected(int64_t err, const char* file, int line) {
 
 #define unexpected(err) __unexpected((int64_t)err, __FILE__, __LINE__)
 #endif
+
+static inline oc_face_params fill_face_params(const oc_face_params* pparams) {
+    if (pparams == NULL) return (oc_face_params){
+        .face_index = 0,
+        .desired_size = 12.0f,
+        .dpi = ONECORE_SYSTEM_DPI,
+    };
+
+    oc_face_params params = *pparams;
+
+    if (params.desired_size <= 0.0f) {
+        params.desired_size = 12.0f;
+    }
+
+    if (params.dpi <= 0) {
+        params.dpi = ONECORE_SYSTEM_DPI;
+    }
+    
+    return params;
+}
 
 #endif // ONECORE_SHARED_H_

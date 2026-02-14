@@ -1,3 +1,4 @@
+#include "onecore.h"
 #include "shared.h"
 #ifdef ONECORE_CORETEXT
 
@@ -12,41 +13,35 @@ inline void oc_free_library(oc_library library) {
     (void)library;
 }
 
-static oc_error open_face_from_descriptors(CFArrayRef cf_descriptors_ref, uint32_t face_index, oc_face* pface) {
+static oc_error open_face_from_descriptors(CFArrayRef cf_descriptors_ref, const oc_face_params* pparams, oc_face* pface) {
     CFIndex count = CFArrayGetCount(cf_descriptors_ref);
     if (count == 0) {
         return oc_error_failed_to_open;
     }
 
-    if (face_index >= count) {
+    oc_face_params params = fill_face_params(pparams);
+    if (params.face_index >= count) {
         return oc_error_invalid_param;
     }
 
-    CTFontDescriptorRef ctf_descriptor_ref = (CTFontDescriptorRef)CFArrayGetValueAtIndex(cf_descriptors_ref, face_index);
+    CTFontDescriptorRef ctf_descriptor_ref = (CTFontDescriptorRef)CFArrayGetValueAtIndex(cf_descriptors_ref, params.face_index);
     if (ctf_descriptor_ref == NULL) {
         return oc_error_out_of_memory;
     }
 
-    // font size passed here!
-    CTFontRef ctf_font_ref = CTFontCreateWithFontDescriptor(ctf_descriptor_ref, 0, NULL);
+    CTFontRef ctf_font_ref = CTFontCreateWithFontDescriptor(ctf_descriptor_ref, pface->font_size / (float)pface->font_dpi * 72.0f, NULL);
     if (ctf_font_ref == NULL) {
         return oc_error_out_of_memory;
     }
 
-    // CGFontRef cgf_font_ref = CTFontCopyGraphicsFont(ctf_font_ref, NULL);
-    // CFRelease(ctf_font_ref);
-
-    // if (cgf_font_ref == NULL) {
-    // return oc_error_out_of_memory;
-    //}
-
     pface->internals = (void*)ctf_font_ref;
-    pface->font_size = 12.0f;
+    pface->font_size = params.desired_size; // todo: convert back from like get size...
+    pface->font_dpi = params.dpi;
 
     return oc_error_ok;
 }
 
-oc_error oc_open_face(oc_library library, const char* path, uint32_t face_index, oc_face* pface) {
+oc_error oc_open_face(oc_library library, const char* path, const oc_face_params* pparams, oc_face* pface) {
     (void)library;
 
     if (pface == NULL) {
@@ -77,13 +72,13 @@ oc_error oc_open_face(oc_library library, const char* path, uint32_t face_index,
         return oc_error_failed_to_open;
     }
 
-    oc_error err = open_face_from_descriptors(cf_descriptors_ref, face_index, pface);
+    oc_error err = open_face_from_descriptors(cf_descriptors_ref, pparams, pface);
     CFRelease(cf_descriptors_ref);
 
     return err;
 }
 
-oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, uint32_t face_index, oc_face* pface) {
+oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, const oc_face_params* pparams, oc_face* pface) {
     (void)library;
 
     if (pface == NULL) {
@@ -106,7 +101,7 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
         return oc_error_failed_to_open;
     }
 
-    oc_error err = open_face_from_descriptors(cf_descriptors_ref, face_index, pface);
+    oc_error err = open_face_from_descriptors(cf_descriptors_ref, pparams, pface);
     CFRelease(cf_descriptors_ref);
 
     return err;
@@ -317,52 +312,78 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
     return true;
 }
 
-oc_error
-oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer) {
-    CGRect bounds;
+oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer, size_t buffer_size) {
+    CGRect rect;
     CTFontGetBoundingRectsForGlyphs(
         face.internals,
         kCTFontOrientationHorizontal,
         &glyph_index,
-        &bounds,
+        &rect,
         1);
 
-    uint32_t height = ceil(bounds.size.width);
-    uint32_t width = ceil(bounds.size.width);
+    CGFloat off_x = rect.origin.x - floor(rect.origin.x);
+    CGFloat off_y = rect.origin.y - floor(rect.origin.y);
 
     if (buffer == NULL) {
-        pbbox->height = height;
-        pbbox->width = width;
+        pbbox->height = ceil(rect.size.height + off_y);
+        pbbox->width = ceil(rect.size.width + off_x);
 
         return oc_error_ok;
     }
 
-    CGColorSpaceRef gray = CGColorSpaceCreateDeviceGray();
-    if (gray == NULL) {
+    if (pbbox->height != ceil(rect.size.height + off_y) || pbbox->width != ceil(rect.size.width + off_x)) {
+        return oc_error_invalid_param;
+    }
+
+    if (buffer_size < pbbox->height * pbbox->width) {
+        return oc_error_insufficient_buffer;
+    }
+
+    CGColorSpaceRef linear_gray = CGColorSpaceCreateWithName(kCGColorSpaceLinearGray);
+    if (linear_gray == NULL) {
         return oc_error_out_of_memory;
     }
 
+    // why?
+    memset(buffer, 0, pbbox->width * pbbox->height);
+
     CGContextRef ctx = CGBitmapContextCreate(
         buffer,
-        width,
-        height,
-        8,              // bits per component
-        width,
-        gray,
-        kCGImageAlphaNone);
-    CGColorSpaceRelease(gray);
+        pbbox->width,
+        pbbox->height,
+        8,
+        pbbox->width,
+        linear_gray,
+        kCGImageAlphaOnly);
+    CGColorSpaceRelease(linear_gray);
     if (ctx == NULL) {
-        return oc_error_unexpected;
+        return oc_error_out_of_memory;
     }
 
-    CGContextSetTextDrawingMode(ctx, kCGTextFill);
+    CGRect fill_rect;
+    fill_rect.origin.x = 0;
+    fill_rect.origin.y = 0;
+    fill_rect.size.height = pbbox->height;
+    fill_rect.size.width = pbbox->width;
 
-    CGContextTranslateCTM(ctx, 0, height);
-    CGContextScaleCTM(ctx, 1.0, -1.0);
+    // todo: check if we need subpixel and stuff
 
-    CGContextTranslateCTM(ctx, -bounds.origin.x, -bounds.origin.y);
+    CGContextSetGrayFillColor(ctx, 0.0, 0.0);
+    CGContextFillRect(ctx, fill_rect);
 
-    CGPoint pos = CGPointZero;
+    CGContextSetAllowsAntialiasing(ctx, true);
+    CGContextSetShouldAntialias(ctx, true);
+
+    CGContextSetGrayFillColor(ctx, 1.0, 1.0);
+    CGContextSetGrayStrokeColor(ctx, 1.0, 1.0);
+
+    CGContextTranslateCTM(ctx, off_x, off_y);
+    //CGContextScaleCTM(ctx, width / bounds.size.width, height / bounds.size.height);
+
+    CGPoint pos = {
+        .x = -rect.origin.x,
+        .y = -rect.origin.y,
+    };
 
     CTFontDrawGlyphs(
         face.internals,
@@ -372,7 +393,7 @@ oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned cha
         ctx);
     CGContextRelease(ctx);
 
-    return oc_error_unexpected;
+    return oc_error_ok;
 }
 
 #endif // ONECORE_CORETEXT

@@ -1,3 +1,4 @@
+#include "onecore.h"
 #include "shared.h"
 #ifdef ONECORE_FREETYPE
 
@@ -44,7 +45,7 @@ inline void oc_free_library(oc_library library) {
     FT_Done_FreeType(FT(library));
 }
 
-oc_error oc_open_face(oc_library library, const char* path, uint32_t face_index, oc_face* pface) {
+oc_error oc_open_face(oc_library library, const char* path, const oc_face_params* pparams, oc_face* pface) {
     if (pface == NULL) {
         return oc_error_invalid_param;
     }
@@ -60,8 +61,10 @@ oc_error oc_open_face(oc_library library, const char* path, uint32_t face_index,
     open_args.flags = FT_OPEN_PATHNAME;
     open_args.pathname = (char*)path;
 
+    oc_face_params params = fill_face_params(pparams);
+
     // using FT_Open_Face as FT_New_Face fails if file extention does not match file type
-    err = FT_Open_Face(FT(library), &open_args, face_index, &face);
+    err = FT_Open_Face(FT(library), &open_args, params.face_index, &face);
     switch (err) {
     case FT_Err_Ok:
         break;
@@ -77,7 +80,7 @@ oc_error oc_open_face(oc_library library, const char* path, uint32_t face_index,
         return unexpected(err);
     }
 
-    err = FT_Set_Char_Size(face, 0, 12 * 64.0, ONECORE_DEFAULT_DPI, ONECORE_DEFAULT_DPI);
+    err = FT_Set_Char_Size(face, 0, params.desired_size * 64.0f, params.dpi, params.dpi);
     if (err != FT_Err_Ok) {
         FT_Done_Face(face);
         return unexpected(err);
@@ -97,12 +100,13 @@ oc_error oc_open_face(oc_library library, const char* path, uint32_t face_index,
     mutex_init(&internals->lock);
 
     pface->internals = internals;
-    pface->font_size = 12.0f;
+    pface->font_size = (float)face->size->metrics.y_ppem * 72.0f / (float)params.dpi;
+    pface->font_dpi = params.dpi;
 
     return oc_error_ok;
 }
 
-oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, uint32_t face_index, oc_face* pface) {
+oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, const oc_face_params* pparams, oc_face* pface) {
     if (pface == NULL) {
         return oc_error_invalid_param;
     }
@@ -110,7 +114,8 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
     FT_Face face;
     FT_Error err;
 
-    err = FT_New_Memory_Face(FT(library), data, size, face_index, &face);
+    oc_face_params params = fill_face_params(pparams);
+    err = FT_New_Memory_Face(FT(library), data, size, params.face_index, &face);
     switch (err) {
     case FT_Err_Ok:
         break;
@@ -126,7 +131,7 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
         return unexpected(err);
     }
 
-    err = FT_Set_Char_Size(face, 0, 12 * 64, ONECORE_DEFAULT_DPI, ONECORE_DEFAULT_DPI);
+    err = FT_Set_Char_Size(face, 0, params.desired_size * 64.0f, params.dpi, params.dpi);
     if (err != FT_Err_Ok) {
         FT_Done_Face(face);
         return unexpected(err);
@@ -141,7 +146,11 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
     internals->face = face;
     mutex_init(&internals->lock);
 
+    // todo: think of storing x_ppem y_ppem from dwrite coretext
     pface->internals = internals;
+    pface->font_size = (float)face->size->metrics.y_ppem * 72.0f / (float)params.dpi;
+    pface->font_dpi = params.dpi;
+
     return oc_error_ok;
 }
 
@@ -369,10 +378,10 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
     return true;
 }
 
-// copy glyph obj as fast as possible only then check for
+// todo: copy glyph obj as fast as possible only then check for
 // if it is even valid
 OC_EXPORT oc_error 
-oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer) {
+oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer, size_t buffer_size) {
     FT_Error err;
     if (pbbox == NULL) {
         return oc_error_invalid_param;
@@ -409,7 +418,12 @@ oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned cha
 
     if (pbbox->height != bitmap.rows || pbbox->width != bitmap.width) {
         FACE_UNLOCK(face);
-        return oc_error_insufficient_buffer;
+        return oc_error_invalid_param;
+    }
+
+    if (buffer_size < pbbox->width * pbbox->height) {
+        FACE_UNLOCK(face);
+        return oc_error_insufficient_buffer; 
     }
 
     FT_Glyph glyph;

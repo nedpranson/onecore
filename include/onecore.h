@@ -15,13 +15,13 @@ extern "C" {
 #endif
 #endif
 
-#if !defined(ONECORE_DEFAULT_DPI)
-#if defined(__APPLE__) && defined(__MACH__)
-#define ONECORE_DEFAULT_DPI 72
-#else
-#define ONECORE_DEFAULT_DPI 96
-#endif
-#endif
+// #if !defined(ONECORE_DEFAULT_DPI)
+// #if defined(__APPLE__) && defined(__MACH__)
+// #define ONECORE_DEFAULT_DPI 72
+// #else
+// #define ONECORE_DEFAULT_DPI 96
+// #endif
+// #endif
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -48,6 +48,7 @@ typedef struct {
 typedef struct {
     void* internals;
     float font_size; // actual size of a font
+    short font_dpi; // dpi used for this font
 } oc_face;
 
 // todo: make it not __handle but context and inside oc_free_face just pass it's ctx
@@ -98,6 +99,12 @@ typedef struct {
     oc_outline_cubic_to cubic_to;
 } oc_outline_funcs;
 
+typedef struct {
+    uint32_t face_index;
+    float desired_size;
+    short dpi;
+} oc_face_params;
+
 #define OC_MAKE_TAG(x1, x2, x3, x4) \
     (((uint8_t)x1) << 24 | ((uint8_t)x2) << 16 | ((uint8_t)x3) << 8 | ((uint8_t)x4))
 
@@ -107,12 +114,11 @@ oc_init_library(oc_library* plibrary);
 OC_EXPORT void
 oc_free_library(oc_library library);
 
-// pass font_size and dpi stuff somehow
 OC_EXPORT oc_error
 oc_open_face(
     oc_library library,
     const char* path,
-    uint32_t face_index,
+    const oc_face_params* pparams, // can be nil
     oc_face* pface);
 
 /*
@@ -123,8 +129,8 @@ OC_EXPORT oc_error
 oc_open_memory_face(
     oc_library library,
     const void* data,
-    size_t size,
-    uint32_t face_index,
+    size_t data_size,
+    const oc_face_params* pparams, // can be nil
     oc_face* pface);
 
 // OC_EXPORT oc_error
@@ -186,7 +192,8 @@ oc_render_glyph(
     oc_face face,
     uint16_t glyph_index,
     oc_bbox* pbbox,
-    unsigned char* buffer);
+    unsigned char* buffer,
+    size_t buffer_size);
 
 #ifdef __cplusplus
 }

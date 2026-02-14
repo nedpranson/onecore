@@ -1,4 +1,3 @@
-#include "onecore.h"
 #include "shared.h"
 #ifdef ONECORE_DWRITE
 
@@ -380,7 +379,7 @@ inline void oc_free_library(oc_library library) {
     DW(library)->lpVtbl->Release(DW(library));
 }
 
-static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* font_file, uint32_t face_index, oc_face* pface) {
+static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* font_file, const oc_face_params* pparams, oc_face* pface) {
     HRESULT err;
     WINBOOL is_supported_fonttype;
 
@@ -410,6 +409,7 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
     }
 
     IDWriteFontFace* dw_font_face;
+    oc_face_params params = fill_face_params(pparams);
 
     // todo: we should handle simulations
     err = DW(library)->lpVtbl->CreateFontFace(
@@ -417,7 +417,7 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
         face_type,
         1,
         &font_file,
-        face_index,
+        params.face_index,
         DWRITE_FONT_SIMULATIONS_NONE,
         &dw_font_face);
 
@@ -445,12 +445,13 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
     internals->library = DW(library);
 
     pface->internals = internals;
-    pface->font_size = 12.0f;
+    pface->font_size = params.desired_size;
+    pface->font_dpi = params.dpi;
 
     return oc_error_ok;
 }
 
-oc_error oc_open_face(oc_library library, const char* path, uint32_t face_index, oc_face* pface) {
+oc_error oc_open_face(oc_library library, const char* path, const oc_face_params* pparams, oc_face* pface) {
     if (pface == NULL) {
         return oc_error_invalid_param;
     }
@@ -498,13 +499,13 @@ oc_error oc_open_face(oc_library library, const char* path, uint32_t face_index,
         return unexpected(err);
     }
 
-    oc_error result = open_face_from_font_file(library, font_file, face_index, pface);
-
+    oc_error result = open_face_from_font_file(library, font_file, pparams, pface);
     font_file->lpVtbl->Release(font_file);
+
     return result;
 }
 
-oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, uint32_t face_index, oc_face* pface) {
+oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, const oc_face_params* pparams, oc_face* pface) {
     if (pface == NULL) {
         return oc_error_invalid_param;
     }
@@ -534,9 +535,9 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
         return unexpected(err);
     }
 
-    oc_error result = open_face_from_font_file(library, font_file, face_index, pface);
-
+    oc_error result = open_face_from_font_file(library, font_file, pparams, pface);
     font_file->lpVtbl->Release(font_file);
+
     return result;
 }
 
@@ -693,9 +694,9 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
 //       or mb just pass in buffer_size, not sure
 
 oc_error
-oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer) {
+oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer, size_t buffer_size) {
     IDWriteFactory* library = ((struct face_internals*)face.internals)->library;
-    HRESULT hr;
+    HRESULT err;
 
     if (pbbox == NULL) {
         return oc_error_invalid_param;
@@ -703,36 +704,36 @@ oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned cha
 
     DWRITE_GLYPH_RUN glyph_run = {0};
     glyph_run.fontFace = DW(face);
-    glyph_run.fontEmSize = face.font_size * (float)ONECORE_DEFAULT_DPI / 72.0f;
+    glyph_run.fontEmSize = face.font_size * (float)face.font_dpi / 72.0f;
     glyph_run.glyphCount = 1;
     glyph_run.glyphIndices = &glyph_index;
 
     IDWriteGlyphRunAnalysis* analysis; 
 
-    hr = library->lpVtbl->CreateGlyphRunAnalysis(
+    err = library->lpVtbl->CreateGlyphRunAnalysis(
         library,
         &glyph_run,
         1.0f,
         NULL,
-        DWRITE_RENDERING_MODE_NATURAL,
+        DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC,
         DWRITE_MEASURING_MODE_NATURAL,
         0.0f,
         0.0f,
         &analysis);
-    switch (hr) {
+    switch (err) {
     case S_OK:
         break;
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return unexpected(hr);
+        return unexpected(err);
     }
 
     RECT bounds;
-    hr = analysis->lpVtbl->GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
-    if (hr != S_OK) {
+    err = analysis->lpVtbl->GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
+    if (err != S_OK) {
         analysis->lpVtbl->Release(analysis);
-        return unexpected(hr);
+        return unexpected(err);
     }
 
     if (buffer == NULL) {
@@ -745,6 +746,10 @@ oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned cha
     }
 
     if (pbbox->height != (ULONG)(bounds.bottom - bounds.top) || pbbox->width != (ULONG)(bounds.right - bounds.left)) {
+        return oc_error_invalid_param;
+    }
+
+    if (buffer_size < pbbox->height * pbbox->width) {
         return oc_error_insufficient_buffer;
     }
 
@@ -754,7 +759,7 @@ oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned cha
         return oc_error_out_of_memory;
     }
 
-    hr = analysis->lpVtbl->CreateAlphaTexture(
+    err = analysis->lpVtbl->CreateAlphaTexture(
         analysis,
         DWRITE_TEXTURE_CLEARTYPE_3x1,
         &bounds,
@@ -762,9 +767,9 @@ oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned cha
         pbbox->height * pbbox->width * 3);
     analysis->lpVtbl->Release(analysis);
 
-    if (hr != S_OK) {
+    if (err != S_OK) {
         free(buffer_3x);
-        return unexpected(hr);
+        return unexpected(err);
     }
 
     for (uint32_t i = 0; i < pbbox->width * pbbox->height; i++) {
@@ -772,7 +777,7 @@ oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned cha
         float g = buffer_3x[i * 3 + 1];
         float b = buffer_3x[i * 3 + 2];
 
-        buffer[i] = (float)(r + 2 * b + g) / 4.0f;
+        buffer[i] = (float)(r + b + g) / 3.0f;
     }
 
     free(buffer_3x);
