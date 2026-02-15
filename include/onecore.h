@@ -38,6 +38,7 @@ typedef struct {
 typedef struct {
     void* internals;
     uint16_t ppem; // pixels per em
+    // uint16_t upem;?
 } oc_face;
 
 // todo: make it not __handle but context and inside oc_free_face just pass it's ctx
@@ -48,9 +49,9 @@ typedef struct {
     void* __handle;
 } oc_table;
 
-// cache this
+// cache this????
 typedef struct {
-    uint16_t units_per_em;
+    uint16_t units_per_em; // todo: rename to upem
     uint16_t ascent;
     uint16_t descent;
     int16_t leading;

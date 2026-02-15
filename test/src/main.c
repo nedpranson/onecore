@@ -543,6 +543,73 @@ void test_oc_render_glyph(void) {
     // TEST_ASSERT_EQUAL_UINT8_ARRAY(A, bitmap.buffer, sizeof(A));
 }
 
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+
+void render_test(void) {
+    // todo: fix space caharcter
+    // or chars with no outlines
+    const char* msg = "Hello_World!";
+
+    oc_metrics metrics;
+    oc_get_metrics(g_arial_ttf, &metrics);
+
+    unsigned char buffer[128 * 128];
+    memset(buffer, 0, sizeof(buffer));
+
+    uint32_t px = 0;
+    for (size_t i = 0; i < strlen(msg); i++) {
+        uint16_t idx = oc_get_char_index(g_arial_ttf, msg[i]);
+        if (idx == 0) continue;
+
+        oc_glyph_metrics glyph_metrics;
+        oc_get_glyph_metrics(g_arial_ttf, idx, &glyph_metrics); // this can be void too perhaps just return like 0 0 0 0 0 if invalid idx
+
+        // todo: mb just have sclaed variant that does this for us?
+        //       as yea only freetype has hinting, but we can look ar the source code
+        //       and add them to other backends!!! (hopefully)
+        int32_t h = (metrics.leading + metrics.ascent + metrics.descent) * g_arial_ttf.ppem / metrics.units_per_em; // we need one just called height in metrics
+        int32_t bx = glyph_metrics.bearing_x * g_arial_ttf.ppem / metrics.units_per_em;
+        int32_t by = h - (glyph_metrics.bearing_y) * g_arial_ttf.ppem / metrics.units_per_em;
+
+        unsigned char bitmap[24 * 24];
+
+        //printf("h: %d, y: %d\n", h, glyph_metrics.bearing_y);
+
+        oc_bbox bbox;
+        oc_render_glyph(g_arial_ttf, idx, &bbox, NULL, 0); // remove this double call
+        oc_render_glyph(g_arial_ttf, idx, &bbox, bitmap, sizeof(bitmap));
+
+        for (size_t row = 0; row < bbox.height; row++) {
+            for (size_t col = 0; col < bbox.width; col++) {
+                int32_t y = by + row;
+                int32_t x = px + bx + col;
+
+                buffer[y * 128 + x] = bitmap[row * bbox.width + col];
+            }
+        }
+
+        //printf("bx: %d\n", bx);
+        //printf("by: %d\n", by);
+
+        //printf("px: %d\n", px);
+        px += glyph_metrics.advance * g_arial_ttf.ppem / metrics.units_per_em;
+
+        //advance = scaled_adv * upem / ppem;
+        //scaled_adv = advance * ppem / uem;
+
+    }
+
+
+    stbi_write_png("output.png",
+        128,
+        24,
+        1,
+        buffer,
+        128);
+
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -568,6 +635,8 @@ int main(void) {
     RUN_TEST(test_oc_get_glyph_metrics_scaled);
     RUN_TEST(test_oc_get_outline);
     RUN_TEST(test_oc_render_glyph);
+
+    render_test();
 
     oc_free_face(g_arial_ttf);
     oc_free_library(g_library);
