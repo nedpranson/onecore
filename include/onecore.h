@@ -36,9 +36,19 @@ typedef struct {
 } oc_library;
 
 typedef struct {
+    uint16_t ppem;
+    uint16_t upem;
+    uint16_t ascent;
+    uint16_t descent;
+    int16_t leading;
+    int16_t underline_position;
+    uint16_t underline_thickness;
+} oc_metrics; // todo: rename to font_metrics
+
+// as this thingy grows we prob should pass it by `const oc_face*`
+typedef struct {
     void* internals;
-    uint16_t ppem; // pixels per em
-    // uint16_t upem;?
+    oc_metrics metrics;
 } oc_face;
 
 // todo: make it not __handle but context and inside oc_free_face just pass it's ctx
@@ -48,16 +58,6 @@ typedef struct {
 
     void* __handle;
 } oc_table;
-
-// cache this????
-typedef struct {
-    uint16_t units_per_em; // todo: rename to upem
-    uint16_t ascent;
-    uint16_t descent;
-    int16_t leading;
-    int16_t underline_position;
-    uint16_t underline_thickness;
-} oc_metrics;
 
 typedef struct {
     uint32_t width;
@@ -147,11 +147,8 @@ oc_free_table(oc_face face, oc_table table);
 // after implementing scaling (for scalable fonts) then tidy up the code base
 
 // todo: add scaled variant
-OC_EXPORT void
-oc_get_metrics(oc_face face, oc_metrics* pmetrics);
-
-// todo: add scaled variant
 // returning bools is hmm lazy
+// todo: rename to just get_metrics and mb make it void??
 OC_EXPORT bool
 oc_get_glyph_metrics(
     oc_face face,
@@ -177,6 +174,8 @@ oc_get_outline(
 
 // todo: add comments here explaining that every backend will generate diffrent glyph textures
 //       so if u want it modified by every backend it would be recomended to raster it using glyph outlines
+// todo: now we're rendering these glyphs from [0;0] position which is convenient, but it does lose some extra draw data
+//       make so an user could specify how to draw this glyph mb allow to pass matricies and origins mb just some flags??
 OC_EXPORT oc_error 
 oc_render_glyph(
     oc_face face,

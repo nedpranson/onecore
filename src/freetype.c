@@ -1,4 +1,5 @@
 #include "shared.h"
+#include <stdio.h>
 #ifdef ONECORE_FREETYPE
 
 #include <ft2build.h>
@@ -44,6 +45,37 @@ inline void oc_free_library(oc_library library) {
     FT_Done_FreeType(FT(library));
 }
 
+static oc_error init_face(FT_Face ft_face, const oc_face_params* pparams, oc_face* pface) {
+    FT_Error err = FT_Set_Char_Size(ft_face, 0, pparams->desired_size * 64.0f, pparams->dpi, pparams->dpi);
+    if (err != FT_Err_Ok) {
+        return unexpected(err);
+    }
+
+    struct face_internals* internals = malloc(sizeof(struct face_internals));
+    if (internals == NULL) {
+        return oc_error_out_of_memory;
+    }
+
+    // todo: think
+    // as dwrite and freetype needs say 2 args
+    // we can add void* oc_face::reserved
+
+    internals->face = ft_face;
+    mutex_init(&internals->lock);
+
+    pface->internals = internals;
+    pface->metrics.ppem = ft_face->size->metrics.y_ppem;
+    pface->metrics.upem = ft_face->units_per_EM;
+    pface->metrics.ascent = ft_face->ascender;
+    pface->metrics.descent = -ft_face->descender;
+    pface->metrics.leading = ft_face->height - ft_face->ascender + ft_face->descender;
+    // reverting ajusted underline position by freetype
+    pface->metrics.underline_position = ft_face->underline_position + (ft_face->underline_thickness >> 1);
+    pface->metrics.underline_thickness = ft_face->underline_thickness;
+
+    return oc_error_ok;
+}
+
 oc_error oc_open_face(oc_library library, const char* path, const oc_face_params* pparams, oc_face* pface) {
     if (pface == NULL) {
         return oc_error_invalid_param;
@@ -79,29 +111,12 @@ oc_error oc_open_face(oc_library library, const char* path, const oc_face_params
         return unexpected(err);
     }
 
-    err = FT_Set_Char_Size(face, 0, params.desired_size * 64.0f, params.dpi, params.dpi);
-    if (err != FT_Err_Ok) {
+    oc_error oc_err = init_face(face, &params, pface);
+    if (oc_err != oc_error_ok) {
         FT_Done_Face(face);
-        return unexpected(err);
     }
 
-    struct face_internals* internals = malloc(sizeof(struct face_internals));
-    if (internals == NULL) {
-        FT_Done_Face(face);
-        return oc_error_out_of_memory;
-    }
-
-    // todo: think
-    // as dwrite and freetype needs say 2 args
-    // we can add void* oc_face::reserved
-
-    internals->face = face;
-    mutex_init(&internals->lock);
-
-    pface->internals = internals;
-    pface->ppem = face->size->metrics.y_ppem;
-
-    return oc_error_ok;
+    return oc_err;
 }
 
 oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, const oc_face_params* pparams, oc_face* pface) {
@@ -129,25 +144,12 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
         return unexpected(err);
     }
 
-    err = FT_Set_Char_Size(face, 0, params.desired_size * 64.0f, params.dpi, params.dpi);
-    if (err != FT_Err_Ok) {
+    oc_error oc_err = init_face(face, &params, pface);
+    if (oc_err != oc_error_ok) {
         FT_Done_Face(face);
-        return unexpected(err);
     }
 
-    struct face_internals* internals = malloc(sizeof(struct face_internals));
-    if (internals == NULL) {
-        FT_Done_Face(face);
-        return oc_error_out_of_memory;
-    }
-
-    internals->face = face;
-    mutex_init(&internals->lock);
-
-    pface->internals = internals;
-    pface->ppem = face->size->metrics.y_ppem;
-
-    return oc_error_ok;
+    return oc_err;
 }
 
 void oc_free_face(oc_face face) {
@@ -200,16 +202,6 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
 inline void oc_free_table(oc_face face, oc_table table) {
     (void)face;
     free(table.__handle);
-}
-
-void oc_get_metrics(oc_face face, oc_metrics* pmetrics) {
-    pmetrics->units_per_em = FT(face)->units_per_EM;
-    pmetrics->ascent = FT(face)->ascender;
-    pmetrics->descent = -FT(face)->descender;
-    pmetrics->leading = FT(face)->height - FT(face)->ascender + FT(face)->descender;
-    // reverting ajusted underline position by freetype
-    pmetrics->underline_position = FT(face)->underline_position + (FT(face)->underline_thickness >> 1);
-    pmetrics->underline_thickness = FT(face)->underline_thickness;
 }
 
 // todo: add option for verticals and maybe load both hori and vert bearings, advances

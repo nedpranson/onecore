@@ -183,45 +183,41 @@ void test_oc_get_sfnt_table(void) {
     TEST_ASSERT_EQUAL(oc_error_table_missing, err);
 }
 
-void test_oc_get_metrics(void) {
+void test_oc_metrics(void) {
     oc_face face;
-    oc_metrics metrics;
     oc_error err;
 
     err = oc_open_face(g_library, "test/files/arial.ttf", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
-    oc_get_metrics(face, &metrics);
-    TEST_ASSERT_EQUAL_UINT16(2048, metrics.units_per_em);
-    TEST_ASSERT_EQUAL_UINT16(1854, metrics.ascent);
-    TEST_ASSERT_EQUAL_UINT16(434, metrics.descent);
-    TEST_ASSERT_EQUAL_INT16(67, metrics.leading);
-    TEST_ASSERT_EQUAL_INT16(-217, metrics.underline_position);
-    TEST_ASSERT_EQUAL_UINT16(150, metrics.underline_thickness);
+    TEST_ASSERT_EQUAL_UINT16(2048, face.metrics.upem);
+    TEST_ASSERT_EQUAL_UINT16(1854, face.metrics.ascent);
+    TEST_ASSERT_EQUAL_UINT16(434, face.metrics.descent);
+    TEST_ASSERT_EQUAL_INT16(67, face.metrics.leading);
+    TEST_ASSERT_EQUAL_INT16(-217, face.metrics.underline_position);
+    TEST_ASSERT_EQUAL_UINT16(150, face.metrics.underline_thickness);
     oc_free_face(face);
 
     err = oc_open_face(g_library, "test/files/source-serif.otf", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
-    oc_get_metrics(face, &metrics);
-    TEST_ASSERT_EQUAL_UINT16(1000, metrics.units_per_em);
-    TEST_ASSERT_EQUAL_UINT16(1036, metrics.ascent);
-    TEST_ASSERT_EQUAL_UINT16(335, metrics.descent);
-    TEST_ASSERT_EQUAL_INT16(0, metrics.leading);
-    TEST_ASSERT_EQUAL_INT16(-50, metrics.underline_position);
-    TEST_ASSERT_EQUAL_UINT16(50, metrics.underline_thickness);
+    TEST_ASSERT_EQUAL_UINT16(1000, face.metrics.upem);
+    TEST_ASSERT_EQUAL_UINT16(1036, face.metrics.ascent);
+    TEST_ASSERT_EQUAL_UINT16(335, face.metrics.descent);
+    TEST_ASSERT_EQUAL_INT16(0, face.metrics.leading);
+    TEST_ASSERT_EQUAL_INT16(-50, face.metrics.underline_position);
+    TEST_ASSERT_EQUAL_UINT16(50, face.metrics.underline_thickness);
     oc_free_face(face);
 
     err = oc_open_face(g_library, "test/files/roman.ttf", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
-    oc_get_metrics(face, &metrics);
-    TEST_ASSERT_EQUAL_UINT16(1000, metrics.units_per_em);
-    TEST_ASSERT_EQUAL_UINT16(878, metrics.ascent);
-    TEST_ASSERT_EQUAL_UINT16(250, metrics.descent);
-    TEST_ASSERT_EQUAL_INT16(0, metrics.leading);
-    TEST_ASSERT_EQUAL_INT16(-100, metrics.underline_position);
-    TEST_ASSERT_EQUAL_UINT16(50, metrics.underline_thickness);
+    TEST_ASSERT_EQUAL_UINT16(1000, face.metrics.upem);
+    TEST_ASSERT_EQUAL_UINT16(878, face.metrics.ascent);
+    TEST_ASSERT_EQUAL_UINT16(250, face.metrics.descent);
+    TEST_ASSERT_EQUAL_INT16(0, face.metrics.leading);
+    TEST_ASSERT_EQUAL_INT16(-100, face.metrics.underline_position);
+    TEST_ASSERT_EQUAL_UINT16(50, face.metrics.underline_thickness);
     oc_free_face(face);
 }
 
@@ -551,8 +547,7 @@ void render_test(void) {
     // or chars with no outlines
     const char* msg = "Hello_World!";
 
-    oc_metrics metrics;
-    oc_get_metrics(g_arial_ttf, &metrics);
+    oc_metrics metrics = g_arial_ttf.metrics;
 
     unsigned char buffer[128 * 128];
     memset(buffer, 0, sizeof(buffer));
@@ -568,13 +563,13 @@ void render_test(void) {
         // todo: mb just have sclaed variant that does this for us?
         //       as yea only freetype has hinting, but we can look ar the source code
         //       and add them to other backends!!! (hopefully)
-        int32_t h = (metrics.leading + metrics.ascent + metrics.descent) * g_arial_ttf.ppem / metrics.units_per_em; // we need one just called height in metrics
-        int32_t bx = glyph_metrics.bearing_x * g_arial_ttf.ppem / metrics.units_per_em;
-        int32_t by = h - (glyph_metrics.bearing_y) * g_arial_ttf.ppem / metrics.units_per_em;
+        int32_t h = (metrics.leading + metrics.ascent + metrics.descent) * metrics.ppem / metrics.upem; // we need one just called height in metrics
+        int32_t bx = glyph_metrics.bearing_x * metrics.ppem / metrics.upem;
+        int32_t by = h - glyph_metrics.bearing_y * metrics.ppem / metrics.upem;
 
         unsigned char bitmap[24 * 24];
 
-        printf("h: %d, bx: %d, by: %d, px: %d\n", h, bx, by, px);
+        //printf("h: %d, bx: %d, by: %d, px: %d\n", h, bx, by, px);
 
         oc_bbox bbox;
         oc_render_glyph(g_arial_ttf, idx, &bbox, NULL, 0); // remove this double call
@@ -596,7 +591,7 @@ void render_test(void) {
         //printf("by: %d\n", by);
 
         //printf("px: %d\n", px);
-        px += glyph_metrics.advance * g_arial_ttf.ppem / metrics.units_per_em;
+        px += glyph_metrics.advance * metrics.ppem / metrics.upem;
 
         //advance = scaled_adv * upem / ppem;
         //scaled_adv = advance * ppem / uem;
@@ -625,14 +620,14 @@ int main(void) {
 
     err = oc_open_face(g_library, "test/files/arial.ttf", &face_params, &g_arial_ttf);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    TEST_ASSERT_EQUAL_UINT16(16, g_arial_ttf.ppem);
+    TEST_ASSERT_EQUAL_UINT16(16, g_arial_ttf.metrics.ppem);
 
     RUN_TEST(test_oc_init_library);
     RUN_TEST(test_oc_open_face);
     RUN_TEST(test_oc_open_memory_face);
     RUN_TEST(test_oc_get_char_index);
     RUN_TEST(test_oc_get_sfnt_table);
-    RUN_TEST(test_oc_get_metrics);
+    RUN_TEST(test_oc_metrics);
     RUN_TEST(test_oc_get_glyph_metrics);
     RUN_TEST(test_oc_get_glyph_metrics_scaled);
     RUN_TEST(test_oc_get_outline);

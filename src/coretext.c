@@ -34,8 +34,17 @@ static oc_error open_face_from_descriptors(CFArrayRef cf_descriptors_ref, const 
         return oc_error_out_of_memory;
     }
 
+    CGFloat fsize = CTFontGetSize(ctf_font_ref);
+    CGFloat fupem = (CGFloat)CTFontGetUnitsPerEm(ctf_font_ref);
+
     pface->internals = (void*)ctf_font_ref;
-    pface->ppem = ppem;
+    pface->metrics.ppem = ppem;
+    pface->metrics.upem = (uint16_t)fupem;
+    pface->metrics.ascent = (uint16_t)(CTFontGetAscent(ctf_font_ref) * fupem / fsize);
+    pface->metrics.descent = (uint16_t)(CTFontGetDescent(ctf_font_ref) * fupem / fsize);
+    pface->metrics.leading = (int16_t)(CTFontGetLeading(ctf_font_ref) * fupem / fsize);
+    pface->metrics.underline_position = (int16_t)(CTFontGetUnderlinePosition(ctf_font_ref) * fupem / fsize);
+    pface->metrics.underline_thickness = (uint16_t)(CTFontGetUnderlineThickness(ctf_font_ref) * fupem / fsize);
 
     return oc_error_ok;
 }
@@ -170,18 +179,6 @@ inline void oc_free_table(oc_face face, oc_table table) {
     CFRelease(table.__handle);
 }
 
-void oc_get_metrics(oc_face face, oc_metrics* pmetrics) {
-    CGFloat fsize = CTFontGetSize(face.internals);
-    CGFloat funits_per_em = (CGFloat)CTFontGetUnitsPerEm(face.internals);
-
-    pmetrics->units_per_em = (uint16_t)funits_per_em;
-    pmetrics->ascent = (uint16_t)(CTFontGetAscent(face.internals) * funits_per_em / fsize);
-    pmetrics->descent = (uint16_t)(CTFontGetDescent(face.internals) * funits_per_em / fsize);
-    pmetrics->leading = (int16_t)(CTFontGetLeading(face.internals) * funits_per_em / fsize);
-    pmetrics->underline_position = (int16_t)(CTFontGetUnderlinePosition(face.internals) * funits_per_em / fsize);
-    pmetrics->underline_thickness = (uint16_t)(CTFontGetUnderlineThickness(face.internals) * funits_per_em / fsize);
-}
-
 bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics) {
     if (pglyph_metrics == NULL) {
         return false;
@@ -311,6 +308,7 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
     return true;
 }
 
+// todo: remove that embolden effect or sum
 oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer, size_t buffer_size) {
     CGRect rect;
     CTFontGetBoundingRectsForGlyphs(

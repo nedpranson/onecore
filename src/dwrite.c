@@ -445,8 +445,17 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
     internals->face = dw_font_face;
     internals->library = DW(library);
 
+    DWRITE_FONT_METRICS metrics;
+    dw_font_face->lpVtbl->GetMetrics(dw_font_face, &metrics);
+
     pface->internals = internals;
-    pface->ppem = roundf(params.desired_size * (float)params.dpi / 72.0f);
+    pface->metrics.ppem = roundf((float)(params.desired_size * params.dpi) / 72.0f);
+    pface->metrics.upem = metrics.designUnitsPerEm;
+    pface->metrics.ascent = metrics.ascent;
+    pface->metrics.descent = metrics.descent;
+    pface->metrics.leading = metrics.lineGap;
+    pface->metrics.underline_position = metrics.underlinePosition;
+    pface->metrics.underline_thickness = metrics.underlineThickness;
 
     return oc_error_ok;
 }
@@ -606,18 +615,6 @@ inline void oc_free_table(oc_face face, oc_table table) {
     DW(face)->lpVtbl->ReleaseFontTable(DW(face), table.__handle);
 }
 
-void oc_get_metrics(oc_face face, oc_metrics* pmetrics) {
-    DWRITE_FONT_METRICS metrics;
-    DW(face)->lpVtbl->GetMetrics(DW(face), &metrics);
-
-    pmetrics->units_per_em = metrics.designUnitsPerEm;
-    pmetrics->ascent = metrics.ascent;
-    pmetrics->descent = metrics.descent;
-    pmetrics->leading = metrics.lineGap;
-    pmetrics->underline_position = metrics.underlinePosition;
-    pmetrics->underline_thickness = metrics.underlineThickness;
-}
-
 bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics) {
     if (pglyph_metrics == NULL) {
         return false;
@@ -704,7 +701,7 @@ oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned cha
 
     DWRITE_GLYPH_RUN glyph_run = {0};
     glyph_run.fontFace = DW(face);
-    glyph_run.fontEmSize = face.ppem;
+    glyph_run.fontEmSize = face.metrics.ppem;
     glyph_run.glyphCount = 1;
     glyph_run.glyphIndices = &glyph_index;
 
@@ -756,9 +753,10 @@ oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned cha
     (void)err;
     assert(err == S_OK);
 
-    // todo:
-    float origin_x = (float)(metrics.leftSideBearing * face.ppem) / 2048.0f; // upem is hard coded for now
-    float origin_y = (float)(metrics.topSideBearing * face.ppem) / 2048.0f;
+    // todo: use these origins to transform render how we do in coretext and make upem a global!!!
+    // would be nice to have helber functions called like oc_scale - double and oc_scalef - float
+    float origin_x = (float)(metrics.leftSideBearing * face.metrics.ppem) / (float)face.metrics.upem;
+    float origin_y = -(float)(metrics.advanceHeight - metrics.verticalOriginY - metrics.bottomSideBearing) * (float)face.metrics.ppem / (float)face.metrics.upem;
 
     printf("origin_x: %f, origin_y: %f\n", origin_x, origin_y);
 
