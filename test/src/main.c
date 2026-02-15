@@ -585,7 +585,10 @@ void render_test(void) {
                 int32_t y = by + row;
                 int32_t x = px + bx + col;
 
-                buffer[y * 128 + x] = bitmap[row * bbox.width + col];
+                uint8_t src = bitmap[row * bbox.width + col];
+                uint8_t *dst = &buffer[y * 128 + x];
+
+                *dst = src + (*dst * (255 - src) / 255);
             }
         }
 
