@@ -1,4 +1,3 @@
-#include "onecore.h"
 #include "shared.h"
 #ifdef ONECORE_FREETYPE
 
@@ -100,8 +99,7 @@ oc_error oc_open_face(oc_library library, const char* path, const oc_face_params
     mutex_init(&internals->lock);
 
     pface->internals = internals;
-    pface->font_size = (float)face->size->metrics.y_ppem * 72.0f / (float)params.dpi;
-    pface->font_dpi = params.dpi;
+    pface->ppem = face->size->metrics.y_ppem;
 
     return oc_error_ok;
 }
@@ -146,10 +144,8 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
     internals->face = face;
     mutex_init(&internals->lock);
 
-    // todo: think of storing x_ppem y_ppem from dwrite coretext
     pface->internals = internals;
-    pface->font_size = (float)face->size->metrics.y_ppem * 72.0f / (float)params.dpi;
-    pface->font_dpi = params.dpi;
+    pface->ppem = face->size->metrics.y_ppem;
 
     return oc_error_ok;
 }

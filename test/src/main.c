@@ -28,8 +28,6 @@ void test_oc_open_face(void) {
 
     err = oc_open_face(g_library, "test/files/arial.ttf", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    TEST_ASSERT_EQUAL_FLOAT(12.0f, face.font_size);
-    TEST_ASSERT(face.font_dpi == 96 || face.font_dpi == 72);
 
     oc_free_face(face);
 
@@ -486,6 +484,9 @@ void test_oc_render_glyph(void) {
     err = oc_render_glyph(g_arial_ttf, idx, &bbox, buffer, sizeof(buffer));
     TEST_ASSERT_EQUAL(err, oc_error_ok);
 
+    // todo: lets render all chars to an atlas and lets compare which engine renders it the best
+    //       have diff sizes like 8pts 12pts 16pts and 96/72 dpi
+
     // unsigned char FT_A[] = {
     //     0,   0,   0,   0,   0, 208, 255,  53,   0,   0,   0,   0,
     //     0,   0,   0,   0,  45, 255, 207, 153,   0,   0,   0,   0,
@@ -501,6 +502,37 @@ void test_oc_render_glyph(void) {
     //     0, 216, 191,   0,   0,   0,   0,   0,   0,  51, 255, 129
     // };
 
+    // why is this one soo diffrent?
+    // unsigned char CT_A[] = {
+    //    0,   0,   0,   0,  22, 250, 255, 118,   0,   0,   0,   0,
+    //    0,   0,   0,   0, 115, 255, 255, 221,   1,   0,   0,   0,
+    //    0,   0,   0,   0, 213, 255, 255, 255,  71,   0,   0,   0,
+    //    0,   0,   0,  55, 255, 232, 127, 255, 176,   0,   0,   0,
+    //    0,   0,   0, 153, 255, 147,  36, 255, 252,  28,   0,   0,
+    //    0,   0,  10, 241, 255,  52,   0, 195, 255, 128,   0,   0,
+    //    0,   0,  93, 255, 248,  54,  54, 153, 255, 228,   4,   0,
+    //    0,   0, 191, 255, 255, 255, 255, 255, 255, 255,  81,   0,
+    //    0,  34, 254, 254, 138, 135, 135, 135, 199, 255, 185,   0,
+    //    0, 131, 255, 190,   0,   0,   0,   0,  63, 255, 254,  35,
+    //    2, 226, 255,  97,   0,   0,   0,   0,   1, 219, 255, 138,
+    //   42, 255, 246,  14,   0,   0,   0,   0,   0, 122, 255, 213
+    // };
+
+    // unsigned char DW_A[] = {
+    //    0,   0,   0,   0,  17, 205, 253,  97,   0,   0,   0,   0,   0,
+    //    0,   0,   0,   0,  63, 222, 196, 191,  10,   0,   0,   0,   0,
+    //    0,   0,   0,   1, 157, 188,  88, 232,  49,   0,   0,   0,   0,
+    //    0,   0,   0,  37, 228, 128,  30, 225, 138,   0,   0,   0,   0,
+    //    0,   0,   0,  97, 235,  49,   1, 157, 218,  26,   0,   0,   0,
+    //    0,   0,  10, 191, 191,  10,   0,  79, 245,  79,   0,   0,   0,
+    //    0,   0,  57, 241, 100,   0,   0,  19, 208, 175,   5,   0,   0,
+    //    0,   0, 138, 255, 255, 255, 255, 255, 255, 237,  49,   0,   0,
+    //    0,  26, 218, 157,   1,   0,   0,   0,  63, 244, 117,   0,   0,
+    //    0,  86, 242,  63,   0,   0,   0,   0,  10, 191, 205,  17,   0,
+    //    5, 175, 191,  10,   0,   0,   0,   0,   0,  97, 248,  79,   0,
+    //   49, 235,  97,   0,   0,   0,   0,   0,   0,  26, 218, 157,   1
+    // };
+
     for (size_t y = 0; y < bbox.height; y++) {
         for (size_t x = 0; x < bbox.width; x++) {
             printf("%03d ", buffer[y * bbox.width + x]);
@@ -509,8 +541,6 @@ void test_oc_render_glyph(void) {
     }
 
     // TEST_ASSERT_EQUAL_UINT8_ARRAY(A, bitmap.buffer, sizeof(A));
-
-    // oc_free_bitmap(bitmap);
 }
 
 int main(void) {
@@ -526,6 +556,7 @@ int main(void) {
 
     err = oc_open_face(g_library, "test/files/arial.ttf", &face_params, &g_arial_ttf);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
+    TEST_ASSERT_EQUAL_UINT16(16, g_arial_ttf.ppem);
 
     RUN_TEST(test_oc_init_library);
     RUN_TEST(test_oc_open_face);

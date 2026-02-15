@@ -5,6 +5,7 @@
 
 #include <d2d1.h>
 #include <dwrite.h>
+#include <math.h>
 
 struct face_internals {
     IDWriteFontFace* face;
@@ -445,8 +446,7 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
     internals->library = DW(library);
 
     pface->internals = internals;
-    pface->font_size = params.desired_size;
-    pface->font_dpi = params.dpi;
+    pface->ppem = roundf(params.desired_size * (float)params.dpi / 72.0f);
 
     return oc_error_ok;
 }
@@ -704,7 +704,7 @@ oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned cha
 
     DWRITE_GLYPH_RUN glyph_run = {0};
     glyph_run.fontFace = DW(face);
-    glyph_run.fontEmSize = face.font_size * (float)face.font_dpi / 72.0f;
+    glyph_run.fontEmSize = face.ppem;
     glyph_run.glyphCount = 1;
     glyph_run.glyphIndices = &glyph_index;
 

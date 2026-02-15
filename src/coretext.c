@@ -1,4 +1,3 @@
-#include "onecore.h"
 #include "shared.h"
 #ifdef ONECORE_CORETEXT
 
@@ -29,14 +28,14 @@ static oc_error open_face_from_descriptors(CFArrayRef cf_descriptors_ref, const 
         return oc_error_out_of_memory;
     }
 
-    CTFontRef ctf_font_ref = CTFontCreateWithFontDescriptor(ctf_descriptor_ref, params.desired_size / 72.0f * (float)params.dpi, NULL);
+    uint16_t ppem = roundf(params.desired_size * (float)params.dpi / 72.0f);
+    CTFontRef ctf_font_ref = CTFontCreateWithFontDescriptor(ctf_descriptor_ref, ppem, NULL);
     if (ctf_font_ref == NULL) {
         return oc_error_out_of_memory;
     }
 
     pface->internals = (void*)ctf_font_ref;
-    pface->font_size = params.desired_size; // todo: convert back from like get size...
-    pface->font_dpi = params.dpi;
+    pface->ppem = ppem;
 
     return oc_error_ok;
 }
@@ -325,13 +324,13 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     CGFloat off_y = rect.origin.y - floor(rect.origin.y);
 
     if (buffer == NULL) {
-        pbbox->height = ceil(rect.size.height + off_y);
-        pbbox->width = ceil(rect.size.width + off_x);
+        pbbox->height = ceilf(rect.size.height + off_y);
+        pbbox->width = ceilf(rect.size.width + off_x);
 
         return oc_error_ok;
     }
 
-    if (pbbox->height != ceil(rect.size.height + off_y) || pbbox->width != ceil(rect.size.width + off_x)) {
+    if (pbbox->height != ceilf(rect.size.height + off_y) || pbbox->width != ceilf(rect.size.width + off_x)) {
         return oc_error_invalid_param;
     }
 
@@ -344,7 +343,6 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         return oc_error_out_of_memory;
     }
 
-    // why?
     memset(buffer, 0, pbbox->width * pbbox->height);
 
     CGContextRef ctx = CGBitmapContextCreate(
@@ -366,10 +364,16 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     fill_rect.size.height = pbbox->height;
     fill_rect.size.width = pbbox->width;
 
-    // todo: check if we need subpixel and stuff
+    // https://github.com/ghostty-org/ghostty/blob/main/src/font/face/coretext.zig#L478
 
     CGContextSetGrayFillColor(ctx, 0.0, 0.0);
     CGContextFillRect(ctx, fill_rect);
+
+    CGContextSetAllowsFontSubpixelPositioning(ctx, true);
+    CGContextSetShouldSubpixelPositionFonts(ctx, true);
+
+    CGContextSetAllowsFontSubpixelQuantization(ctx, false);
+    CGContextSetShouldSubpixelQuantizeFonts(ctx, false);
 
     CGContextSetAllowsAntialiasing(ctx, true);
     CGContextSetShouldAntialias(ctx, true);

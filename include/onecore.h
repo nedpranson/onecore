@@ -15,14 +15,6 @@ extern "C" {
 #endif
 #endif
 
-// #if !defined(ONECORE_DEFAULT_DPI)
-// #if defined(__APPLE__) && defined(__MACH__)
-// #define ONECORE_DEFAULT_DPI 72
-// #else
-// #define ONECORE_DEFAULT_DPI 96
-// #endif
-// #endif
-
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -43,12 +35,9 @@ typedef struct {
     void* internals;
 } oc_library;
 
-// we can even cache some stuff here
-// so we would not need to call those expensive dll functions
 typedef struct {
     void* internals;
-    float font_size; // actual size of a font
-    short font_dpi; // dpi used for this font
+    uint16_t ppem; // pixels per em
 } oc_face;
 
 // todo: make it not __handle but context and inside oc_free_face just pass it's ctx
@@ -83,8 +72,8 @@ typedef struct {
 } oc_point;
 
 typedef struct {
-    uint32_t height;
-    uint32_t width;
+    uint32_t height; // rows
+    uint32_t width; // cols
 } oc_bbox;
 
 typedef void (*oc_outline_start_figure)(oc_point at, void* context);
