@@ -745,6 +745,23 @@ oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned cha
         return oc_error_ok;
     }
 
+    DWRITE_GLYPH_METRICS metrics;
+    err = DW(face)->lpVtbl->GetDesignGlyphMetrics(
+        DW(face),
+        &glyph_index,
+        1,
+        &metrics,
+        FALSE);
+
+    (void)err;
+    assert(err == S_OK);
+
+    // todo:
+    float origin_x = (float)(metrics.leftSideBearing * face.ppem) / 2048.0f; // upem is hard coded for now
+    float origin_y = (float)(metrics.topSideBearing * face.ppem) / 2048.0f;
+
+    printf("origin_x: %f, origin_y: %f\n", origin_x, origin_y);
+
     if (pbbox->height != (ULONG)(bounds.bottom - bounds.top) || pbbox->width != (ULONG)(bounds.right - bounds.left)) {
         return oc_error_invalid_param;
     }

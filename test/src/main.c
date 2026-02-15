@@ -470,8 +470,8 @@ void test_oc_render_glyph(void) {
     uint16_t idx;
     oc_error err;
 
-    idx = oc_get_char_index(g_arial_ttf, 'A');
-    TEST_ASSERT_EQUAL_INT16(36, idx);
+    idx = oc_get_char_index(g_arial_ttf, 'l');
+    TEST_ASSERT_EQUAL_INT16(79, idx);
 
     oc_bbox bbox;
     err = oc_render_glyph(g_arial_ttf, idx, &bbox, NULL, 0);
@@ -574,7 +574,7 @@ void render_test(void) {
 
         unsigned char bitmap[24 * 24];
 
-        //printf("h: %d, y: %d\n", h, glyph_metrics.bearing_y);
+        printf("h: %d, bx: %d, by: %d, px: %d\n", h, bx, by, px);
 
         oc_bbox bbox;
         oc_render_glyph(g_arial_ttf, idx, &bbox, NULL, 0); // remove this double call
@@ -603,13 +603,12 @@ void render_test(void) {
 
     }
 
-
-    stbi_write_png("output.png",
-        128,
-        24,
-        1,
-        buffer,
-        128);
+    // stbi_write_png("output.png",
+    //     128,
+    //     24,
+    //     1,
+    //     buffer,
+    //     128);
 
 }
 
