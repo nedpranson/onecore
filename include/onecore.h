@@ -23,9 +23,10 @@ extern "C" {
 
 #define OC_LOAD_DEFAULT  0x0
 #define OC_LOAD_NO_SCALE (1l << 0)
-// #define OC_LOAD_VERTICAL (1l << 1)
-// #define OC_LOAD_COLOR (1l << 2)
-// #define OC_LOAD_NO_HINTING (1l << 3) // for now there is no hinting
+// #define OC_LOAD_FIXED (1l << 1)
+// #define OC_LOAD_VERTICAL (1l << 2)
+// #define OC_LOAD_COLOR (1l << 3)
+// #define OC_LOAD_NO_HINTING (1l << 4) // for now there is no hinting
 
 typedef uint32_t oc_tag;
 typedef uint32_t oc_load_flags;
@@ -44,6 +45,7 @@ typedef struct {
     void* internals;
 } oc_library;
 
+// todo: add height which is just ascept + descent + leading
 typedef struct {
     uint16_t ppem;
     uint16_t upem;
@@ -68,7 +70,8 @@ typedef struct {
     void* __handle;
 } oc_table;
 
-// think! if we should return floats or those 26.6 ints?
+// todo: make these floats
+// we can even have both like union ( lwidth, fwidth )
 typedef struct {
     uint32_t width;
     uint32_t height;
@@ -159,6 +162,7 @@ oc_free_table(oc_face face, oc_table table);
 // todo: add scaled variant
 // returning bools is hmm lazy
 // todo: rename to just get_metrics and mb make it void??
+// todo: make it a void on error memset struct to 0
 OC_EXPORT bool
 oc_get_metrics(
     oc_face face,

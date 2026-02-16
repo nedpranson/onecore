@@ -195,7 +195,7 @@ bool oc_get_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_
 
     CGRect bbox = CTFontGetBoundingRectsForGlyphs(face.internals, kCTFontOrientationHorizontal, &glyph_index, NULL, 1);
 
-    if (flags & OC_LOAD_NO_SCALE) {
+    if (!(flags & OC_LOAD_NO_SCALE)) {
         pmetrics->width = floor(bbox.size.width);
         pmetrics->height = floor(bbox.size.height);
         pmetrics->bearing_x = floor(bbox.origin.x);

@@ -552,6 +552,16 @@ void render_test(void) {
     unsigned char buffer[128 * 128];
     memset(buffer, 0, sizeof(buffer));
 
+
+    int32_t height = (metrics.leading + metrics.ascent + metrics.descent) * metrics.ppem / metrics.upem; // we need one just called height in metrics
+
+    // printf("leading: %d\n", metrics.leading);
+    // printf("ascent:  %d\n", metrics.ascent);
+    // printf("descent: %d\n", metrics.descent);
+    // printf("ppem:    %d\n", metrics.ppem);
+    // printf("upem:    %d\n", metrics.upem);
+    // printf("height:  %d\n", height);
+
     uint32_t px = 0;
     for (size_t i = 0; i < strlen(msg); i++) {
         uint16_t idx = oc_get_char_index(g_arial_ttf, msg[i]);
@@ -563,13 +573,13 @@ void render_test(void) {
         // todo: mb just have sclaed variant that does this for us?
         //       as yea only freetype has hinting, but we can look ar the source code
         //       and add them to other backends!!! (hopefully)
-        int32_t h = (metrics.leading + metrics.ascent + metrics.descent) * metrics.ppem / metrics.upem; // we need one just called height in metrics
         //int32_t bx = roundf((float)(glyph_metrics.bearing_x * metrics.ppem) / fupem);
         //int32_t by = h - roundf((float)(glyph_metrics.bearing_y * metrics.ppem) / fupem);
         //uint32_t adv = roundf((float)(glyph_metrics.advance * metrics.ppem) / fupem);
 
+        // todo: use 26.6 and think about that `height - glyph_metrics.bearing_y`
         int32_t bx = glyph_metrics.bearing_x;
-        int32_t by = h - glyph_metrics.bearing_y;
+        int32_t by = height - glyph_metrics.bearing_y;
         uint32_t adv = glyph_metrics.advance;
         printf("bx: %d, by: %d, adv: %d\n", bx, by, adv);
 
@@ -594,12 +604,12 @@ void render_test(void) {
         px += adv;
     }
 
-    stbi_write_png("output.png",
-        128,
-        24,
-        1,
-        buffer,
-        128);
+    // stbi_write_png("output.png",
+    //     128,
+    //     24,
+    //     1,
+    //     buffer,
+    //     128);
 
 }
 

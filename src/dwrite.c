@@ -1,3 +1,4 @@
+#include "onecore.h"
 #include "shared.h"
 #ifdef ONECORE_DWRITE
 
@@ -615,8 +616,8 @@ inline void oc_free_table(oc_face face, oc_table table) {
     DW(face)->lpVtbl->ReleaseFontTable(DW(face), table.__handle);
 }
 
-bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics) {
-    if (pglyph_metrics == NULL) {
+bool oc_get_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_metrics* pmetrics) {
+    if (pmetrics == NULL) {
         return false;
     }
 
@@ -637,11 +638,24 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
     (void)err;
     assert(err == S_OK);
 
-    pglyph_metrics->width = metrics.advanceWidth - metrics.leftSideBearing - metrics.rightSideBearing;
-    pglyph_metrics->height = metrics.advanceHeight - metrics.topSideBearing - metrics.bottomSideBearing;
-    pglyph_metrics->bearing_x = metrics.leftSideBearing;
-    pglyph_metrics->bearing_y = metrics.verticalOriginY - metrics.topSideBearing;
-    pglyph_metrics->advance = metrics.advanceWidth;
+    if (flags & OC_LOAD_NO_SCALE) {
+        pmetrics->width = metrics.advanceWidth - metrics.leftSideBearing - metrics.rightSideBearing;
+        pmetrics->height = metrics.advanceHeight - metrics.topSideBearing - metrics.bottomSideBearing;
+        pmetrics->bearing_x = metrics.leftSideBearing;
+        pmetrics->bearing_y = metrics.verticalOriginY - metrics.topSideBearing;
+        pmetrics->advance = metrics.advanceWidth;
+
+        return true;
+    }
+
+    float fppem = face.metrics.ppem;
+    float fupem = face.metrics.upem;
+
+    pmetrics->width = floorf((metrics.advanceWidth - metrics.leftSideBearing - metrics.rightSideBearing) * fppem / fupem);
+    pmetrics->height = floorf((metrics.advanceHeight - metrics.topSideBearing - metrics.bottomSideBearing) * fppem / fupem);
+    pmetrics->bearing_x = floorf(metrics.leftSideBearing * fppem / fupem);
+    pmetrics->bearing_y = floorf((metrics.verticalOriginY - metrics.topSideBearing) * fppem / fupem);
+    pmetrics->advance = floorf(metrics.advanceWidth * fppem / fupem);
 
     return true;
 }
@@ -758,11 +772,14 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     bounds.left = 0;
     bounds.bottom = 0;
 
+    assert(bounds.top <= 0);
+    assert(bounds.right >= 0);
+
     if (buffer == NULL) {
         analysis->lpVtbl->Release(analysis);
 
-        pbbox->height = bounds.bottom - bounds.top;
-        pbbox->width = bounds.right - bounds.left;
+        pbbox->rows = -bounds.top;
+        pbbox->cols = bounds.right;
 
         return oc_error_ok;
     }
@@ -770,16 +787,16 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     //printf("origin_x: %f, origin_y: %f, frac_x: %f, frac_y: %f\n", origin_x, origin_y, off_x, off_y);
     //printf("left: %ld, right: %ld, top: %ld, bottom: %ld\n", bounds.left, bounds.right, bounds.top, bounds.bottom);
 
-    if (pbbox->height != (ULONG)(bounds.bottom - bounds.top) || pbbox->width != (ULONG)(bounds.right - bounds.left)) {
+    if (pbbox->rows != (ULONG)(-bounds.top) || pbbox->cols != (ULONG)(bounds.right)) {
         // todo: just set to corrrect needed bounds!!
         return oc_error_invalid_param;
     }
 
-    if (buffer_size < pbbox->height * pbbox->width) {
+    if (buffer_size < pbbox->rows * pbbox->cols) {
         return oc_error_insufficient_buffer;
     }
 
-    unsigned char* buffer_3x = malloc(pbbox->height * pbbox->width * 3);
+    unsigned char* buffer_3x = malloc(pbbox->rows * pbbox->cols * 3);
     if (buffer_3x == NULL) {
         analysis->lpVtbl->Release(analysis);
         return oc_error_out_of_memory;
@@ -790,7 +807,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         DWRITE_TEXTURE_CLEARTYPE_3x1,
         &bounds,
         buffer_3x,
-        pbbox->height * pbbox->width * 3);
+        pbbox->rows * pbbox->cols* 3);
     analysis->lpVtbl->Release(analysis);
 
     if (err != S_OK) {
@@ -798,7 +815,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         return unexpected(err);
     }
 
-    for (uint32_t i = 0; i < pbbox->width * pbbox->height; i++) {
+    for (uint32_t i = 0; i < pbbox->rows * pbbox->cols; i++) {
         uint8_t r = buffer_3x[i * 3 + 0];
         uint8_t g = buffer_3x[i * 3 + 1];
         uint8_t b = buffer_3x[i * 3 + 2];
