@@ -1,5 +1,5 @@
+#include "onecore.h"
 #include "shared.h"
-#include <stdio.h>
 #ifdef ONECORE_FREETYPE
 
 #include <ft2build.h>
@@ -205,14 +205,19 @@ inline void oc_free_table(oc_face face, oc_table table) {
 }
 
 // todo: add option for verticals and maybe load both hori and vert bearings, advances
-bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics) {
-    if (pglyph_metrics == NULL) {
+bool oc_get_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_metrics* pmetrics) {
+    if (pmetrics == NULL) {
         return false;
     }
 
-    FACE_LOCK(face);
+    // disable hinting bla bla bla!
+    FT_Int32 ft_load_flags = FT_LOAD_NO_HINTING | FT_LOAD_NO_AUTOHINT | FT_LOAD_BITMAP_METRICS_ONLY;
+    if (flags & OC_LOAD_NO_SCALE) {
+        ft_load_flags |= FT_LOAD_NO_SCALE;
+    }
 
-    FT_Error err = FT_Load_Glyph(FT(face), glyph_index, FT_LOAD_NO_SCALE | FT_LOAD_BITMAP_METRICS_ONLY);
+    FACE_LOCK(face);
+    FT_Error err = FT_Load_Glyph(FT(face), glyph_index, ft_load_flags);
     if (err != FT_Err_Ok) {
         FACE_UNLOCK(face);
         return false;
@@ -220,14 +225,15 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
 
     FT_GlyphSlot slot = FT(face)->glyph;
     FT_Glyph_Metrics glyph_metrics = slot->metrics;
-
     FACE_UNLOCK(face);
 
-    pglyph_metrics->width = glyph_metrics.width;
-    pglyph_metrics->height = glyph_metrics.height;
-    pglyph_metrics->bearing_x = glyph_metrics.horiBearingX;
-    pglyph_metrics->bearing_y = glyph_metrics.horiBearingY;
-    pglyph_metrics->advance = glyph_metrics.horiAdvance;
+    uint8_t shift = (flags & OC_LOAD_NO_SCALE) ? 0 : 6;
+
+    pmetrics->width = glyph_metrics.width >> shift;
+    pmetrics->height = glyph_metrics.height >> shift;
+    pmetrics->bearing_x = glyph_metrics.horiBearingX >> shift;
+    pmetrics->bearing_y = glyph_metrics.horiBearingY >> shift;
+    pmetrics->advance = glyph_metrics.horiAdvance >> shift;
 
     return true;
 }
@@ -368,8 +374,7 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
 
 // todo: copy glyph obj as fast as possible only then check for
 // if it is even valid
-OC_EXPORT oc_error 
-oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer, size_t buffer_size) {
+oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer, size_t buffer_size) {
     FT_Error err;
     if (pbbox == NULL) {
         return oc_error_invalid_param;
@@ -398,18 +403,18 @@ oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned cha
     if (buffer == NULL) {
         FACE_UNLOCK(face);
 
-        pbbox->height = bitmap.rows;
-        pbbox->width = bitmap.width;
+        pbbox->rows = bitmap.rows;
+        pbbox->cols = bitmap.width;
 
         return oc_error_ok;
     }
 
-    if (pbbox->height != bitmap.rows || pbbox->width != bitmap.width) {
+    if (pbbox->rows != bitmap.rows || pbbox->cols != bitmap.width) {
         FACE_UNLOCK(face);
         return oc_error_invalid_param;
     }
 
-    if (buffer_size < pbbox->width * pbbox->height) {
+    if (buffer_size < pbbox->rows * pbbox->cols) {
         FACE_UNLOCK(face);
         return oc_error_insufficient_buffer; 
     }

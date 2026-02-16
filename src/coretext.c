@@ -1,3 +1,4 @@
+#include "onecore.h"
 #include "shared.h"
 #ifdef ONECORE_CORETEXT
 
@@ -179,8 +180,8 @@ inline void oc_free_table(oc_face face, oc_table table) {
     CFRelease(table.__handle);
 }
 
-bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics) {
-    if (pglyph_metrics == NULL) {
+bool oc_get_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_metrics* pmetrics) {
+    if (pmetrics == NULL) {
         return false;
     }
 
@@ -194,14 +195,25 @@ bool oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_glyph_metrics* 
 
     CGRect bbox = CTFontGetBoundingRectsForGlyphs(face.internals, kCTFontOrientationHorizontal, &glyph_index, NULL, 1);
 
-    CGFloat fsize = CTFontGetSize(face.internals);
-    CGFloat funits_per_em = (CGFloat)CTFontGetUnitsPerEm(face.internals);
+    if (flags & OC_LOAD_NO_SCALE) {
+        pmetrics->width = floor(bbox.size.width);
+        pmetrics->height = floor(bbox.size.height);
+        pmetrics->bearing_x = floor(bbox.origin.x);
+        pmetrics->bearing_y = floor(bbox.size.height + bbox.origin.y);
+        pmetrics->advance = floor(advance.width);
 
-    pglyph_metrics->width = (uint16_t)(bbox.size.width * funits_per_em / fsize);
-    pglyph_metrics->height = (uint16_t)(bbox.size.height * funits_per_em / fsize);
-    pglyph_metrics->bearing_x = (int16_t)(bbox.origin.x * funits_per_em / fsize);
-    pglyph_metrics->bearing_y = (int16_t)((bbox.size.height + bbox.origin.y) * funits_per_em / fsize);
-    pglyph_metrics->advance = (uint16_t)(advance.width * funits_per_em / fsize);
+        return true;
+    }
+
+    CGFloat fsize = face.metrics.ppem;
+    CGFloat fupem = face.metrics.upem;
+
+    // todo: use upem not fupem and div by fsize
+    pmetrics->width = bbox.size.width * fupem / fsize;
+    pmetrics->height = bbox.size.height * fupem / fsize;
+    pmetrics->bearing_x = bbox.origin.x * fupem / fsize;
+    pmetrics->bearing_y = (bbox.size.height + bbox.origin.y) * fupem / fsize;
+    pmetrics->advance = advance.width * fupem / fsize;
 
     return true;
 }
@@ -308,7 +320,6 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
     return true;
 }
 
-// todo: remove that embolden effect or sum
 oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer, size_t buffer_size) {
     CGRect rect;
     CTFontGetBoundingRectsForGlyphs(
@@ -322,17 +333,17 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     CGFloat off_y = rect.origin.y - floor(rect.origin.y);
 
     if (buffer == NULL) {
-        pbbox->height = ceil(rect.size.height + off_y);
-        pbbox->width = ceil(rect.size.width + off_x);
+        pbbox->rows = ceil(rect.size.height + off_y);
+        pbbox->cols = ceil(rect.size.width + off_x);
 
         return oc_error_ok;
     }
 
-    if (pbbox->height != ceil(rect.size.height + off_y) || pbbox->width != ceil(rect.size.width + off_x)) {
+    if (pbbox->rows != ceil(rect.size.height + off_y) || pbbox->cols != ceil(rect.size.width + off_x)) {
         return oc_error_invalid_param;
     }
 
-    if (buffer_size < pbbox->height * pbbox->width) {
+    if (buffer_size < pbbox->rows * pbbox->cols) {
         return oc_error_insufficient_buffer;
     }
 
@@ -341,14 +352,14 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         return oc_error_out_of_memory;
     }
 
-    memset(buffer, 0, pbbox->width * pbbox->height);
+    memset(buffer, 0, pbbox->rows * pbbox->cols);
 
     CGContextRef ctx = CGBitmapContextCreate(
         buffer,
-        pbbox->width,
-        pbbox->height,
+        pbbox->cols,
+        pbbox->rows,
         8,
-        pbbox->width,
+        pbbox->cols,
         linear_gray,
         kCGImageAlphaOnly);
     CGColorSpaceRelease(linear_gray);
@@ -359,8 +370,8 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     CGRect fill_rect;
     fill_rect.origin.x = 0;
     fill_rect.origin.y = 0;
-    fill_rect.size.height = pbbox->height;
-    fill_rect.size.width = pbbox->width;
+    fill_rect.size.height = pbbox->rows;
+    fill_rect.size.width = pbbox->cols;
 
     // https://github.com/ghostty-org/ghostty/blob/main/src/font/face/coretext.zig#L478
 
@@ -383,7 +394,6 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     CGContextSetGrayStrokeColor(ctx, 1.0, 1.0);
 
     CGContextTranslateCTM(ctx, off_x, off_y);
-    //CGContextScaleCTM(ctx, width / bounds.size.width, height / bounds.size.height);
 
     CGPoint pos = {
         .x = -rect.origin.x,

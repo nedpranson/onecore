@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+// todo: make this into into single header library
+
 #if defined(_WIN32) || defined(__CYGWIN__)
 #define OC_EXPORT __declspec(dllexport)
 #else
@@ -19,6 +21,15 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
+#define OC_LOAD_DEFAULT  0x0
+#define OC_LOAD_NO_SCALE (1l << 0)
+// #define OC_LOAD_VERTICAL (1l << 1)
+// #define OC_LOAD_COLOR (1l << 2)
+// #define OC_LOAD_NO_HINTING (1l << 3) // for now there is no hinting
+
+typedef uint32_t oc_tag;
+typedef uint32_t oc_load_flags;
+
 typedef enum {
     oc_error_ok,
     oc_error_invalid_param,
@@ -28,8 +39,6 @@ typedef enum {
     oc_error_insufficient_buffer,
     oc_error_unexpected,
 } oc_error;
-
-typedef uint32_t oc_tag;
 
 typedef struct {
     void* internals;
@@ -43,12 +52,12 @@ typedef struct {
     int16_t leading;
     int16_t underline_position;
     uint16_t underline_thickness;
-} oc_metrics; // todo: rename to font_metrics
+} oc_font_metrics;
 
 // as this thingy grows we prob should pass it by `const oc_face*`
 typedef struct {
     void* internals;
-    oc_metrics metrics;
+    oc_font_metrics metrics;
 } oc_face;
 
 // todo: make it not __handle but context and inside oc_free_face just pass it's ctx
@@ -59,13 +68,14 @@ typedef struct {
     void* __handle;
 } oc_table;
 
+// think! if we should return floats or those 26.6 ints?
 typedef struct {
     uint32_t width;
     uint32_t height;
     int32_t bearing_x;
     int32_t bearing_y;
     uint32_t advance;
-} oc_glyph_metrics;
+} oc_metrics;
 
 typedef struct {
     int32_t x;
@@ -73,8 +83,8 @@ typedef struct {
 } oc_point;
 
 typedef struct {
-    uint32_t height; // rows
-    uint32_t width; // cols
+    uint32_t rows;
+    uint32_t cols;
 } oc_bbox;
 
 typedef void (*oc_outline_start_figure)(oc_point at, void* context);
@@ -150,10 +160,11 @@ oc_free_table(oc_face face, oc_table table);
 // returning bools is hmm lazy
 // todo: rename to just get_metrics and mb make it void??
 OC_EXPORT bool
-oc_get_glyph_metrics(
+oc_get_metrics(
     oc_face face,
     uint16_t glyph_index,
-    oc_glyph_metrics* pglyph_metrics);
+    oc_load_flags flags,
+    oc_metrics* pmetrics);
 
 // scaling is a hard problem to solve cuz of hinting
 // so we will just not implement it yet first we need to add rendering
@@ -176,6 +187,7 @@ oc_get_outline(
 //       so if u want it modified by every backend it would be recomended to raster it using glyph outlines
 // todo: now we're rendering these glyphs from [0;0] position which is convenient, but it does lose some extra draw data
 //       make so an user could specify how to draw this glyph mb allow to pass matricies and origins mb just some flags??
+// todo: it is needed to make this method more complicated, now we cannot pass origin where to draw or matricies, nothing
 OC_EXPORT oc_error 
 oc_render_glyph(
     oc_face face,

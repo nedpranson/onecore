@@ -223,49 +223,49 @@ void test_oc_metrics(void) {
 
 void test_oc_get_glyph_metrics(void) {
     uint16_t idx;
-    oc_glyph_metrics glyph_metrics;
+    oc_metrics metrics;
     bool ok;
 
     idx = oc_get_char_index(g_arial_ttf, 'y');
     TEST_ASSERT_EQUAL_INT16(92, idx);
 
-    ok = oc_get_glyph_metrics(g_arial_ttf, idx, NULL);
+    ok = oc_get_metrics(g_arial_ttf, idx, OC_LOAD_NO_SCALE, NULL);
     TEST_ASSERT_EQUAL(false, ok);
 
-    ok = oc_get_glyph_metrics(g_arial_ttf, idx, &glyph_metrics);
+    ok = oc_get_metrics(g_arial_ttf, idx, OC_LOAD_NO_SCALE, &metrics);
     TEST_ASSERT_EQUAL(true, ok);
 
-    TEST_ASSERT_EQUAL_UINT32(973, glyph_metrics.width);
-    TEST_ASSERT_EQUAL_UINT32(1493, glyph_metrics.height);
-    TEST_ASSERT_EQUAL_INT32(33, glyph_metrics.bearing_x);
-    TEST_ASSERT_EQUAL_INT32(1062, glyph_metrics.bearing_y);
-    TEST_ASSERT_EQUAL_UINT32(1024, glyph_metrics.advance);
+    TEST_ASSERT_EQUAL_UINT32(973, metrics.width);
+    TEST_ASSERT_EQUAL_UINT32(1493, metrics.height);
+    TEST_ASSERT_EQUAL_INT32(33, metrics.bearing_x);
+    TEST_ASSERT_EQUAL_INT32(1062, metrics.bearing_y);
+    TEST_ASSERT_EQUAL_UINT32(1024, metrics.advance);
 
     idx = oc_get_char_index(g_arial_ttf, 'g');
     TEST_ASSERT_EQUAL_INT16(74, idx);
 
-    ok = oc_get_glyph_metrics(g_arial_ttf, idx, &glyph_metrics);
+    ok = oc_get_metrics(g_arial_ttf, idx, OC_LOAD_NO_SCALE, &metrics);
     TEST_ASSERT_EQUAL(true, ok);
 
-    TEST_ASSERT_EQUAL_UINT32(936, glyph_metrics.width);
-    TEST_ASSERT_EQUAL_UINT32(1517, glyph_metrics.height);
-    TEST_ASSERT_EQUAL_INT32(66, glyph_metrics.bearing_x);
-    TEST_ASSERT_EQUAL_INT32(1086, glyph_metrics.bearing_y);
-    TEST_ASSERT_EQUAL_UINT32(1139, glyph_metrics.advance);
+    TEST_ASSERT_EQUAL_UINT32(936, metrics.width);
+    TEST_ASSERT_EQUAL_UINT32(1517, metrics.height);
+    TEST_ASSERT_EQUAL_INT32(66, metrics.bearing_x);
+    TEST_ASSERT_EQUAL_INT32(1086, metrics.bearing_y);
+    TEST_ASSERT_EQUAL_UINT32(1139, metrics.advance);
 
     idx = oc_get_char_index(g_arial_ttf, 'M');
     TEST_ASSERT_EQUAL_INT16(48, idx);
 
-    ok = oc_get_glyph_metrics(g_arial_ttf, idx, &glyph_metrics);
+    ok = oc_get_metrics(g_arial_ttf, idx, OC_LOAD_NO_SCALE, &metrics);
     TEST_ASSERT_EQUAL(true, ok);
 
-    TEST_ASSERT_EQUAL_UINT32(1399, glyph_metrics.width);
-    TEST_ASSERT_EQUAL_UINT32(1466, glyph_metrics.height);
-    TEST_ASSERT_EQUAL_INT32(152, glyph_metrics.bearing_x);
-    TEST_ASSERT_EQUAL_INT32(1466, glyph_metrics.bearing_y);
-    TEST_ASSERT_EQUAL_UINT32(1706, glyph_metrics.advance);
+    TEST_ASSERT_EQUAL_UINT32(1399, metrics.width);
+    TEST_ASSERT_EQUAL_UINT32(1466, metrics.height);
+    TEST_ASSERT_EQUAL_INT32(152, metrics.bearing_x);
+    TEST_ASSERT_EQUAL_INT32(1466, metrics.bearing_y);
+    TEST_ASSERT_EQUAL_UINT32(1706, metrics.advance);
 
-    ok = oc_get_glyph_metrics(g_arial_ttf, 4444, &glyph_metrics);
+    ok = oc_get_metrics(g_arial_ttf, 4444, OC_LOAD_NO_SCALE, &metrics);
     TEST_ASSERT_EQUAL(ok, false);
 }
 
@@ -529,9 +529,9 @@ void test_oc_render_glyph(void) {
     //   49, 235,  97,   0,   0,   0,   0,   0,   0,  26, 218, 157,   1
     // };
 
-    for (size_t y = 0; y < bbox.height; y++) {
-        for (size_t x = 0; x < bbox.width; x++) {
-            printf("%03d ", buffer[y * bbox.width + x]);
+    for (size_t y = 0; y < bbox.rows; y++) {
+        for (size_t x = 0; x < bbox.cols; x++) {
+            printf("%03d ", buffer[y * bbox.cols + x]);
         }
         printf("\n");
     }
@@ -547,7 +547,7 @@ void render_test(void) {
     // or chars with no outlines
     const char* msg = "Hello_World!";
 
-    oc_metrics metrics = g_arial_ttf.metrics;
+    oc_font_metrics metrics = g_arial_ttf.metrics;
 
     unsigned char buffer[128 * 128];
     memset(buffer, 0, sizeof(buffer));
@@ -557,53 +557,49 @@ void render_test(void) {
         uint16_t idx = oc_get_char_index(g_arial_ttf, msg[i]);
         if (idx == 0) continue;
 
-        oc_glyph_metrics glyph_metrics;
-        oc_get_glyph_metrics(g_arial_ttf, idx, &glyph_metrics); // this can be void too perhaps just return like 0 0 0 0 0 if invalid idx
+        oc_metrics glyph_metrics;
+        oc_get_metrics(g_arial_ttf, idx, OC_LOAD_DEFAULT, &glyph_metrics); // this can be void too perhaps just return like 0 0 0 0 0 if invalid idx
 
         // todo: mb just have sclaed variant that does this for us?
         //       as yea only freetype has hinting, but we can look ar the source code
         //       and add them to other backends!!! (hopefully)
         int32_t h = (metrics.leading + metrics.ascent + metrics.descent) * metrics.ppem / metrics.upem; // we need one just called height in metrics
-        int32_t bx = glyph_metrics.bearing_x * metrics.ppem / metrics.upem;
-        int32_t by = h - glyph_metrics.bearing_y * metrics.ppem / metrics.upem;
+        //int32_t bx = roundf((float)(glyph_metrics.bearing_x * metrics.ppem) / fupem);
+        //int32_t by = h - roundf((float)(glyph_metrics.bearing_y * metrics.ppem) / fupem);
+        //uint32_t adv = roundf((float)(glyph_metrics.advance * metrics.ppem) / fupem);
+
+        int32_t bx = glyph_metrics.bearing_x;
+        int32_t by = h - glyph_metrics.bearing_y;
+        uint32_t adv = glyph_metrics.advance;
+        printf("bx: %d, by: %d, adv: %d\n", bx, by, adv);
 
         unsigned char bitmap[24 * 24];
-
-        //printf("h: %d, bx: %d, by: %d, px: %d\n", h, bx, by, px);
 
         oc_bbox bbox;
         oc_render_glyph(g_arial_ttf, idx, &bbox, NULL, 0); // remove this double call
         oc_render_glyph(g_arial_ttf, idx, &bbox, bitmap, sizeof(bitmap));
 
-        for (size_t row = 0; row < bbox.height; row++) {
-            for (size_t col = 0; col < bbox.width; col++) {
+        for (size_t row = 0; row < bbox.rows; row++) {
+            for (size_t col = 0; col < bbox.cols; col++) {
                 int32_t y = by + row;
                 int32_t x = px + bx + col;
 
-                uint8_t src = bitmap[row * bbox.width + col];
+                uint8_t src = bitmap[row * bbox.cols + col];
                 uint8_t *dst = &buffer[y * 128 + x];
 
                 *dst = src + (*dst * (255 - src) / 255);
             }
         }
 
-        //printf("bx: %d\n", bx);
-        //printf("by: %d\n", by);
-
-        //printf("px: %d\n", px);
-        px += glyph_metrics.advance * metrics.ppem / metrics.upem;
-
-        //advance = scaled_adv * upem / ppem;
-        //scaled_adv = advance * ppem / uem;
-
+        px += adv;
     }
 
-    // stbi_write_png("output.png",
-    //     128,
-    //     24,
-    //     1,
-    //     buffer,
-    //     128);
+    stbi_write_png("output.png",
+        128,
+        24,
+        1,
+        buffer,
+        128);
 
 }
 
