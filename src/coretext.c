@@ -322,13 +322,13 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     CGFloat off_y = rect.origin.y - floor(rect.origin.y);
 
     if (buffer == NULL) {
-        pbbox->height = ceilf(rect.size.height + off_y);
-        pbbox->width = ceilf(rect.size.width + off_x);
+        pbbox->height = ceil(rect.size.height + off_y);
+        pbbox->width = ceil(rect.size.width + off_x);
 
         return oc_error_ok;
     }
 
-    if (pbbox->height != ceilf(rect.size.height + off_y) || pbbox->width != ceilf(rect.size.width + off_x)) {
+    if (pbbox->height != ceil(rect.size.height + off_y) || pbbox->width != ceil(rect.size.width + off_x)) {
         return oc_error_invalid_param;
     }
 

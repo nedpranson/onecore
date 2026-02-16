@@ -659,13 +659,10 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
 
     IDWriteGeometrySink* geometry_sink = (IDWriteGeometrySink*)&ioc_simplified_geometry_sink;
 
-    DWRITE_FONT_METRICS metrics;
-    DW(face)->lpVtbl->GetMetrics(DW(face), &metrics);
-
     // dwrite does not call line_to at the end to the beg
     HRESULT err = DW(face)->lpVtbl->GetGlyphRunOutline(
         DW(face),
-        metrics.designUnitsPerEm,
+        face.metrics.upem,
         &glyph_index,
         NULL,
         NULL,
@@ -690,14 +687,40 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
 //       just modify it back to required size or sum
 //       or mb just pass in buffer_size, not sure
 
-oc_error
-oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer, size_t buffer_size) {
+oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer, size_t buffer_size) {
     IDWriteFactory* library = ((struct face_internals*)face.internals)->library;
     HRESULT err;
 
     if (pbbox == NULL) {
         return oc_error_invalid_param;
     }
+
+    DWRITE_GLYPH_METRICS metrics;
+    err = DW(face)->lpVtbl->GetDesignGlyphMetrics(
+        DW(face),
+        &glyph_index,
+        1,
+        &metrics,
+        FALSE);
+    if (err != S_OK) {
+        // invalid glyph index can cause this err
+        return unexpected(err);
+    }
+
+    // todo: use these origins to transform render how we do in coretext and make upem a global!!!
+    // would be nice to have helber functions called like oc_scale - double and oc_scalef - float
+    float origin_x = (float)(metrics.leftSideBearing * face.metrics.ppem) / (float)face.metrics.upem;
+    // todo: advanceHeight is UINT32 and ppem we need to fix this stuff
+    float origin_y = -(float)((metrics.advanceHeight - metrics.verticalOriginY - metrics.bottomSideBearing) * face.metrics.ppem) / (float)face.metrics.upem;
+
+    float off_x = origin_x - floorf(origin_x);
+    float off_y = origin_y - floorf(origin_y);
+
+    DWRITE_MATRIX transform = {
+        1.0f, 0.0f,
+        0.0f, 1.0f,
+        off_x, off_y,
+    };
 
     DWRITE_GLYPH_RUN glyph_run = {0};
     glyph_run.fontFace = DW(face);
@@ -706,16 +729,15 @@ oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned cha
     glyph_run.glyphIndices = &glyph_index;
 
     IDWriteGlyphRunAnalysis* analysis; 
-
     err = library->lpVtbl->CreateGlyphRunAnalysis(
         library,
         &glyph_run,
         1.0f,
-        NULL,
+        &transform,
         DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC,
         DWRITE_MEASURING_MODE_NATURAL,
-        0.0f,
-        0.0f,
+        -origin_x,
+        -origin_y,
         &analysis);
     switch (err) {
     case S_OK:
@@ -742,25 +764,11 @@ oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned cha
         return oc_error_ok;
     }
 
-    DWRITE_GLYPH_METRICS metrics;
-    err = DW(face)->lpVtbl->GetDesignGlyphMetrics(
-        DW(face),
-        &glyph_index,
-        1,
-        &metrics,
-        FALSE);
-
-    (void)err;
-    assert(err == S_OK);
-
-    // todo: use these origins to transform render how we do in coretext and make upem a global!!!
-    // would be nice to have helber functions called like oc_scale - double and oc_scalef - float
-    float origin_x = (float)(metrics.leftSideBearing * face.metrics.ppem) / (float)face.metrics.upem;
-    float origin_y = -(float)(metrics.advanceHeight - metrics.verticalOriginY - metrics.bottomSideBearing) * (float)face.metrics.ppem / (float)face.metrics.upem;
-
-    printf("origin_x: %f, origin_y: %f\n", origin_x, origin_y);
+    printf("origin_x: %f, origin_y: %f, frac_x: %f, frac_y: %f\n", origin_x, origin_y, off_x, off_y);
+    printf("left: %ld, right: %ld, top: %ld, bottom: %ld\n", bounds.left, bounds.right, bounds.top, bounds.bottom);
 
     if (pbbox->height != (ULONG)(bounds.bottom - bounds.top) || pbbox->width != (ULONG)(bounds.right - bounds.left)) {
+        // todo: just set to corrrect needed bounds!!
         return oc_error_invalid_param;
     }
 
