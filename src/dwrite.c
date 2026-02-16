@@ -707,11 +707,10 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         return unexpected(err);
     }
 
-    // todo: use these origins to transform render how we do in coretext and make upem a global!!!
     // would be nice to have helber functions called like oc_scale - double and oc_scalef - float
     float origin_x = (float)(metrics.leftSideBearing * face.metrics.ppem) / (float)face.metrics.upem;
     // todo: advanceHeight is UINT32 and ppem we need to fix this stuff
-    float origin_y = -(float)((metrics.advanceHeight - metrics.verticalOriginY - metrics.bottomSideBearing) * face.metrics.ppem) / (float)face.metrics.upem;
+    float origin_y = (float)((metrics.advanceHeight - metrics.verticalOriginY - metrics.bottomSideBearing) * face.metrics.ppem) / (float)face.metrics.upem;
 
     float off_x = origin_x - floorf(origin_x);
     float off_y = origin_y - floorf(origin_y);
@@ -755,6 +754,10 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         return unexpected(err);
     }
 
+    // cut everything that is below (0, 0).
+    bounds.left = 0;
+    bounds.bottom = 0;
+
     if (buffer == NULL) {
         analysis->lpVtbl->Release(analysis);
 
@@ -764,8 +767,8 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         return oc_error_ok;
     }
 
-    printf("origin_x: %f, origin_y: %f, frac_x: %f, frac_y: %f\n", origin_x, origin_y, off_x, off_y);
-    printf("left: %ld, right: %ld, top: %ld, bottom: %ld\n", bounds.left, bounds.right, bounds.top, bounds.bottom);
+    //printf("origin_x: %f, origin_y: %f, frac_x: %f, frac_y: %f\n", origin_x, origin_y, off_x, off_y);
+    //printf("left: %ld, right: %ld, top: %ld, bottom: %ld\n", bounds.left, bounds.right, bounds.top, bounds.bottom);
 
     if (pbbox->height != (ULONG)(bounds.bottom - bounds.top) || pbbox->width != (ULONG)(bounds.right - bounds.left)) {
         // todo: just set to corrrect needed bounds!!
