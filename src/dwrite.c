@@ -799,9 +799,9 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     }
 
     for (uint32_t i = 0; i < pbbox->width * pbbox->height; i++) {
-        float r = buffer_3x[i * 3 + 0];
-        float g = buffer_3x[i * 3 + 1];
-        float b = buffer_3x[i * 3 + 2];
+        uint8_t r = buffer_3x[i * 3 + 0];
+        uint8_t g = buffer_3x[i * 3 + 1];
+        uint8_t b = buffer_3x[i * 3 + 2];
 
         buffer[i] = (float)(r + b + g) / 3.0f;
     }

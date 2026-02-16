@@ -367,6 +367,9 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     CGContextSetGrayFillColor(ctx, 0.0, 0.0);
     CGContextFillRect(ctx, fill_rect);
 
+    CGContextSetAllowsFontSmoothing(ctx, false);
+    CGContextSetShouldSmoothFonts(ctx, false);
+
     CGContextSetAllowsFontSubpixelPositioning(ctx, true);
     CGContextSetShouldSubpixelPositionFonts(ctx, true);
 
