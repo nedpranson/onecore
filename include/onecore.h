@@ -31,15 +31,30 @@ extern "C" {
 typedef uint32_t oc_tag;
 typedef uint32_t oc_load_flags;
 
+#define OC_ERROR_LIST \
+    X(oc_error_ok, "no error") \
+    X(oc_error_invalid_param, "invalid parameter") \
+    X(oc_error_table_missing, "table is missing") \
+    X(oc_error_out_of_memory, "out of memory") \
+    X(oc_error_failed_to_open, "failed to open") \
+    X(oc_error_insufficient_buffer, "insufficient buffer") \
+    X(oc_error_unexpected, "unexpected error")
+
 typedef enum {
-    oc_error_ok,
-    oc_error_invalid_param,
-    oc_error_table_missing,
-    oc_error_out_of_memory,
-    oc_error_failed_to_open,
-    oc_error_insufficient_buffer,
-    oc_error_unexpected,
+#define X(e, s) e,
+    OC_ERROR_LIST
+#undef X
 } oc_error;
+
+// todo: add option for strings
+static inline const char* oc_strerror(oc_error err) {
+    switch (err) {
+#define X(e, s) case e: return s;
+        OC_ERROR_LIST
+#undef X
+        default: return "unknown error";
+    }
+}
 
 typedef struct {
     void* internals;

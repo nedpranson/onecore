@@ -289,6 +289,16 @@ void test_oc_get_glyph_metrics_scaled(void) {
     TEST_ASSERT_EQUAL_INT32(-3, metrics.bearing_y);
     TEST_ASSERT_EQUAL_UINT32(8, metrics.advance);
 
+    idx = oc_get_char_index(g_arial_ttf, 'M');
+    TEST_ASSERT_EQUAL_INT16(48, idx);
+
+    oc_get_glyph_metrics(g_arial_ttf, idx, OC_LOAD_DEFAULT, &metrics);
+    TEST_ASSERT_EQUAL_UINT32(10, metrics.width);
+    TEST_ASSERT_EQUAL_UINT32(11, metrics.height);
+    TEST_ASSERT_EQUAL_INT32(1, metrics.bearing_x);
+    TEST_ASSERT_EQUAL_INT32(11, metrics.bearing_y);
+    TEST_ASSERT_EQUAL_UINT32(13, metrics.advance);
+
     oc_get_glyph_metrics(g_arial_ttf, 4444, OC_LOAD_DEFAULT, &metrics);
     TEST_ASSERT_EQUAL_UINT32(0, metrics.width);
     TEST_ASSERT_EQUAL_UINT32(0, metrics.height);

@@ -29,7 +29,7 @@ static oc_error open_face_from_descriptors(CFArrayRef cf_descriptors_ref, const 
         return oc_error_out_of_memory;
     }
 
-    uint16_t ppem = roundf(params.desired_size * (float)params.dpi / 72.0f);
+    uint16_t ppem = roundf(params.desired_size * params.dpi / 72.0f);
     CTFontRef ctf_font_ref = CTFontCreateWithFontDescriptor(ctf_descriptor_ref, ppem, NULL);
     if (ctf_font_ref == NULL) {
         return oc_error_out_of_memory;

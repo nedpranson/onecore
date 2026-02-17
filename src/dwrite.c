@@ -449,7 +449,7 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
     dw_font_face->lpVtbl->GetMetrics(dw_font_face, &metrics);
 
     pface->internals = internals;
-    pface->metrics.ppem = roundf((float)(params.desired_size * params.dpi) / 72.0f);
+    pface->metrics.ppem = roundf(params.desired_size * params.dpi / 72.0f);
     pface->metrics.upem = metrics.designUnitsPerEm;
     pface->metrics.ascent = metrics.ascent;
     pface->metrics.descent = metrics.descent;

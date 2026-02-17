@@ -58,6 +58,38 @@ pub fn build(b: *std.Build) void {
 
     b.installArtifact(lib);
 
+    const example = b.addExecutable(.{
+        .name = "render_to_image",
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
+    example.linkLibC();
+    example.linkLibrary(lib);
+    example.addIncludePath(b.path("include"));
+
+    example.addCSourceFiles(.{
+        .root = b.path("examples"),
+        .files = &.{
+            "render_to_image.c",
+        },
+        .flags = &.{
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+        },
+    });
+
+    if (target.result.os.tag.isDarwin()) {
+        example.addSystemFrameworkPath(.{ .cwd_relative = "/home/nedas/Work/macos-sdk/Frameworks" });
+        example.addSystemIncludePath(.{ .cwd_relative = "/home/nedas/Work/macos-sdk/include" });
+        example.addLibraryPath(.{ .cwd_relative = "/home/nedas/Work/macos-sdk/lib" });
+    }
+
+    b.installArtifact(example);
+
     const lib_tests = b.addExecutable(.{
         .name = "test",
         .root_module = b.createModule(.{
