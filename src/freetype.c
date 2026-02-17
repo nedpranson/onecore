@@ -62,6 +62,8 @@ static oc_error init_face(FT_Face ft_face, const oc_face_params* pparams, oc_fac
     internals->face = ft_face;
     mutex_init(&internals->lock);
 
+    printf("y_ppem: %d, x_ppem: %d\n", ft_face->size->metrics.y_ppem, ft_face->size->metrics.x_ppem);
+
     pface->internals = internals;
     pface->metrics.ppem = ft_face->size->metrics.y_ppem;
     pface->metrics.upem = ft_face->units_per_EM;
@@ -228,6 +230,10 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
     FACE_UNLOCK(face);
 
     uint8_t shift = (flags & OC_LOAD_NO_SCALE) ? 0 : 6;
+
+    if (face.metrics.ppem == 21) {
+        printf("float: %f\n", glyph_metrics.horiAdvance / 64.0f);
+    }
 
     pmetrics->width = glyph_metrics.width >> shift;
     pmetrics->height = glyph_metrics.height >> shift;

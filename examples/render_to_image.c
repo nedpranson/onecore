@@ -25,6 +25,8 @@ int main() {
         return 1;
     }
 
+    printf("ppem: %d, upem: %d\n", face.metrics.ppem, face.metrics.upem);
+
     uint8_t canvas[64 * 128];
     memset(canvas, 0, sizeof(canvas));
 
@@ -47,6 +49,10 @@ int main() {
             printf("oc_render_glyph: %s\n", oc_strerror(err));
             return 1;
         }
+
+        // freetype is doing smth extra with his advance
+        // as on ct and dw some ltters are too close we need to build freetype from source and debug what is done with this advance thingy
+        printf("bx: %d, by: %d, adv: %d, w: %d\n", metrics.bearing_x, metrics.bearing_y, metrics.advance, metrics.width);
 
         for (int32_t row = 0; row < (int32_t)bbox.rows; row++) {
             for (int32_t col = 0; col < (int32_t)bbox.cols; col++) {

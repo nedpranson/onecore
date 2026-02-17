@@ -34,7 +34,15 @@ pub fn build(b: *std.Build) void {
                 lib.linkFramework("CoreGraphics");
                 lib.linkFramework("CoreText");
             } else {
-                lib.linkSystemLibrary("freetype2");
+
+                const ft = b.dependency("freetype", .{
+                    .target = target,
+                    .optimize = optimize,
+                });
+                
+
+                //lib.linkSystemLibrary("freetype2");
+                lib.linkLibrary(ft.artifact("freetype"));
             }
         },
     }
