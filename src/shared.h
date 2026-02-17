@@ -78,11 +78,12 @@ static inline oc_error __unexpected(int64_t err, const char* file, int line) {
 #endif
 
 static inline oc_face_params fill_face_params(const oc_face_params* pparams) {
-    if (pparams == NULL) return (oc_face_params){
-        .face_index = 0,
-        .desired_size = 12.0f,
-        .dpi = ONECORE_SYSTEM_DPI,
-    };
+    if (pparams == NULL)
+        return (oc_face_params) {
+            .face_index = 0,
+            .desired_size = 12.0f,
+            .dpi = ONECORE_SYSTEM_DPI,
+        };
 
     oc_face_params params = *pparams;
 
@@ -93,7 +94,7 @@ static inline oc_face_params fill_face_params(const oc_face_params* pparams) {
     if (params.dpi <= 0) {
         params.dpi = ONECORE_SYSTEM_DPI;
     }
-    
+
     return params;
 }
 

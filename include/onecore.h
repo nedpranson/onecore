@@ -21,7 +21,7 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
-#define OC_LOAD_DEFAULT  0x0
+#define OC_LOAD_DEFAULT 0x0
 #define OC_LOAD_NO_SCALE (1l << 0)
 // #define OC_LOAD_FIXED (1l << 1)
 // #define OC_LOAD_VERTICAL (1l << 2)
@@ -57,17 +57,15 @@ typedef struct {
 } oc_font_metrics;
 
 // as this thingy grows we prob should pass it by `const oc_face*`
+// todo: pass this struct by ptr
 typedef struct {
-    void* internals;
+    void* internals; // we can add anonymous struct called oc_face_handle
     oc_font_metrics metrics;
 } oc_face;
 
-// todo: make it not __handle but context and inside oc_free_face just pass it's ctx
 typedef struct {
     const void* data;
     size_t size;
-
-    void* __handle;
 } oc_table;
 
 // todo: make these floats
@@ -78,7 +76,7 @@ typedef struct {
     int32_t bearing_x;
     int32_t bearing_y;
     uint32_t advance;
-} oc_metrics;
+} oc_glyph_metrics;
 
 typedef struct {
     int32_t x;
@@ -148,12 +146,12 @@ oc_free_face(oc_face face);
 OC_EXPORT uint16_t
 oc_get_char_index(oc_face face, uint32_t charcode);
 
-// copy variant would be nice which we would not need to free
+// todo: copy variant would be nice which we would not need to free
 OC_EXPORT oc_error
-oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable);
+oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pcontext);
 
 OC_EXPORT void
-oc_free_table(oc_face face, oc_table table);
+oc_free_table(oc_face face, void* context);
 
 // on windows dpi is 92 on mac 72
 // oc_set_size(oc_face face, float points, uint8_t dpi);
@@ -163,12 +161,12 @@ oc_free_table(oc_face face, oc_table table);
 // returning bools is hmm lazy
 // todo: rename to just get_metrics and mb make it void??
 // todo: make it a void on error memset struct to 0
-OC_EXPORT bool
-oc_get_metrics(
+OC_EXPORT void
+oc_get_glyph_metrics(
     oc_face face,
     uint16_t glyph_index,
     oc_load_flags flags,
-    oc_metrics* pmetrics);
+    oc_glyph_metrics* pmetrics);
 
 // scaling is a hard problem to solve cuz of hinting
 // so we will just not implement it yet first we need to add rendering
@@ -184,7 +182,7 @@ oc_get_outline(
     oc_face face,
     uint16_t glyph_index,
     const oc_outline_funcs*
-    outline_funcs,
+        outline_funcs,
     void* context);
 
 // todo: add comments here explaining that every backend will generate diffrent glyph textures
@@ -192,7 +190,7 @@ oc_get_outline(
 // todo: now we're rendering these glyphs from [0;0] position which is convenient, but it does lose some extra draw data
 //       make so an user could specify how to draw this glyph mb allow to pass matricies and origins mb just some flags??
 // todo: it is needed to make this method more complicated, now we cannot pass origin where to draw or matricies, nothing
-OC_EXPORT oc_error 
+OC_EXPORT oc_error
 oc_render_glyph(
     oc_face face,
     uint16_t glyph_index,

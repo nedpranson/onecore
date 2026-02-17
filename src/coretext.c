@@ -1,4 +1,3 @@
-#include "onecore.h"
 #include "shared.h"
 #ifdef ONECORE_CORETEXT
 
@@ -154,40 +153,40 @@ uint16_t oc_get_char_index(oc_face face, uint32_t charcode) {
     return cg_glyph[0];
 }
 
-oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
-    oc_table table;
-
-    if (ptable == NULL) {
+oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pcontext) {
+    if (ptable == NULL || pcontext == NULL) {
         return oc_error_invalid_param;
     }
 
     CFDataRef cf_data_ref = CTFontCopyTable(face.internals, tag, kCTFontTableOptionNoOptions);
     if (cf_data_ref == NULL) {
+        // todo: fix this it can be oom error
         return oc_error_table_missing;
     }
 
+    oc_table table;
     table.data = CFDataGetBytePtr(cf_data_ref);
     table.size = CFDataGetLength(cf_data_ref);
-    table.__handle = (void*)cf_data_ref;
 
     *ptable = table;
+    *pcontext = (void*)cf_data_ref;
 
     return oc_error_ok;
 }
 
-inline void oc_free_table(oc_face face, oc_table table) {
+inline void oc_free_table(oc_face face, void* context) {
     (void)face;
-    CFRelease(table.__handle);
+    CFRelease(context);
 }
 
-bool oc_get_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_metrics* pmetrics) {
+void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_glyph_metrics* pmetrics) {
     if (pmetrics == NULL) {
-        return false;
+        return;
     }
 
     CFIndex glyph_count = CTFontGetGlyphCount(face.internals);
     if (glyph_index >= glyph_count) {
-        return false;
+        return;
     }
 
     CGSize advance;
@@ -202,20 +201,18 @@ bool oc_get_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_
         pmetrics->bearing_y = floor(bbox.size.height + bbox.origin.y);
         pmetrics->advance = floor(advance.width);
 
-        return true;
+        return;
     }
 
-    CGFloat fsize = face.metrics.ppem;
+    CGFloat fppem = face.metrics.ppem;
     CGFloat fupem = face.metrics.upem;
 
     // todo: use upem not fupem and div by fsize
-    pmetrics->width = bbox.size.width * fupem / fsize;
-    pmetrics->height = bbox.size.height * fupem / fsize;
-    pmetrics->bearing_x = bbox.origin.x * fupem / fsize;
-    pmetrics->bearing_y = (bbox.size.height + bbox.origin.y) * fupem / fsize;
-    pmetrics->advance = advance.width * fupem / fsize;
-
-    return true;
+    pmetrics->width = bbox.size.width * fupem / fppem;
+    pmetrics->height = bbox.size.height * fupem / fppem;
+    pmetrics->bearing_x = bbox.origin.x * fupem / fppem;
+    pmetrics->bearing_y = (bbox.size.height + bbox.origin.y) * fupem / fppem;
+    pmetrics->advance = advance.width * fupem / fppem;
 }
 
 typedef struct point_2f {
@@ -234,14 +231,14 @@ typedef struct outline_context {
 
 static void oc_path_applier(void* info, const CGPathElement* element) {
     outline_context* ctx = (outline_context*)info;
-    CGFloat fsize = ctx->fsize;
-    CGFloat funits_per_em = ctx->funits_per_em;
+    CGFloat fppem = ctx->fsize;
+    CGFloat fupem = ctx->funits_per_em;
 
     switch (element->type) {
     case kCGPathElementMoveToPoint: {
         oc_point point = {
-            element->points[0].x * funits_per_em / fsize,
-            element->points[0].y * funits_per_em / fsize
+            element->points[0].x * fupem / fppem,
+            element->points[0].y * fupem / fppem
         };
 
         ctx->funcs->start_figure(point, ctx->ctx);
@@ -250,17 +247,17 @@ static void oc_path_applier(void* info, const CGPathElement* element) {
     }; break;
     case kCGPathElementAddLineToPoint: {
         oc_point point = {
-            element->points[0].x * funits_per_em / fsize,
-            element->points[0].y * funits_per_em / fsize
+            element->points[0].x * fupem / fppem,
+            element->points[0].y * fupem / fppem
         };
 
         ctx->funcs->line_to(point, ctx->ctx);
         ctx->origin = element->points[0];
     } break;
     case kCGPathElementAddQuadCurveToPoint: {
-        point_2f forigin = { ctx->origin.x * funits_per_em / fsize, ctx->origin.y * funits_per_em / fsize };
-        point_2f fcontrol = { element->points[0].x * funits_per_em / fsize, element->points[0].y * funits_per_em / fsize };
-        point_2f fto = { element->points[1].x * funits_per_em / fsize, element->points[1].y * funits_per_em / fsize };
+        point_2f forigin = { ctx->origin.x * fupem / fppem, ctx->origin.y * fupem / fppem };
+        point_2f fcontrol = { element->points[0].x * fupem / fppem, element->points[0].y * fupem / fppem };
+        point_2f fto = { element->points[1].x * fupem / fppem, element->points[1].y * fupem / fppem };
 
         point_2f cubic[2];
         cubic[0].x = forigin.x + 2.0f * (fcontrol.x - forigin.x) / 3.0f;
@@ -279,9 +276,9 @@ static void oc_path_applier(void* info, const CGPathElement* element) {
     }; break;
     case kCGPathElementAddCurveToPoint: {
         oc_point points[3] = {
-            { element->points[0].x * funits_per_em / fsize, element->points[0].y * funits_per_em / fsize },
-            { element->points[1].x * funits_per_em / fsize, element->points[1].y * funits_per_em / fsize },
-            { element->points[2].x * funits_per_em / fsize, element->points[2].y * funits_per_em / fsize },
+            { element->points[0].x * fupem / fppem, element->points[0].y * fupem / fppem },
+            { element->points[1].x * fupem / fppem, element->points[1].y * fupem / fppem },
+            { element->points[2].x * fupem / fppem, element->points[2].y * fupem / fppem },
         };
 
         ctx->funcs->cubic_to(points[0], points[1], points[2], ctx->ctx);
@@ -289,7 +286,7 @@ static void oc_path_applier(void* info, const CGPathElement* element) {
     } break;
     case kCGPathElementCloseSubpath:
         if (ctx->origin.x != ctx->start.x || ctx->origin.y != ctx->start.y) {
-            oc_point point = { ctx->start.x * funits_per_em / fsize, ctx->start.y * funits_per_em / fsize };
+            oc_point point = { ctx->start.x * fupem / fppem, ctx->start.y * fupem / fppem };
             ctx->funcs->line_to(point, ctx->ctx);
         }
 
@@ -321,6 +318,15 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
 }
 
 oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer, size_t buffer_size) {
+    if (pbbox == NULL) {
+        return oc_error_invalid_param;
+    }
+
+    CFIndex glyph_count = CTFontGetGlyphCount(face.internals);
+    if (glyph_index >= glyph_count) {
+        return oc_error_invalid_param;
+    }
+
     CGRect rect;
     CTFontGetBoundingRectsForGlyphs(
         face.internals,
@@ -329,21 +335,20 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         &rect,
         1);
 
-    CGFloat off_x = rect.origin.x - floor(rect.origin.x);
-    CGFloat off_y = rect.origin.y - floor(rect.origin.y);
+    CGFloat frac_x = rect.origin.x - floor(rect.origin.x);
+    CGFloat frac_y = rect.origin.y - floor(rect.origin.y);
+
+    uint32_t rows = ceil(rect.size.height + frac_y);
+    uint32_t cols = ceil(rect.size.width + frac_x);
+
+    pbbox->rows = rows;
+    pbbox->cols = cols;
 
     if (buffer == NULL) {
-        pbbox->rows = ceil(rect.size.height + off_y);
-        pbbox->cols = ceil(rect.size.width + off_x);
-
         return oc_error_ok;
     }
 
-    if (pbbox->rows != ceil(rect.size.height + off_y) || pbbox->cols != ceil(rect.size.width + off_x)) {
-        return oc_error_invalid_param;
-    }
-
-    if (buffer_size < pbbox->rows * pbbox->cols) {
+    if (buffer_size < rows * cols) {
         return oc_error_insufficient_buffer;
     }
 
@@ -352,14 +357,14 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         return oc_error_out_of_memory;
     }
 
-    memset(buffer, 0, pbbox->rows * pbbox->cols);
+    memset(buffer, 0, rows * cols);
 
     CGContextRef ctx = CGBitmapContextCreate(
         buffer,
-        pbbox->cols,
-        pbbox->rows,
+        cols,
+        rows,
         8,
-        pbbox->cols,
+        cols,
         linear_gray,
         kCGImageAlphaOnly);
     CGColorSpaceRelease(linear_gray);
@@ -370,8 +375,8 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     CGRect fill_rect;
     fill_rect.origin.x = 0;
     fill_rect.origin.y = 0;
-    fill_rect.size.height = pbbox->rows;
-    fill_rect.size.width = pbbox->cols;
+    fill_rect.size.height = rows;
+    fill_rect.size.width = cols;
 
     // https://github.com/ghostty-org/ghostty/blob/main/src/font/face/coretext.zig#L478
 
@@ -393,11 +398,11 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     CGContextSetGrayFillColor(ctx, 1.0, 1.0);
     CGContextSetGrayStrokeColor(ctx, 1.0, 1.0);
 
-    CGContextTranslateCTM(ctx, off_x, off_y);
+    CGContextTranslateCTM(ctx, frac_x, frac_y);
 
     CGPoint pos = {
-        .x = -rect.origin.x,
-        .y = -rect.origin.y,
+        -rect.origin.x,
+        -rect.origin.y,
     };
 
     CTFontDrawGlyphs(

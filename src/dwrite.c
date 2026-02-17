@@ -1,4 +1,3 @@
-#include "onecore.h"
 #include "shared.h"
 #ifdef ONECORE_DWRITE
 
@@ -571,8 +570,8 @@ uint16_t oc_get_char_index(oc_face face, uint32_t charcode) {
     return index;
 }
 
-oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
-    if (ptable == NULL) {
+oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pcontext) {
+    if (ptable == NULL || pcontext == NULL) {
         return oc_error_invalid_param;
     }
 
@@ -606,25 +605,26 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
     oc_table table;
     table.data = table_data;
     table.size = table_size;
-    table.__handle = context;
 
     *ptable = table;
+    *pcontext = context;
+
     return oc_error_ok;
 }
 
-inline void oc_free_table(oc_face face, oc_table table) {
-    DW(face)->lpVtbl->ReleaseFontTable(DW(face), table.__handle);
+inline void oc_free_table(oc_face face, void* context) {
+    DW(face)->lpVtbl->ReleaseFontTable(DW(face), context);
 }
 
-bool oc_get_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_metrics* pmetrics) {
+void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_glyph_metrics* pmetrics) {
     if (pmetrics == NULL) {
-        return false;
+        return;
     }
 
     // for some reason GetDesignGlyphMetrics does not catch invalid glyph index
     UINT16 glyph_count = DW(face)->lpVtbl->GetGlyphCount(DW(face));
     if (glyph_index >= glyph_count) {
-        return false;
+        return;
     }
 
     DWRITE_GLYPH_METRICS metrics;
@@ -645,7 +645,7 @@ bool oc_get_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_
         pmetrics->bearing_y = metrics.verticalOriginY - metrics.topSideBearing;
         pmetrics->advance = metrics.advanceWidth;
 
-        return true;
+        return;
     }
 
     float fppem = face.metrics.ppem;
@@ -656,8 +656,6 @@ bool oc_get_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_
     pmetrics->bearing_x = floorf(metrics.leftSideBearing * fppem / fupem);
     pmetrics->bearing_y = floorf((metrics.verticalOriginY - metrics.topSideBearing) * fppem / fupem);
     pmetrics->advance = floorf(metrics.advanceWidth * fppem / fupem);
-
-    return true;
 }
 
 bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context) {
@@ -709,6 +707,12 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         return oc_error_invalid_param;
     }
 
+    // for some reason GetDesignGlyphMetrics does not catch invalid glyph index
+    UINT16 glyph_count = DW(face)->lpVtbl->GetGlyphCount(DW(face));
+    if (glyph_index >= glyph_count) {
+        return oc_error_invalid_param;
+    }
+
     DWRITE_GLYPH_METRICS metrics;
     err = DW(face)->lpVtbl->GetDesignGlyphMetrics(
         DW(face),
@@ -716,32 +720,34 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         1,
         &metrics,
         FALSE);
-    if (err != S_OK) {
-        // invalid glyph index can cause this err
-        return unexpected(err);
-    }
+    assert(err == S_OK);
 
-    // would be nice to have helber functions called like oc_scale - double and oc_scalef - float
-    float origin_x = (float)(metrics.leftSideBearing * face.metrics.ppem) / (float)face.metrics.upem;
-    // todo: advanceHeight is UINT32 and ppem we need to fix this stuff
-    float origin_y = (float)((metrics.advanceHeight - metrics.verticalOriginY - metrics.bottomSideBearing) * face.metrics.ppem) / (float)face.metrics.upem;
+    float fppem = face.metrics.ppem;
+    float fupem = face.metrics.upem;
 
-    float off_x = origin_x - floorf(origin_x);
-    float off_y = origin_y - floorf(origin_y);
+    float origin_x = metrics.leftSideBearing * fppem / fupem;
+    float origin_y = ((INT32)metrics.advanceHeight - metrics.verticalOriginY - metrics.bottomSideBearing) * fppem / fupem;
 
+    float frac_x = origin_x - floorf(origin_x);
+    float frac_y = origin_y - floorf(origin_y);
+
+    // todo: add smth like this to our oc_render_glyph
     DWRITE_MATRIX transform = {
-        1.0f, 0.0f,
-        0.0f, 1.0f,
-        off_x, off_y,
+        1.0f,
+        0.0f,
+        0.0f,
+        1.0f,
+        frac_x,
+        frac_y,
     };
 
-    DWRITE_GLYPH_RUN glyph_run = {0};
+    DWRITE_GLYPH_RUN glyph_run = { 0 };
     glyph_run.fontFace = DW(face);
     glyph_run.fontEmSize = face.metrics.ppem;
     glyph_run.glyphCount = 1;
     glyph_run.glyphIndices = &glyph_index;
 
-    IDWriteGlyphRunAnalysis* analysis; 
+    IDWriteGlyphRunAnalysis* analysis;
     err = library->lpVtbl->CreateGlyphRunAnalysis(
         library,
         &glyph_run,
@@ -768,35 +774,29 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         return unexpected(err);
     }
 
-    // cut everything that is below (0, 0).
+    // cut everything that is below (0, 0)
     bounds.left = 0;
     bounds.bottom = 0;
 
     assert(bounds.top <= 0);
     assert(bounds.right >= 0);
 
+    uint32_t rows = -bounds.top;
+    uint32_t cols = bounds.right;
+
+    pbbox->rows = rows;
+    pbbox->cols = cols;
+
     if (buffer == NULL) {
         analysis->lpVtbl->Release(analysis);
-
-        pbbox->rows = -bounds.top;
-        pbbox->cols = bounds.right;
-
         return oc_error_ok;
     }
 
-    //printf("origin_x: %f, origin_y: %f, frac_x: %f, frac_y: %f\n", origin_x, origin_y, off_x, off_y);
-    //printf("left: %ld, right: %ld, top: %ld, bottom: %ld\n", bounds.left, bounds.right, bounds.top, bounds.bottom);
-
-    if (pbbox->rows != (ULONG)(-bounds.top) || pbbox->cols != (ULONG)(bounds.right)) {
-        // todo: just set to corrrect needed bounds!!
-        return oc_error_invalid_param;
-    }
-
-    if (buffer_size < pbbox->rows * pbbox->cols) {
+    if (buffer_size < rows * cols) {
         return oc_error_insufficient_buffer;
     }
 
-    unsigned char* buffer_3x = malloc(pbbox->rows * pbbox->cols * 3);
+    unsigned char* buffer_3x = malloc(rows * cols * 3);
     if (buffer_3x == NULL) {
         analysis->lpVtbl->Release(analysis);
         return oc_error_out_of_memory;
@@ -807,7 +807,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         DWRITE_TEXTURE_CLEARTYPE_3x1,
         &bounds,
         buffer_3x,
-        pbbox->rows * pbbox->cols* 3);
+        rows * cols * 3);
     analysis->lpVtbl->Release(analysis);
 
     if (err != S_OK) {
@@ -815,7 +815,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         return unexpected(err);
     }
 
-    for (uint32_t i = 0; i < pbbox->rows * pbbox->cols; i++) {
+    for (uint32_t i = 0; i < rows * cols; i++) {
         uint8_t r = buffer_3x[i * 3 + 0];
         uint8_t g = buffer_3x[i * 3 + 1];
         uint8_t b = buffer_3x[i * 3 + 2];

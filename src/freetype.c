@@ -1,4 +1,3 @@
-#include "onecore.h"
 #include "shared.h"
 #ifdef ONECORE_FREETYPE
 
@@ -163,11 +162,11 @@ inline uint16_t oc_get_char_index(oc_face face, uint32_t charcode) {
     return FT_Get_Char_Index(FT(face), charcode);
 }
 
-oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
+oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pcontext) {
     oc_table table;
     FT_Error err;
 
-    if (ptable == NULL) {
+    if (ptable == NULL || pcontext == NULL) {
         return oc_error_invalid_param;
     }
 
@@ -192,22 +191,22 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable) {
     assert(err == oc_error_ok);
 
     table.data = buffer;
-    table.__handle = buffer;
 
     *ptable = table;
+    *pcontext = buffer;
 
     return oc_error_ok;
 }
 
-inline void oc_free_table(oc_face face, oc_table table) {
+inline void oc_free_table(oc_face face, void* context) {
     (void)face;
-    free(table.__handle);
+    free(context);
 }
 
 // todo: add option for verticals and maybe load both hori and vert bearings, advances
-bool oc_get_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_metrics* pmetrics) {
+void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_glyph_metrics* pmetrics) {
     if (pmetrics == NULL) {
-        return false;
+        return;
     }
 
     // disable hinting bla bla bla!
@@ -220,7 +219,8 @@ bool oc_get_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_
     FT_Error err = FT_Load_Glyph(FT(face), glyph_index, ft_load_flags);
     if (err != FT_Err_Ok) {
         FACE_UNLOCK(face);
-        return false;
+        memset(pmetrics, 0, sizeof(oc_glyph_metrics));
+        return;
     }
 
     FT_GlyphSlot slot = FT(face)->glyph;
@@ -234,8 +234,6 @@ bool oc_get_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_
     pmetrics->bearing_x = glyph_metrics.horiBearingX >> shift;
     pmetrics->bearing_y = glyph_metrics.horiBearingY >> shift;
     pmetrics->advance = glyph_metrics.horiAdvance >> shift;
-
-    return true;
 }
 
 typedef struct outline_context {
@@ -372,15 +370,13 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
     return true;
 }
 
-// todo: copy glyph obj as fast as possible only then check for
-// if it is even valid
 oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer, size_t buffer_size) {
     FT_Error err;
     if (pbbox == NULL) {
         return oc_error_invalid_param;
     }
-        
-    FACE_LOCK(face);     
+
+    FACE_LOCK(face);
 
     err = FT_Load_Glyph(FT(face), glyph_index, FT_LOAD_BITMAP_METRICS_ONLY);
     if (err != FT_Err_Ok) {
@@ -388,6 +384,8 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         switch (err) {
         case FT_Err_Out_Of_Memory:
             return oc_error_out_of_memory;
+        case FT_Err_Invalid_Argument:
+            return oc_error_invalid_param;
         default:
             return unexpected(err);
         }
@@ -400,23 +398,22 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         return oc_error_unexpected;
     }
 
+    pbbox->rows = bitmap.rows;
+    pbbox->cols = bitmap.width;
+
     if (buffer == NULL) {
         FACE_UNLOCK(face);
-
-        pbbox->rows = bitmap.rows;
-        pbbox->cols = bitmap.width;
-
         return oc_error_ok;
     }
 
-    if (pbbox->rows != bitmap.rows || pbbox->cols != bitmap.width) {
+    if (bitmap.rows == 0 || bitmap.width == 0) {
         FACE_UNLOCK(face);
-        return oc_error_invalid_param;
+        return oc_error_ok;
     }
 
-    if (buffer_size < pbbox->rows * pbbox->cols) {
+    if (buffer_size < bitmap.rows * bitmap.width) {
         FACE_UNLOCK(face);
-        return oc_error_insufficient_buffer; 
+        return oc_error_insufficient_buffer;
     }
 
     FT_Glyph glyph;
@@ -449,7 +446,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
 
     assert(glyph_bitmap->bitmap.rows == bitmap.rows);
     assert(glyph_bitmap->bitmap.width == bitmap.width);
-    assert(glyph_bitmap->bitmap.pitch== bitmap.pitch);
+    assert(glyph_bitmap->bitmap.pitch == bitmap.pitch);
 
     memcpy(buffer, glyph_bitmap->bitmap.buffer, bitmap.rows * bitmap.width);
 
