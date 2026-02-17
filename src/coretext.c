@@ -1,3 +1,4 @@
+#include "onecore.h"
 #include "shared.h"
 #ifdef ONECORE_CORETEXT
 
@@ -186,6 +187,7 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
 
     CFIndex glyph_count = CTFontGetGlyphCount(face.internals);
     if (glyph_index >= glyph_count) {
+        memset(pmetrics, 0, sizeof(oc_glyph_metrics));
         return;
     }
 
@@ -238,7 +240,7 @@ static void oc_path_applier(void* info, const CGPathElement* element) {
     case kCGPathElementMoveToPoint: {
         oc_point point = {
             element->points[0].x * fupem / fppem,
-            element->points[0].y * fupem / fppem
+            element->points[0].y * fupem / fppem 
         };
 
         ctx->funcs->start_figure(point, ctx->ctx);
@@ -248,7 +250,7 @@ static void oc_path_applier(void* info, const CGPathElement* element) {
     case kCGPathElementAddLineToPoint: {
         oc_point point = {
             element->points[0].x * fupem / fppem,
-            element->points[0].y * fupem / fppem
+            element->points[0].y * fupem / fppem 
         };
 
         ctx->funcs->line_to(point, ctx->ctx);

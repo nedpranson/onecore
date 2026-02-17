@@ -624,6 +624,7 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
     // for some reason GetDesignGlyphMetrics does not catch invalid glyph index
     UINT16 glyph_count = DW(face)->lpVtbl->GetGlyphCount(DW(face));
     if (glyph_index >= glyph_count) {
+        memset(pmetrics, 0, sizeof(oc_glyph_metrics));
         return;
     }
 
