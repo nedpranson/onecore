@@ -743,8 +743,8 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     oc_i26p6 origin_x = oc_mul_ip16p16(metrics.leftSideBearing, face.metrics.scale);
     oc_i26p6 origin_y = oc_mul_ip16p16((INT32)metrics.advanceHeight - metrics.verticalOriginY - metrics.bottomSideBearing, face.metrics.scale);
 
-    oc_i26p6 frac_x = origin_x - (origin_x & ~63);
-    oc_i26p6 frac_y = origin_y - (origin_y & ~63);
+    oc_i26p6 frac_x = origin_x - OC_26P6_FLOOR(origin_x);
+    oc_i26p6 frac_y = origin_y - OC_26P6_FLOOR(origin_y);
 
     // todo: add smth like this to our oc_render_glyph
     DWRITE_MATRIX transform = {
