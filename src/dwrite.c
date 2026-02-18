@@ -452,11 +452,11 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
     // todo: and make that point has to atleast 1.0
 
     // https://github.com/freetype/freetype/blob/85c8efe0afa5ad0df35114e317a065f544943c52/include/freetype/internal/ftobjs.h#L665
-    oc_i16p16 scaled_h = (params.desired_size * params.dpi + 36) / 72;
-    oc_i16p16 scale_y = oc_div_ip16p16(scaled_h, metrics.designUnitsPerEm);
+    oc_i16p16 scaled = (params.desired_size * params.dpi + 36) / 72;
+    oc_i16p16 scale = oc_div_ip16p16(scaled, metrics.designUnitsPerEm);
 
     // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L3368
-    int32_t ppem = (scale_y + 32) >> 6;
+    int32_t ppem = (scaled + 32) >> 6;
     if (ppem > UINT16_MAX) {
         // todo: add this test case
         return oc_error_invalid_param;
@@ -465,7 +465,7 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
     pface->internals = internals;
     pface->metrics.upem = metrics.designUnitsPerEm;
     pface->metrics.ppem = (uint16_t)ppem;
-    pface->metrics.scale = scale_y;
+    pface->metrics.scale = scale;
     pface->metrics.ascent = metrics.ascent;
     pface->metrics.descent = metrics.descent;
     pface->metrics.leading = metrics.lineGap;
