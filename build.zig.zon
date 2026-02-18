@@ -9,6 +9,7 @@
         .freetype = .{
             .url = "git+https://github.com/allyourcodebase/freetype#1082522e99fcc2554ca849cf5042878a371b5bd2",
             .hash = "freetype-2.14.1-C3-WdWqKAADJcxSH2bo9uMDiBAoDcIhOSl1-DADGIIM2",
+            .lazy = true,
         },
     },
     .minimum_zig_version = "0.15.2",

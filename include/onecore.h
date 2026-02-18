@@ -43,6 +43,10 @@ typedef int32_t oc_i26p6;
 //#define OC_PIX_ROUND( x )     OC_PIX_FLOOR( (x) + (int32_t)32 )
 //#define OC_PIX_CEIL( x )      OC_PIX_FLOOR( (x) + 63 )
 
+#define OC_26P6_FLOOR(x) ((int32_t)(x) & ~63)
+#define OC_26P6_ROUND(x) OC_26P6_FLOOR((int32_t)(x) + 32)
+#define OC_26P6_CEIL(x)  OC_26P6_FLOOR((int32_t)(x) + 63)
+
 #define OC_ERROR_LIST \
     X(oc_error_ok, "no error") \
     X(oc_error_invalid_param, "invalid parameter") \
@@ -132,6 +136,7 @@ typedef struct {
     short dpi;
 } oc_face_params;
 
+// todo: cast (uint32_t)(uint8_t)
 #define OC_MAKE_TAG(x1, x2, x3, x4) \
     (((uint8_t)x1) << 24 | ((uint8_t)x2) << 16 | ((uint8_t)x3) << 8 | ((uint8_t)x4))
 

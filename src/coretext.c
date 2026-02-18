@@ -1,3 +1,4 @@
+#include "onecore.h"
 #include "shared.h"
 #ifdef ONECORE_CORETEXT
 
@@ -28,23 +29,31 @@ static oc_error open_face_from_descriptors(CFArrayRef cf_descriptors_ref, const 
         return oc_error_out_of_memory;
     }
 
-    uint16_t ppem = roundf(params.desired_size * params.dpi / 72.0f);
-    CTFontRef ctf_font_ref = CTFontCreateWithFontDescriptor(ctf_descriptor_ref, ppem, NULL);
+    oc_i16p16 scaled = (params.desired_size * params.dpi + 36) / 72;
+    CTFontRef ctf_font_ref = CTFontCreateWithFontDescriptor(ctf_descriptor_ref, scaled / 64.0, NULL);
     if (ctf_font_ref == NULL) {
         return oc_error_out_of_memory;
     }
 
-    CGFloat fsize = CTFontGetSize(ctf_font_ref);
-    CGFloat fupem = (CGFloat)CTFontGetUnitsPerEm(ctf_font_ref);
+    oc_i16p16 scale = oc_div_ip16p16(scaled, CTFontGetUnitsPerEm(ctf_font_ref));
+    int32_t ppem = (scaled + 32) >> 6;
+    if (ppem > UINT16_MAX) {
+        // todo: add this test case
+        return oc_error_invalid_param;
+    }
+
+    CGFloat size = CTFontGetSize(ctf_font_ref);
+    uint16_t upem = CTFontGetUnitsPerEm(ctf_font_ref);
 
     pface->internals = (void*)ctf_font_ref;
+    pface->metrics.upem = upem;
     pface->metrics.ppem = ppem;
-    pface->metrics.upem = (uint16_t)fupem;
-    pface->metrics.ascent = (uint16_t)(CTFontGetAscent(ctf_font_ref) * fupem / fsize);
-    pface->metrics.descent = (uint16_t)(CTFontGetDescent(ctf_font_ref) * fupem / fsize);
-    pface->metrics.leading = (int16_t)(CTFontGetLeading(ctf_font_ref) * fupem / fsize);
-    pface->metrics.underline_position = (int16_t)(CTFontGetUnderlinePosition(ctf_font_ref) * fupem / fsize);
-    pface->metrics.underline_thickness = (uint16_t)(CTFontGetUnderlineThickness(ctf_font_ref) * fupem / fsize);
+    pface->metrics.scale = scale;
+    pface->metrics.ascent = (CTFontGetAscent(ctf_font_ref) * upem / size);
+    pface->metrics.descent = (CTFontGetDescent(ctf_font_ref) * upem / size);
+    pface->metrics.leading = (CTFontGetLeading(ctf_font_ref) * upem / size);
+    pface->metrics.underline_position = (CTFontGetUnderlinePosition(ctf_font_ref) * upem / size);
+    pface->metrics.underline_thickness = (CTFontGetUnderlineThickness(ctf_font_ref) * upem / size);
 
     return oc_error_ok;
 }
@@ -195,25 +204,24 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
 
     CGRect bbox = CTFontGetBoundingRectsForGlyphs(face.internals, kCTFontOrientationHorizontal, &glyph_index, NULL, 1);
 
-    if (!(flags & OC_LOAD_NO_SCALE)) {
-        pmetrics->width = floor(bbox.size.width);
-        pmetrics->height = floor(bbox.size.height);
-        pmetrics->bearing_x = floor(bbox.origin.x);
-        pmetrics->bearing_y = floor(bbox.size.height + bbox.origin.y);
-        pmetrics->advance = floor(advance.width);
+    CGFloat size = CTFontGetSize(face.internals);
+    uint16_t upem = face.metrics.upem;
 
+    pmetrics->width = bbox.size.width * upem / size;
+    pmetrics->height = bbox.size.height * upem / size;
+    pmetrics->bearing_x = bbox.origin.x * upem / size;
+    pmetrics->bearing_y = (bbox.size.height + bbox.origin.y) * upem / size;
+    pmetrics->advance = advance.width * upem / size;
+
+    if (flags & OC_LOAD_NO_SCALE) {
         return;
     }
 
-    CGFloat fppem = face.metrics.ppem;
-    CGFloat fupem = face.metrics.upem;
-
-    // todo: use upem not fupem and div by fsize
-    pmetrics->width = bbox.size.width * fupem / fppem;
-    pmetrics->height = bbox.size.height * fupem / fppem;
-    pmetrics->bearing_x = bbox.origin.x * fupem / fppem;
-    pmetrics->bearing_y = (bbox.size.height + bbox.origin.y) * fupem / fppem;
-    pmetrics->advance = advance.width * fupem / fppem;
+    pmetrics->width = oc_mul_ip16p16(pmetrics->width, face.metrics.scale);
+    pmetrics->height = oc_mul_ip16p16(pmetrics->height, face.metrics.scale);
+    pmetrics->bearing_x = oc_mul_ip16p16(pmetrics->bearing_x, face.metrics.scale);
+    pmetrics->bearing_y = oc_mul_ip16p16(pmetrics->bearing_y, face.metrics.scale);
+    pmetrics->advance = oc_mul_ip16p16(pmetrics->advance, face.metrics.scale);
 }
 
 typedef struct point_2f {
@@ -336,11 +344,17 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         &rect,
         1);
 
-    CGFloat frac_x = rect.origin.x - floor(rect.origin.x);
-    CGFloat frac_y = rect.origin.y - floor(rect.origin.y);
+    CGFloat size = CTFontGetSize(face.internals);
+    uint16_t upem = face.metrics.upem;
 
-    uint32_t rows = ceil(rect.size.height + frac_y);
-    uint32_t cols = ceil(rect.size.width + frac_x);
+    oc_i26p6 origin_x = oc_mul_ip16p16(rect.origin.x * upem / size, face.metrics.scale);
+    oc_i26p6 origin_y = oc_mul_ip16p16(rect.origin.y * upem / size, face.metrics.scale);
+
+    oc_i26p6 frac_x = origin_x - OC_26P6_FLOOR(origin_x);
+    oc_i26p6 frac_y = origin_y - OC_26P6_FLOOR(origin_y);
+
+    uint32_t rows = OC_26P6_CEIL((oc_i26p6)(rect.size.height * upem / size) + frac_y) >> 6;
+    uint32_t cols = OC_26P6_CEIL((oc_i26p6)(rect.size.width * upem / size) + frac_x) >> 6;
 
     pbbox->rows = rows;
     pbbox->cols = cols;
@@ -399,11 +413,11 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     CGContextSetGrayFillColor(ctx, 1.0, 1.0);
     CGContextSetGrayStrokeColor(ctx, 1.0, 1.0);
 
-    CGContextTranslateCTM(ctx, frac_x, frac_y);
+    CGContextTranslateCTM(ctx, frac_x / 64.0, frac_y / 64.0);
 
     CGPoint pos = {
-        -rect.origin.x,
-        -rect.origin.y,
+        -rect.origin.x / 64.0,
+        -rect.origin.y / 64.0,
     };
 
     CTFontDrawGlyphs(

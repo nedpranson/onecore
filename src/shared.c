@@ -39,6 +39,7 @@ oc_i16p16 oc_div_ip16p16(oc_i16p16 a, oc_i16p16 b) {
 }
 
 
+// todo: rename to i16p16 the heck is this
  oc_i16p16 oc_mul_ip16p16(oc_i16p16 a, oc_i16p16 b) {
     #ifdef ONECORE_FREETYPE
     return FT_MulFix(a, b);
