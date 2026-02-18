@@ -21,6 +21,11 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
+// todo: use 26p6, 16p16 percision!!!
+
+//int32_t oc_mul_fix(int32_t a, int32_t b) {
+//}
+
 #define OC_LOAD_DEFAULT 0x0
 #define OC_LOAD_NO_SCALE (1l << 0)
 // #define OC_LOAD_FIXED (1l << 1)
@@ -30,6 +35,13 @@ extern "C" {
 
 typedef uint32_t oc_tag;
 typedef uint32_t oc_load_flags;
+typedef int32_t oc_i16p16;
+typedef int32_t oc_i26p6;
+
+//#define OC_PIX_FLOOR( x )     ( (x) & ~(int32_t)63 )
+// unsafe adition bla bla bla!!
+//#define OC_PIX_ROUND( x )     OC_PIX_FLOOR( (x) + (int32_t)32 )
+//#define OC_PIX_CEIL( x )      OC_PIX_FLOOR( (x) + 63 )
 
 #define OC_ERROR_LIST \
     X(oc_error_ok, "no error") \
@@ -62,8 +74,9 @@ typedef struct {
 
 // todo: add height which is just ascept + descent + leading
 typedef struct {
-    uint16_t ppem;
     uint16_t upem;
+    uint16_t ppem;
+    oc_i16p16 scale;
     uint16_t ascent;
     uint16_t descent;
     int16_t leading;
@@ -83,14 +96,12 @@ typedef struct {
     size_t size;
 } oc_table;
 
-// todo: make these floats
-// we can even have both like union ( lwidth, fwidth )
 typedef struct {
-    uint32_t width;
-    uint32_t height;
-    int32_t bearing_x;
-    int32_t bearing_y;
-    uint32_t advance;
+    oc_i26p6 width;
+    oc_i26p6 height;
+    oc_i26p6 bearing_x;
+    oc_i26p6 bearing_y;
+    oc_i26p6 advance;
 } oc_glyph_metrics;
 
 typedef struct {
@@ -123,6 +134,12 @@ typedef struct {
 
 #define OC_MAKE_TAG(x1, x2, x3, x4) \
     (((uint8_t)x1) << 24 | ((uint8_t)x2) << 16 | ((uint8_t)x3) << 8 | ((uint8_t)x4))
+
+OC_EXPORT oc_i16p16
+oc_div_ip16p16(oc_i16p16 a, oc_i16p16 b);
+
+OC_EXPORT oc_i16p16
+oc_mul_ip16p16(oc_i16p16 a, oc_i16p16 b);
 
 OC_EXPORT oc_error
 oc_init_library(oc_library* plibrary);

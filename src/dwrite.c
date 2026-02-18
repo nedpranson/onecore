@@ -1,3 +1,4 @@
+#include "onecore.h"
 #include "shared.h"
 #ifdef ONECORE_DWRITE
 
@@ -448,9 +449,18 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
     DWRITE_FONT_METRICS metrics;
     dw_font_face->lpVtbl->GetMetrics(dw_font_face, &metrics);
 
+    
+    uint16_t ppem = roundf(params.desired_size * params.dpi / 72.0f);
+    oc_i26p6 hh = params.desired_size * 64.0f;
+
+    // https://github.com/freetype/freetype/blob/85c8efe0afa5ad0df35114e317a065f544943c52/include/freetype/internal/ftobjs.h#L665
+    oc_i16p16 scaled_height = (hh * (int32_t)ppem + 36) / 72;
+    oc_i16p16 scale = oc_div_ip16p16(scaled_height, metrics.designUnitsPerEm);
+
     pface->internals = internals;
-    pface->metrics.ppem = roundf(params.desired_size * params.dpi / 72.0f);
+    pface->metrics.ppem = ppem;
     pface->metrics.upem = metrics.designUnitsPerEm;
+    pface->metrics.scale = scale;
     pface->metrics.ascent = metrics.ascent;
     pface->metrics.descent = metrics.descent;
     pface->metrics.leading = metrics.lineGap;
@@ -649,14 +659,11 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
         return;
     }
 
-    float fppem = face.metrics.ppem;
-    float fupem = face.metrics.upem;
-
-    pmetrics->width = floorf((metrics.advanceWidth - metrics.leftSideBearing - metrics.rightSideBearing) * fppem / fupem);
-    pmetrics->height = floorf((metrics.advanceHeight - metrics.topSideBearing - metrics.bottomSideBearing) * fppem / fupem);
-    pmetrics->bearing_x = floorf(metrics.leftSideBearing * fppem / fupem);
-    pmetrics->bearing_y = floorf((metrics.verticalOriginY - metrics.topSideBearing) * fppem / fupem);
-    pmetrics->advance = floorf(metrics.advanceWidth * fppem / fupem);
+    pmetrics->width = oc_mul_ip16p16((metrics.advanceWidth - metrics.leftSideBearing - metrics.rightSideBearing), face.metrics.scale);
+    pmetrics->height = oc_mul_ip16p16((metrics.advanceHeight - metrics.topSideBearing - metrics.bottomSideBearing), face.metrics.scale);
+    pmetrics->bearing_x = oc_mul_ip16p16(metrics.leftSideBearing, face.metrics.scale);
+    pmetrics->bearing_y = oc_mul_ip16p16((metrics.verticalOriginY - metrics.topSideBearing), face.metrics.scale);
+    pmetrics->advance = oc_mul_ip16p16(metrics.advanceWidth, face.metrics.scale);
 }
 
 bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context) {

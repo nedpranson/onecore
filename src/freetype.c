@@ -62,11 +62,16 @@ static oc_error init_face(FT_Face ft_face, const oc_face_params* pparams, oc_fac
     internals->face = ft_face;
     mutex_init(&internals->lock);
 
-    printf("y_ppem: %d, x_ppem: %d\n", ft_face->size->metrics.y_ppem, ft_face->size->metrics.x_ppem);
+    //printf("y_ppem: %d, x_ppem: %d\n", ft_face->size->metrics.y_ppem, ft_face->size->metrics.x_ppem);
+    //printf("my_sclae_y: %ld\n", FT_DivFix(((long)(pparams->desired_size * 64.0f) * pparams->dpi + 32) / 72, ft_face->units_per_EM));
 
+    //printf("scale_x: %ld\n", ft_face->size->metrics.y_scale);
+    //printf("mul: %ld\n", FT_MulFix(677, ft_face->size->metrics.y_scale));
+    
     pface->internals = internals;
-    pface->metrics.ppem = ft_face->size->metrics.y_ppem;
     pface->metrics.upem = ft_face->units_per_EM;
+    pface->metrics.ppem = ft_face->size->metrics.y_ppem;
+    pface->metrics.scale = ft_face->size->metrics.y_scale;
     pface->metrics.ascent = ft_face->ascender;
     pface->metrics.descent = -ft_face->descender;
     pface->metrics.leading = ft_face->height - ft_face->ascender + ft_face->descender;
@@ -165,7 +170,6 @@ inline uint16_t oc_get_char_index(oc_face face, uint32_t charcode) {
 }
 
 oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pcontext) {
-    oc_table table;
     FT_Error err;
 
     if (ptable == NULL || pcontext == NULL) {
@@ -173,8 +177,8 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pc
     }
 
     // if other abis allow we can add offset option
-    table.size = 0;
-    err = FT_Load_Sfnt_Table(FT(face), tag, 0, NULL, &table.size);
+    FT_ULong size = 0;
+    err = FT_Load_Sfnt_Table(FT(face), tag, 0, NULL, &size);
     switch (err) {
     case FT_Err_Ok:
         break;
@@ -184,15 +188,17 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pc
         return unexpected(err);
     }
 
-    uint8_t* buffer = malloc(table.size);
+    uint8_t* buffer = malloc(size);
     if (buffer == NULL) {
         return oc_error_out_of_memory;
     }
 
-    err = FT_Load_Sfnt_Table(FT(face), tag, 0, buffer, &table.size);
+    err = FT_Load_Sfnt_Table(FT(face), tag, 0, buffer, &size);
     assert(err == oc_error_ok);
 
+    oc_table table;
     table.data = buffer;
+    table.size = size;
 
     *ptable = table;
     *pcontext = buffer;
@@ -229,17 +235,17 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
     FT_Glyph_Metrics glyph_metrics = slot->metrics;
     FACE_UNLOCK(face);
 
-    uint8_t shift = (flags & OC_LOAD_NO_SCALE) ? 0 : 6;
+    pmetrics->width = glyph_metrics.width;
+    pmetrics->height = glyph_metrics.height;
+    pmetrics->bearing_x = glyph_metrics.horiBearingX;
+    pmetrics->bearing_y = glyph_metrics.horiBearingY;
+    pmetrics->advance = glyph_metrics.horiAdvance;
 
-    if (face.metrics.ppem == 21) {
-        printf("float: %f\n", glyph_metrics.horiAdvance / 64.0f);
-    }
+    //FT_Load_Glyph(FT(face), glyph_index, 0);
+    //slot = FT(face)->glyph;
+    //glyph_metrics = slot->metrics;
 
-    pmetrics->width = glyph_metrics.width >> shift;
-    pmetrics->height = glyph_metrics.height >> shift;
-    pmetrics->bearing_x = glyph_metrics.horiBearingX >> shift;
-    pmetrics->bearing_y = glyph_metrics.horiBearingY >> shift;
-    pmetrics->advance = glyph_metrics.horiAdvance >> shift;
+    //printf("bx: %f, by: %f, adv: %f\n", glyph_metrics.horiBearingX / 64.0f, glyph_metrics.horiBearingY / 64.0f, glyph_metrics.horiAdvance / 64.0f);
 }
 
 typedef struct outline_context {

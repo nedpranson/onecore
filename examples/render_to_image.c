@@ -15,8 +15,8 @@ int main() {
     }
 
     oc_face_params open_params = {0}; // todo: nename to oc_open_params
-    open_params.desired_size = 16.0f;
-    open_params.dpi = 96;
+    open_params.desired_size = 21.0f;
+    open_params.dpi = 72;
 
     oc_face face;
     if ((err = oc_open_face(library, "test/files/arial.ttf", &open_params, &face))) {
@@ -25,13 +25,14 @@ int main() {
         return 1;
     }
 
-    printf("ppem: %d, upem: %d\n", face.metrics.ppem, face.metrics.upem);
+    //printf("ppem: %d, upem: %d\n", face.metrics.ppem, face.metrics.upem);
+    //printf("scale: %f\n", face.metrics.scale);
 
     uint8_t canvas[64 * 128];
     memset(canvas, 0, sizeof(canvas));
 
-    int32_t baseline = 38;
-    int32_t advance = 0;
+    oc_i26dot6 baseline = 38;
+    oc_i26dot6 advance = 0;
 
     const char* ch = message;
     for (; *ch; ch++) {
@@ -50,14 +51,12 @@ int main() {
             return 1;
         }
 
-        // freetype is doing smth extra with his advance
-        // as on ct and dw some ltters are too close we need to build freetype from source and debug what is done with this advance thingy
-        printf("bx: %d, by: %d, adv: %d, w: %d\n", metrics.bearing_x, metrics.bearing_y, metrics.advance, metrics.width);
+        printf("bx: %f, by: %f, adv: %f\n", metrics.bearing_x / 64.0f, metrics.bearing_y / 64.0f, metrics.advance / 64.0f);
 
         for (int32_t row = 0; row < (int32_t)bbox.rows; row++) {
             for (int32_t col = 0; col < (int32_t)bbox.cols; col++) {
-                uint32_t y = row + baseline - metrics.bearing_y;
-                uint32_t x = col + advance + metrics.bearing_x + 8;
+                uint32_t y = row + baseline - (metrics.bearing_y >> 6);
+                uint32_t x = col + advance + (metrics.bearing_x >> 6);
 
                 uint8_t src = bitmap[row * bbox.cols + col];
                 uint8_t *dst = &canvas[y * 128 + x];
@@ -66,7 +65,7 @@ int main() {
             }
         }
 
-        advance += metrics.advance;
+        advance += metrics.advance >> 6;
     }
 
     stbi_write_png("output.png", 128, 64, 1, canvas, 128);

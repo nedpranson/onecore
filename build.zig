@@ -53,6 +53,7 @@ pub fn build(b: *std.Build) void {
     lib.addCSourceFiles(.{
         .root = b.path("src"),
         .files = &.{
+            "shared.c",
             "freetype.c",
             "dwrite.c",
             "coretext.c",

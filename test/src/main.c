@@ -10,6 +10,18 @@ void setUp(void) { }
 
 void tearDown(void) { }
 
+void test_math(void) {
+    TEST_ASSERT_EQUAL_INT32(2147483647, oc_div_ip16p16(0, 0));
+    TEST_ASSERT_EQUAL_INT32(5 << 16, oc_div_ip16p16(10, 2));
+    TEST_ASSERT_EQUAL_INT32(1 << 16, oc_div_ip16p16(-2147483648, -2147483648));
+    TEST_ASSERT_EQUAL_INT32(2147483647, oc_div_ip16p16(2147483647, 1 << 16));
+    TEST_ASSERT_EQUAL_INT32(2147483646, oc_div_ip16p16(1073741823, 1 << 15));
+
+    // overflow checks
+    TEST_ASSERT_EQUAL_INT32(-2147483648, oc_div_ip16p16(1073741824, 1 << 15));
+    TEST_ASSERT_EQUAL_INT32(-2, oc_div_ip16p16(2147483647, 1 << 15));
+}
+
 void test_oc_init_library(void) {
     oc_library lib;
     oc_error err;
@@ -132,6 +144,23 @@ void test_oc_open_memory_face(void) {
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
     free(data);
+}
+
+void test_oc_test_dpi_scales(void) {
+    oc_error err;
+    oc_face face;
+    
+    oc_face_params params = { 0 };
+    // todo: make to 26p6
+    params.desired_size = 16.0f;
+    params.dpi = 128;
+
+    err = oc_open_face(g_library, "test/files/arial.ttf", &params, &face);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+    TEST_ASSERT_EQUAL_UINT16(28, face.metrics.ppem);
+    TEST_ASSERT_EQUAL_INT32(58240, face.metrics.scale);
+
+    oc_free_face(face);
 }
 
 void test_oc_get_char_index(void) {
@@ -283,21 +312,21 @@ void test_oc_get_glyph_metrics_scaled(void) {
     TEST_ASSERT_EQUAL_INT16(66, idx);
 
     oc_get_glyph_metrics(g_arial_ttf, idx, OC_LOAD_DEFAULT, &metrics);
-    TEST_ASSERT_EQUAL_UINT32(9, metrics.width);
-    TEST_ASSERT_EQUAL_UINT32(1, metrics.height);
-    TEST_ASSERT_EQUAL_INT32(-1, metrics.bearing_x);
-    TEST_ASSERT_EQUAL_INT32(-3, metrics.bearing_y);
-    TEST_ASSERT_EQUAL_UINT32(8, metrics.advance);
+    TEST_ASSERT_EQUAL_UINT32(597, metrics.width);
+    TEST_ASSERT_EQUAL_UINT32(65, metrics.height);
+    TEST_ASSERT_EQUAL_INT32(-16, metrics.bearing_x);
+    TEST_ASSERT_EQUAL_INT32(-139, metrics.bearing_y);
+    TEST_ASSERT_EQUAL_UINT32(570, metrics.advance);
 
     idx = oc_get_char_index(g_arial_ttf, 'M');
     TEST_ASSERT_EQUAL_INT16(48, idx);
 
     oc_get_glyph_metrics(g_arial_ttf, idx, OC_LOAD_DEFAULT, &metrics);
-    TEST_ASSERT_EQUAL_UINT32(10, metrics.width);
-    TEST_ASSERT_EQUAL_UINT32(11, metrics.height);
-    TEST_ASSERT_EQUAL_INT32(1, metrics.bearing_x);
-    TEST_ASSERT_EQUAL_INT32(11, metrics.bearing_y);
-    TEST_ASSERT_EQUAL_UINT32(13, metrics.advance);
+    TEST_ASSERT_EQUAL_UINT32(700, metrics.width);
+    TEST_ASSERT_EQUAL_UINT32(733, metrics.height);
+    TEST_ASSERT_EQUAL_INT32(76, metrics.bearing_x);
+    TEST_ASSERT_EQUAL_INT32(733, metrics.bearing_y);
+    TEST_ASSERT_EQUAL_UINT32(853, metrics.advance);
 
     oc_get_glyph_metrics(g_arial_ttf, 4444, OC_LOAD_DEFAULT, &metrics);
     TEST_ASSERT_EQUAL_UINT32(0, metrics.width);
@@ -540,63 +569,6 @@ void test_oc_render_glyph(void) {
     err = oc_render_glyph(g_arial_ttf, 4444, &bbox, NULL, 0);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 }
-// // todo: move to examples
-// #define STB_IMAGE_WRITE_IMPLEMENTATION
-// #include "stb_image_write.h"
-//
-// void render_test(void) {
-//     // todo: fix space caharcter
-//     // or chars with no outlines
-//     const char* msg = "Hello World!";
-//
-//     unsigned char buffer[128 * 128];
-//     memset(buffer, 0, sizeof(buffer));
-//
-//     int32_t height = (g_arial_ttf.metrics.leading + g_arial_ttf.metrics.ascent + g_arial_ttf.metrics.descent) * g_arial_ttf.metrics.ppem / g_arial_ttf.metrics.upem; // we need one just called height in metrics
-//
-//     uint32_t px = 0;
-//     for (size_t i = 0; i < strlen(msg); i++) {
-//         uint16_t idx = oc_get_char_index(g_arial_ttf, msg[i]);
-//         if (idx == 0) continue;
-//
-//         oc_glyph_metrics metrics;
-//         oc_get_glyph_metrics(g_arial_ttf, idx, OC_LOAD_DEFAULT, &metrics);
-//
-//         // todo: use float and think about that `height - glyph_metrics.bearing_y`
-//         int32_t bx = metrics.bearing_x;
-//         int32_t by = height - metrics.bearing_y;
-//         uint32_t adv = metrics.advance;
-//
-//         printf("bx: %d, by: %d, adv: %d\n", bx, by, adv);
-//
-//         unsigned char bitmap[24 * 24];
-//
-//         oc_bbox bbox;
-//         oc_render_glyph(g_arial_ttf, idx, &bbox, bitmap, sizeof(bitmap));
-//
-//         for (size_t row = 0; row < bbox.rows; row++) {
-//             for (size_t col = 0; col < bbox.cols; col++) {
-//                 int32_t y = by + row;
-//                 int32_t x = px + bx + col;
-//
-//                 uint8_t src = bitmap[row * bbox.cols + col];
-//                 uint8_t *dst = &buffer[y * 128 + x];
-//
-//                 *dst = src + (*dst * (255 - src) / 255);
-//             }
-//         }
-//
-//         px += adv;
-//     }
-//
-//     stbi_write_png("output.png",
-//         128,
-//         24,
-//         1,
-//         buffer,
-//         128);
-//
-// }
 
 int main(void) {
     UNITY_BEGIN();
@@ -613,9 +585,11 @@ int main(void) {
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     TEST_ASSERT_EQUAL_UINT16(16, g_arial_ttf.metrics.ppem);
 
+    RUN_TEST(test_math);
     RUN_TEST(test_oc_init_library);
     RUN_TEST(test_oc_open_face);
     RUN_TEST(test_oc_open_memory_face);
+    RUN_TEST(test_oc_test_dpi_scales);
     RUN_TEST(test_oc_get_char_index);
     RUN_TEST(test_oc_get_sfnt_table);
     RUN_TEST(test_oc_font_metrics);
