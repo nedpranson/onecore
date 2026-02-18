@@ -81,14 +81,14 @@ static inline oc_face_params fill_face_params(const oc_face_params* pparams) {
     if (pparams == NULL)
         return (oc_face_params) {
             .face_index = 0,
-            .desired_size = 12.0f,
+            .desired_size = 12 << 6,
             .dpi = ONECORE_SYSTEM_DPI,
         };
 
     oc_face_params params = *pparams;
 
-    if (params.desired_size <= 0.0f) {
-        params.desired_size = 12.0f;
+    if (params.desired_size <= 0) {
+        params.desired_size = 12 << 6;
     }
 
     if (params.dpi <= 0) {

@@ -128,7 +128,7 @@ typedef struct {
 
 typedef struct {
     uint32_t face_index;
-    float desired_size;
+    oc_i26p6 desired_size;
     short dpi;
 } oc_face_params;
 

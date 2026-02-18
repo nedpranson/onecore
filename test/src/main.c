@@ -151,8 +151,7 @@ void test_oc_test_dpi_scales(void) {
     oc_face face;
     
     oc_face_params params = { 0 };
-    // todo: make to 26p6
-    params.desired_size = 16.0f;
+    params.desired_size = 16 << 6;
     params.dpi = 128;
 
     err = oc_open_face(g_library, "test/files/arial.ttf", &params, &face);

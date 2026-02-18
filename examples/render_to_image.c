@@ -15,8 +15,8 @@ int main() {
     }
 
     oc_face_params open_params = {0}; // todo: nename to oc_open_params
-    open_params.desired_size = 21.0f;
-    open_params.dpi = 72;
+    open_params.desired_size = 16 << 6;
+    open_params.dpi = 96;
 
     oc_face face;
     if ((err = oc_open_face(library, "test/files/arial.ttf", &open_params, &face))) {
@@ -31,8 +31,8 @@ int main() {
     uint8_t canvas[64 * 128];
     memset(canvas, 0, sizeof(canvas));
 
-    oc_i26dot6 baseline = 38;
-    oc_i26dot6 advance = 0;
+    oc_i26p6 baseline = 38;
+    oc_i26p6 advance = 0;
 
     const char* ch = message;
     for (; *ch; ch++) {

@@ -45,7 +45,7 @@ inline void oc_free_library(oc_library library) {
 }
 
 static oc_error init_face(FT_Face ft_face, const oc_face_params* pparams, oc_face* pface) {
-    FT_Error err = FT_Set_Char_Size(ft_face, 0, pparams->desired_size * 64.0f, pparams->dpi, pparams->dpi);
+    FT_Error err = FT_Set_Char_Size(ft_face, 0, pparams->desired_size, pparams->dpi, pparams->dpi);
     if (err != FT_Err_Ok) {
         return unexpected(err);
     }

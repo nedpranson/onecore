@@ -449,18 +449,23 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
     DWRITE_FONT_METRICS metrics;
     dw_font_face->lpVtbl->GetMetrics(dw_font_face, &metrics);
 
-    
-    uint16_t ppem = roundf(params.desired_size * params.dpi / 72.0f);
-    oc_i26p6 hh = params.desired_size * 64.0f;
+    // todo: and make that point has to atleast 1.0
 
     // https://github.com/freetype/freetype/blob/85c8efe0afa5ad0df35114e317a065f544943c52/include/freetype/internal/ftobjs.h#L665
-    oc_i16p16 scaled_height = (hh * (int32_t)ppem + 36) / 72;
-    oc_i16p16 scale = oc_div_ip16p16(scaled_height, metrics.designUnitsPerEm);
+    oc_i16p16 scaled_h = (params.desired_size * params.dpi + 36) / 72;
+    oc_i16p16 scale_y = oc_div_ip16p16(scaled_h, metrics.designUnitsPerEm);
+
+    // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L3368
+    int32_t ppem = (scale_y + 32) >> 6;
+    if (ppem > UINT16_MAX) {
+        // todo: add this test case
+        return oc_error_invalid_param;
+    }
 
     pface->internals = internals;
-    pface->metrics.ppem = ppem;
     pface->metrics.upem = metrics.designUnitsPerEm;
-    pface->metrics.scale = scale;
+    pface->metrics.ppem = (uint16_t)ppem;
+    pface->metrics.scale = scale_y;
     pface->metrics.ascent = metrics.ascent;
     pface->metrics.descent = metrics.descent;
     pface->metrics.leading = metrics.lineGap;
@@ -729,6 +734,12 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         &metrics,
         FALSE);
     assert(err == S_OK);
+
+    // todo: use this scaled
+    //oc_i16p16 scaled = oc_mul_ip16p16(face.metrics.upem, face.metrics.scale);
+
+
+    //
 
     float fppem = face.metrics.ppem;
     float fupem = face.metrics.upem;
