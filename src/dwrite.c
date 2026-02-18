@@ -664,8 +664,8 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
         return;
     }
 
-    pmetrics->width = oc_mul_ip16p16((metrics.advanceWidth - metrics.leftSideBearing - metrics.rightSideBearing), face.metrics.scale);
-    pmetrics->height = oc_mul_ip16p16((metrics.advanceHeight - metrics.topSideBearing - metrics.bottomSideBearing), face.metrics.scale);
+    pmetrics->width = oc_mul_ip16p16(((INT32)metrics.advanceWidth - metrics.leftSideBearing - metrics.rightSideBearing), face.metrics.scale);
+    pmetrics->height = oc_mul_ip16p16(((INT32)metrics.advanceHeight - metrics.topSideBearing - metrics.bottomSideBearing), face.metrics.scale);
     pmetrics->bearing_x = oc_mul_ip16p16(metrics.leftSideBearing, face.metrics.scale);
     pmetrics->bearing_y = oc_mul_ip16p16((metrics.verticalOriginY - metrics.topSideBearing), face.metrics.scale);
     pmetrics->advance = oc_mul_ip16p16(metrics.advanceWidth, face.metrics.scale);
@@ -735,20 +735,16 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         FALSE);
     assert(err == S_OK);
 
-    // todo: use this scaled
-    //oc_i16p16 scaled = oc_mul_ip16p16(face.metrics.upem, face.metrics.scale);
+    oc_i26p6 em_size = oc_mul_ip16p16(face.metrics.upem, face.metrics.scale);
 
+    //float fppem = face.metrics.ppem;
+    //float fupem = face.metrics.upem;
 
-    //
+    oc_i26p6 origin_x = oc_mul_ip16p16(metrics.leftSideBearing, face.metrics.scale);
+    oc_i26p6 origin_y = oc_mul_ip16p16((INT32)metrics.advanceHeight - metrics.verticalOriginY - metrics.bottomSideBearing, face.metrics.scale);
 
-    float fppem = face.metrics.ppem;
-    float fupem = face.metrics.upem;
-
-    float origin_x = metrics.leftSideBearing * fppem / fupem;
-    float origin_y = ((INT32)metrics.advanceHeight - metrics.verticalOriginY - metrics.bottomSideBearing) * fppem / fupem;
-
-    float frac_x = origin_x - floorf(origin_x);
-    float frac_y = origin_y - floorf(origin_y);
+    oc_i26p6 frac_x = origin_x - (origin_x & ~63);
+    oc_i26p6 frac_y = origin_y - (origin_y & ~63);
 
     // todo: add smth like this to our oc_render_glyph
     DWRITE_MATRIX transform = {
@@ -756,13 +752,13 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         0.0f,
         0.0f,
         1.0f,
-        frac_x,
-        frac_y,
+        frac_x / 64.0f,
+        frac_y / 64.0f,
     };
 
     DWRITE_GLYPH_RUN glyph_run = { 0 };
     glyph_run.fontFace = DW(face);
-    glyph_run.fontEmSize = face.metrics.ppem;
+    glyph_run.fontEmSize = em_size / 64.0f;
     glyph_run.glyphCount = 1;
     glyph_run.glyphIndices = &glyph_index;
 
@@ -774,8 +770,8 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         &transform,
         DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC,
         DWRITE_MEASURING_MODE_NATURAL,
-        -origin_x,
-        -origin_y,
+        -origin_x / 64.0f,
+        -origin_y / 64.0f,
         &analysis);
     switch (err) {
     case S_OK:
