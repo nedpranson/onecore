@@ -344,20 +344,11 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         &rect,
         1);
 
-    CGFloat size = CTFontGetSize(face.internals);
-    uint16_t upem = face.metrics.upem;
+    CGFloat frac_x = rect.origin.x - floor(rect.origin.x);
+    CGFloat frac_y = rect.origin.y - floor(rect.origin.y);
 
-    oc_i26p6 origin_x = oc_mul_ip16p16(rect.origin.x * upem / size, face.metrics.scale);
-    oc_i26p6 origin_y = oc_mul_ip16p16(rect.origin.y * upem / size, face.metrics.scale);
-
-    oc_i26p6 width = oc_mul_ip16p16(rect.size.width * upem / size, face.metrics.scale);
-    oc_i26p6 height = oc_mul_ip16p16(rect.size.height * upem / size, face.metrics.scale);
-
-    oc_i26p6 frac_x = origin_x - OC_26P6_FLOOR(origin_x);
-    oc_i26p6 frac_y = origin_y - OC_26P6_FLOOR(origin_y);
-
-    uint32_t rows = OC_26P6_CEIL(height + frac_y) >> 6;
-    uint32_t cols = OC_26P6_CEIL(width + frac_x) >> 6;
+    uint32_t rows = ceil(rect.size.height + frac_y);
+    uint32_t cols = ceil(rect.size.width + frac_x);
 
     pbbox->rows = rows;
     pbbox->cols = cols;
@@ -416,11 +407,11 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     CGContextSetGrayFillColor(ctx, 1.0, 1.0);
     CGContextSetGrayStrokeColor(ctx, 1.0, 1.0);
 
-    CGContextTranslateCTM(ctx, frac_x / 64.0, frac_y / 64.0);
+    CGContextTranslateCTM(ctx, frac_x, frac_y);
 
     CGPoint pos = {
-        -rect.origin.x / 64.0,
-        -rect.origin.y / 64.0,
+        -rect.origin.x,
+        -rect.origin.y,
     };
 
     CTFontDrawGlyphs(
