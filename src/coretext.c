@@ -347,29 +347,23 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     CGFloat size = CTFontGetSize(face.internals);
     uint16_t upem = face.metrics.upem;
 
-    // how freetype calcs min maxes
-    oc_26p6 frac_xMin = oc_mul_16p16(CGRectGetMinX(rect) * upem / size, face.metrics.scale);
-    oc_26p6 frac_yMin = oc_mul_16p16(CGRectGetMinY(rect) * upem / size, face.metrics.scale);
-    oc_26p6 frac_xMax = oc_mul_16p16(CGRectGetMaxX(rect) * upem / size, face.metrics.scale);
-    oc_26p6 frac_yMax = oc_mul_16p16(CGRectGetMaxY(rect) * upem / size, face.metrics.scale);
+    // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L414
+    oc_26p6 cxMin = oc_mul_16p16(CGRectGetMinX(rect) * upem / size, face.metrics.scale);
+    oc_26p6 cyMin = oc_mul_16p16(CGRectGetMinY(rect) * upem / size, face.metrics.scale);
+    oc_26p6 cxMax = oc_mul_16p16(CGRectGetMaxX(rect) * upem / size, face.metrics.scale);
+    oc_26p6 cyMax = oc_mul_16p16(CGRectGetMaxY(rect) * upem / size, face.metrics.scale);
 
-    oc_26p6 xMin = frac_xMin >> 6;
-    oc_26p6 yMin = frac_yMin >> 6;
-    oc_26p6 xMax = frac_xMax >> 6;
-    oc_26p6 yMax = frac_yMax >> 6;
+    oc_26p6 pxMin = cxMin >> 6;
+    oc_26p6 pyMin = cyMin >> 6;
+    oc_26p6 pxMax = cxMax >> 6;
+    oc_26p6 pyMax = cyMax >> 6;
 
-    frac_xMin = frac_xMin & 63;
-    frac_yMin = frac_yMin & 63;
-    frac_xMax = frac_xMax & 63;
-    frac_yMax = frac_yMax & 63;
+    // take fractional part and ceil it
+    pxMax += ((cxMax & 63) + 63) >> 6;
+    pyMax += ((cyMax & 63) + 63) >> 6;
 
-    xMin += frac_xMin >> 6; // does nothing
-    yMin += frac_yMin >> 6; // does nothing
-    xMax += (frac_xMax + 63) >> 6;
-    yMax += (frac_yMax + 63) >> 6;
-
-    uint32_t rows = yMax - yMin;
-    uint32_t cols = xMax - xMin;
+    uint32_t rows = pyMax - pyMin;
+    uint32_t cols = pxMax - pxMin;
 
     pbbox->rows = rows;
     pbbox->cols = cols;
@@ -428,11 +422,11 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     CGContextSetGrayFillColor(ctx, 1.0, 1.0);
     CGContextSetGrayStrokeColor(ctx, 1.0, 1.0);
 
-    //CGContextTranslateCTM(ctx, frac_x / 64.0, frac_y / 64.0);
+    CGContextTranslateCTM(ctx, (cxMin & 63) / 64.0, (cyMin & 63) / 64.0);
 
     CGPoint pos = {
-        0.0,//-xMin / 64.0,
-        0.0,//-yMin / 64.0,
+        -cxMin / 64.0,
+        -cyMin / 64.0,
     };
 
     CTFontDrawGlyphs(
