@@ -1,4 +1,3 @@
-#include "onecore.h"
 #include "shared.h"
 #ifdef ONECORE_CORETEXT
 
@@ -29,13 +28,13 @@ static oc_error open_face_from_descriptors(CFArrayRef cf_descriptors_ref, const 
         return oc_error_out_of_memory;
     }
 
-    oc_i16p16 scaled = (params.desired_size * params.dpi + 36) / 72;
+    oc_16p16 scaled = (params.desired_size * params.dpi + 36) / 72;
     CTFontRef ctf_font_ref = CTFontCreateWithFontDescriptor(ctf_descriptor_ref, scaled / 64.0, NULL);
     if (ctf_font_ref == NULL) {
         return oc_error_out_of_memory;
     }
 
-    oc_i16p16 scale = oc_div_ip16p16(scaled, CTFontGetUnitsPerEm(ctf_font_ref));
+    oc_16p16 scale = oc_div_16p16(scaled, CTFontGetUnitsPerEm(ctf_font_ref));
     int32_t ppem = (scaled + 32) >> 6;
     if (ppem > UINT16_MAX) {
         // todo: add this test case
@@ -217,11 +216,11 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
         return;
     }
 
-    pmetrics->width = oc_mul_ip16p16(pmetrics->width, face.metrics.scale);
-    pmetrics->height = oc_mul_ip16p16(pmetrics->height, face.metrics.scale);
-    pmetrics->bearing_x = oc_mul_ip16p16(pmetrics->bearing_x, face.metrics.scale);
-    pmetrics->bearing_y = oc_mul_ip16p16(pmetrics->bearing_y, face.metrics.scale);
-    pmetrics->advance = oc_mul_ip16p16(pmetrics->advance, face.metrics.scale);
+    pmetrics->width = oc_mul_16p16(pmetrics->width, face.metrics.scale);
+    pmetrics->height = oc_mul_16p16(pmetrics->height, face.metrics.scale);
+    pmetrics->bearing_x = oc_mul_16p16(pmetrics->bearing_x, face.metrics.scale);
+    pmetrics->bearing_y = oc_mul_16p16(pmetrics->bearing_y, face.metrics.scale);
+    pmetrics->advance = oc_mul_16p16(pmetrics->advance, face.metrics.scale);
 }
 
 typedef struct point_2f {
@@ -326,6 +325,7 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
     return true;
 }
 
+// smth is off with mac!!!!
 oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer, size_t buffer_size) {
     if (pbbox == NULL) {
         return oc_error_invalid_param;
@@ -347,17 +347,17 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     CGFloat size = CTFontGetSize(face.internals);
     uint16_t upem = face.metrics.upem;
 
-    oc_i26p6 origin_x = oc_mul_ip16p16(rect.origin.x * upem / size, face.metrics.scale);
-    oc_i26p6 origin_y = oc_mul_ip16p16(rect.origin.y * upem / size, face.metrics.scale);
+    oc_26p6 origin_x = oc_mul_16p16(rect.origin.x * upem / size, face.metrics.scale);
+    oc_26p6 origin_y = oc_mul_16p16(rect.origin.y * upem / size, face.metrics.scale);
 
-    oc_i26p6 w = oc_mul_ip16p16(rect.size.width * upem / size, face.metrics.scale);
-    oc_i26p6 h = oc_mul_ip16p16(rect.size.height * upem / size, face.metrics.scale);
+    oc_26p6 w = oc_mul_16p16(rect.size.width * upem / size, face.metrics.scale);
+    oc_26p6 h = oc_mul_16p16(rect.size.height * upem / size, face.metrics.scale);
 
-    oc_i26p6 frac_x = origin_x - OC_26P6_FLOOR(origin_x);
-    oc_i26p6 frac_y = origin_y - OC_26P6_FLOOR(origin_y);
+    oc_26p6 frac_x = origin_x - OC_26P6_FLOOR(origin_x);
+    oc_26p6 frac_y = origin_y - OC_26P6_FLOOR(origin_y);
 
-    uint32_t rows = OC_26P6_CEIL(h + frac_y) >> 6;
-    uint32_t cols = OC_26P6_CEIL(w + frac_x) >> 6;
+    uint32_t rows = (h + frac_y + 63) >> 6;
+    uint32_t cols = (w + frac_x + 63) >> 6;
 
     pbbox->rows = rows;
     pbbox->cols = cols;

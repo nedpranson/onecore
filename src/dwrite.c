@@ -1,4 +1,3 @@
-#include "onecore.h"
 #include "shared.h"
 #ifdef ONECORE_DWRITE
 
@@ -452,8 +451,8 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
     // todo: and make that point has to atleast 1.0
 
     // https://github.com/freetype/freetype/blob/85c8efe0afa5ad0df35114e317a065f544943c52/include/freetype/internal/ftobjs.h#L665
-    oc_i16p16 scaled = (params.desired_size * params.dpi + 36) / 72;
-    oc_i16p16 scale = oc_div_ip16p16(scaled, metrics.designUnitsPerEm);
+    oc_16p16 scaled = (params.desired_size * params.dpi + 36) / 72;
+    oc_16p16 scale = oc_div_16p16(scaled, metrics.designUnitsPerEm);
 
     // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L3368
     int32_t ppem = (scaled + 32) >> 6;
@@ -664,11 +663,11 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
         return;
     }
 
-    pmetrics->width = oc_mul_ip16p16(((INT32)metrics.advanceWidth - metrics.leftSideBearing - metrics.rightSideBearing), face.metrics.scale);
-    pmetrics->height = oc_mul_ip16p16(((INT32)metrics.advanceHeight - metrics.topSideBearing - metrics.bottomSideBearing), face.metrics.scale);
-    pmetrics->bearing_x = oc_mul_ip16p16(metrics.leftSideBearing, face.metrics.scale);
-    pmetrics->bearing_y = oc_mul_ip16p16((metrics.verticalOriginY - metrics.topSideBearing), face.metrics.scale);
-    pmetrics->advance = oc_mul_ip16p16(metrics.advanceWidth, face.metrics.scale);
+    pmetrics->width = oc_mul_16p16(((INT32)metrics.advanceWidth - metrics.leftSideBearing - metrics.rightSideBearing), face.metrics.scale);
+    pmetrics->height = oc_mul_16p16(((INT32)metrics.advanceHeight - metrics.topSideBearing - metrics.bottomSideBearing), face.metrics.scale);
+    pmetrics->bearing_x = oc_mul_16p16(metrics.leftSideBearing, face.metrics.scale);
+    pmetrics->bearing_y = oc_mul_16p16((metrics.verticalOriginY - metrics.topSideBearing), face.metrics.scale);
+    pmetrics->advance = oc_mul_16p16(metrics.advanceWidth, face.metrics.scale);
 }
 
 bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context) {
@@ -735,16 +734,16 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         FALSE);
     assert(err == S_OK);
 
-    oc_i26p6 em_size = oc_mul_ip16p16(face.metrics.upem, face.metrics.scale);
+    oc_26p6 em_size = oc_mul_16p16(face.metrics.upem, face.metrics.scale);
 
     //float fppem = face.metrics.ppem;
     //float fupem = face.metrics.upem;
 
-    oc_i26p6 origin_x = oc_mul_ip16p16(metrics.leftSideBearing, face.metrics.scale);
-    oc_i26p6 origin_y = oc_mul_ip16p16((INT32)metrics.advanceHeight - metrics.verticalOriginY - metrics.bottomSideBearing, face.metrics.scale);
+    oc_26p6 origin_x = oc_mul_16p16(metrics.leftSideBearing, face.metrics.scale);
+    oc_26p6 origin_y = oc_mul_16p16((INT32)metrics.advanceHeight - metrics.verticalOriginY - metrics.bottomSideBearing, face.metrics.scale);
 
-    oc_i26p6 frac_x = origin_x - OC_26P6_FLOOR(origin_x);
-    oc_i26p6 frac_y = origin_y - OC_26P6_FLOOR(origin_y);
+    oc_26p6 frac_x = origin_x - OC_26P6_FLOOR(origin_x);
+    oc_26p6 frac_y = origin_y - OC_26P6_FLOOR(origin_y);
 
     // todo: add smth like this to our oc_render_glyph
     DWRITE_MATRIX transform = {

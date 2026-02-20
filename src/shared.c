@@ -1,6 +1,6 @@
 #include "shared.h"
 
-// todo: in header just #define oc_div_ip16p16 FT_DivFix
+// todo: in header just #define oc_div_16p16 FT_DivFix
 
 #ifdef ONECORE_FREETYPE
 #include <ft2build.h>
@@ -20,13 +20,13 @@
 #endif /* !ONECORE_FREETYPE */
 
 // https://github.com/freetype/freetype/blob/85c8efe0afa5ad0df35114e317a065f544943c52/src/base/ftcalc.c#L233
-oc_i16p16 oc_div_ip16p16(oc_i16p16 a, oc_i16p16 b) {
+oc_16p16 oc_div_16p16(oc_16p16 a, oc_16p16 b) {
     #ifdef ONECORE_FREETYPE
     return FT_DivFix(a, b);
     #else /* !ONECORE_FREETYPE */
     bool s = false;
     uint64_t ua, ub, uq;
-    oc_i16p16 q;
+    oc_16p16 q;
 
     MOVE_SIGN(uint64_t, a, ua, s);
     MOVE_SIGN(uint64_t, b, ub, s);
@@ -40,7 +40,7 @@ oc_i16p16 oc_div_ip16p16(oc_i16p16 a, oc_i16p16 b) {
 
 
 // todo: rename to i16p16 the heck is this
- oc_i16p16 oc_mul_ip16p16(oc_i16p16 a, oc_i16p16 b) {
+ oc_16p16 oc_mul_16p16(oc_16p16 a, oc_16p16 b) {
     #ifdef ONECORE_FREETYPE
     return FT_MulFix(a, b);
     #else /* !ONECORE_FREETYPE */

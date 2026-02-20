@@ -35,8 +35,8 @@ extern "C" {
 
 typedef uint32_t oc_tag;
 typedef uint32_t oc_load_flags;
-typedef int32_t oc_i16p16;
-typedef int32_t oc_i26p6;
+typedef int32_t oc_16p16;
+typedef int32_t oc_26p6;
 
 //#define OC_PIX_FLOOR( x )     ( (x) & ~(int32_t)63 )
 // unsafe adition bla bla bla!!
@@ -80,7 +80,7 @@ typedef struct {
 typedef struct {
     uint16_t upem;
     uint16_t ppem;
-    oc_i16p16 scale;
+    oc_16p16 scale;
     uint16_t ascent;
     uint16_t descent;
     int16_t leading;
@@ -101,11 +101,11 @@ typedef struct {
 } oc_table;
 
 typedef struct {
-    oc_i26p6 width;
-    oc_i26p6 height;
-    oc_i26p6 bearing_x;
-    oc_i26p6 bearing_y;
-    oc_i26p6 advance;
+    oc_26p6 width;
+    oc_26p6 height;
+    oc_26p6 bearing_x;
+    oc_26p6 bearing_y;
+    oc_26p6 advance;
 } oc_glyph_metrics;
 
 typedef struct {
@@ -132,7 +132,7 @@ typedef struct {
 
 typedef struct {
     uint32_t face_index;
-    oc_i26p6 desired_size;
+    oc_26p6 desired_size;
     short dpi;
 } oc_face_params;
 
@@ -140,11 +140,11 @@ typedef struct {
 #define OC_MAKE_TAG(x1, x2, x3, x4) \
     (((uint8_t)x1) << 24 | ((uint8_t)x2) << 16 | ((uint8_t)x3) << 8 | ((uint8_t)x4))
 
-OC_EXPORT oc_i16p16
-oc_div_ip16p16(oc_i16p16 a, oc_i16p16 b);
+OC_EXPORT oc_16p16
+oc_div_16p16(oc_16p16 a, oc_16p16 b);
 
-OC_EXPORT oc_i16p16
-oc_mul_ip16p16(oc_i16p16 a, oc_i16p16 b);
+OC_EXPORT oc_16p16
+oc_mul_16p16(oc_16p16 a, oc_16p16 b);
 
 OC_EXPORT oc_error
 oc_init_library(oc_library* plibrary);
@@ -172,10 +172,7 @@ oc_open_memory_face(
     oc_face* pface);
 
 // OC_EXPORT oc_error
-// oc_set_size(oc_face face, float desired_size, unsigned short dpi);
-
-// OC_EXPORT float
-// oc_get_size(oc_face face);
+// oc_set_size(oc_face face, ...);
 
 OC_EXPORT void
 oc_free_face(oc_face face);
@@ -190,14 +187,6 @@ oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pcontext);
 OC_EXPORT void
 oc_free_table(oc_face face, void* context);
 
-// on windows dpi is 92 on mac 72
-// oc_set_size(oc_face face, float points, uint8_t dpi);
-// after implementing scaling (for scalable fonts) then tidy up the code base
-
-// todo: add scaled variant
-// returning bools is hmm lazy
-// todo: rename to just get_metrics and mb make it void??
-// todo: make it a void on error memset struct to 0
 OC_EXPORT void
 oc_get_glyph_metrics(
     oc_face face,
@@ -205,21 +194,11 @@ oc_get_glyph_metrics(
     oc_load_flags flags,
     oc_glyph_metrics* pmetrics);
 
-// scaling is a hard problem to solve cuz of hinting
-// so we will just not implement it yet first we need to add rendering
-// then look how fonts looks if it's bad then we can look how freetype handled hinting
-// and implement scaled function with some flags
-// though we can add simple sclae function, but it would require us to change all
-// glyph_metric data from ints to floats, we could use 26.6perhaps;
-// OC_EXPORT bool
-// oc_get_glyph_metrics_scaled(oc_face face, uint16_t glyph_index, oc_glyph_metrics* pglyph_metrics);
-
 OC_EXPORT bool
 oc_get_outline(
     oc_face face,
     uint16_t glyph_index,
-    const oc_outline_funcs*
-        outline_funcs,
+    const oc_outline_funcs* outline_funcs,
     void* context);
 
 // todo: add comments here explaining that every backend will generate diffrent glyph textures

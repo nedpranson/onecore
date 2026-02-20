@@ -15,7 +15,7 @@ int main() {
     }
 
     oc_face_params open_params = {0}; // todo: nename to oc_open_params
-    open_params.desired_size = 16 << 6;
+    open_params.desired_size = 12 << 6;
     open_params.dpi = 96;
 
     oc_face face;
@@ -25,14 +25,11 @@ int main() {
         return 1;
     }
 
-    //printf("ppem: %d, upem: %d\n", face.metrics.ppem, face.metrics.upem);
-    //printf("scale: %f\n", face.metrics.scale);
-
     uint8_t canvas[64 * 128];
     memset(canvas, 0, sizeof(canvas));
 
-    oc_i26p6 baseline = 38;
-    oc_i26p6 advance = 0;
+    oc_26p6 baseline = 38;
+    oc_26p6 advance = 0;
 
     const char* ch = message;
     for (; *ch; ch++) {
@@ -51,7 +48,8 @@ int main() {
             return 1;
         }
 
-        printf("bx: %f, by: %f, adv: %f\n", metrics.bearing_x / 64.0f, metrics.bearing_y / 64.0f, metrics.advance / 64.0f);
+        printf("bx: %f, by: %f, adv: %f ", metrics.bearing_x / 64.0, metrics.bearing_y / 64.0, metrics.advance / 64.0);
+        printf("rows: %d, cols: %d\n", bbox.rows, bbox.cols);
 
         for (int32_t row = 0; row < (int32_t)bbox.rows; row++) {
             for (int32_t col = 0; col < (int32_t)bbox.cols; col++) {
