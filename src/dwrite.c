@@ -763,7 +763,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         0.0f,
         1.0f,
         (cxMin & 63) / 64.0f,
-        -(cxMin & 63) / 64.0f,
+        -(cyMin & 63) / 64.0f,
     };
 
     DWRITE_GLYPH_RUN glyph_run = { 0 };
