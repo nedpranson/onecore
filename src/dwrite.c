@@ -780,8 +780,8 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         &transform,
         DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC,
         DWRITE_MEASURING_MODE_NATURAL,
-        cxMin / 64.0f,
-        -cyMin / 64.0f,
+        -cxMin / 64.0f,
+        cyMin / 64.0f,
         &analysis);
     switch (err) {
     case S_OK:
