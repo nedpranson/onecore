@@ -301,6 +301,24 @@ void test_oc_get_glyph_metrics(void) {
     TEST_ASSERT_EQUAL_INT32(0, metrics.bearing_x);
     TEST_ASSERT_EQUAL_INT32(0, metrics.bearing_y);
     TEST_ASSERT_EQUAL_UINT32(0, metrics.advance);
+
+    oc_face face;
+    oc_face_params face_params = {0};
+    face_params.desired_size = 16 << 6;
+    face_params.dpi = 96;
+
+    oc_error err = oc_open_face(g_library, "test/files/arial.ttf", &face_params, &face);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    idx = oc_get_char_index(g_arial_ttf, 'e');
+    TEST_ASSERT_EQUAL_INT16(72, idx);
+
+    oc_get_glyph_metrics(face, idx, OC_LOAD_NO_SCALE, &metrics);
+    TEST_ASSERT_EQUAL_UINT32(979, metrics.width);
+    TEST_ASSERT_EQUAL_UINT32(1110, metrics.height);
+    TEST_ASSERT_EQUAL_INT32(75, metrics.bearing_x);
+    TEST_ASSERT_EQUAL_INT32(1086, metrics.bearing_y);
+    TEST_ASSERT_EQUAL_UINT32(1139, metrics.advance);
 }
 
 void test_oc_get_glyph_metrics_scaled(void) {
@@ -567,6 +585,14 @@ void test_oc_render_glyph(void) {
 
     err = oc_render_glyph(g_arial_ttf, 4444, &bbox, NULL, 0);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
+
+    idx = oc_get_char_index(g_arial_ttf, 'l');
+    TEST_ASSERT_EQUAL_INT16(79, idx);
+
+    err = oc_render_glyph(g_arial_ttf, idx, &bbox, NULL, 0);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+    TEST_ASSERT_EQUAL_UINT32(12, bbox.rows);
+    TEST_ASSERT_EQUAL_UINT32(2, bbox.cols);
 }
 
 int main(void) {

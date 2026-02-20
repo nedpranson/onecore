@@ -347,17 +347,29 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     CGFloat size = CTFontGetSize(face.internals);
     uint16_t upem = face.metrics.upem;
 
-    oc_26p6 origin_x = oc_mul_16p16(rect.origin.x * upem / size, face.metrics.scale);
-    oc_26p6 origin_y = oc_mul_16p16(rect.origin.y * upem / size, face.metrics.scale);
+    // how freetype calcs min maxes
+    oc_26p6 frac_xMin = oc_mul_16p16(CGRectGetMinX(rect) * upem / size, face.metrics.scale);
+    oc_26p6 frac_yMin = oc_mul_16p16(CGRectGetMinY(rect) * upem / size, face.metrics.scale);
+    oc_26p6 frac_xMax = oc_mul_16p16(CGRectGetMaxX(rect) * upem / size, face.metrics.scale);
+    oc_26p6 frac_yMax = oc_mul_16p16(CGRectGetMaxY(rect) * upem / size, face.metrics.scale);
 
-    oc_26p6 w = oc_mul_16p16(rect.size.width * upem / size, face.metrics.scale);
-    oc_26p6 h = oc_mul_16p16(rect.size.height * upem / size, face.metrics.scale);
+    oc_26p6 xMin = frac_xMin >> 6;
+    oc_26p6 yMin = frac_yMin >> 6;
+    oc_26p6 xMax = frac_xMax >> 6;
+    oc_26p6 yMax = frac_yMax >> 6;
 
-    oc_26p6 frac_x = origin_x - OC_26P6_FLOOR(origin_x);
-    oc_26p6 frac_y = origin_y - OC_26P6_FLOOR(origin_y);
+    frac_xMin = frac_xMin & 63;
+    frac_yMin = frac_yMin & 63;
+    frac_xMax = frac_xMax & 63;
+    frac_yMax = frac_yMax & 63;
 
-    uint32_t rows = (h + frac_y + 63) >> 6;
-    uint32_t cols = (w + frac_x + 63) >> 6;
+    xMin += frac_xMin >> 6; // does nothing
+    yMin += frac_yMin >> 6; // does nothing
+    xMax += (frac_xMax + 63) >> 6;
+    yMax += (frac_yMax + 63) >> 6;
+
+    uint32_t rows = yMax - yMin;
+    uint32_t cols = xMax - xMin;
 
     pbbox->rows = rows;
     pbbox->cols = cols;
@@ -416,11 +428,11 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     CGContextSetGrayFillColor(ctx, 1.0, 1.0);
     CGContextSetGrayStrokeColor(ctx, 1.0, 1.0);
 
-    CGContextTranslateCTM(ctx, frac_x / 64.0, frac_y / 64.0);
+    //CGContextTranslateCTM(ctx, frac_x / 64.0, frac_y / 64.0);
 
     CGPoint pos = {
-        -origin_x / 64.0,
-        -origin_y / 64.0,
+        0.0,//-xMin / 64.0,
+        0.0,//-yMin / 64.0,
     };
 
     CTFontDrawGlyphs(

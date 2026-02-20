@@ -390,7 +390,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
 
     FACE_LOCK(face);
 
-    err = FT_Load_Glyph(FT(face), glyph_index, FT_LOAD_BITMAP_METRICS_ONLY);
+    err = FT_Load_Glyph(FT(face), glyph_index, FT_LOAD_BITMAP_METRICS_ONLY | FT_LOAD_NO_HINTING | FT_LOAD_NO_AUTOHINT);
     if (err != FT_Err_Ok) {
         FACE_UNLOCK(face);
         switch (err) {
