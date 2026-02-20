@@ -654,8 +654,8 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
     assert(err == S_OK);
 
     if (flags & OC_LOAD_NO_SCALE) {
-        pmetrics->width = metrics.advanceWidth - metrics.leftSideBearing - metrics.rightSideBearing;
-        pmetrics->height = metrics.advanceHeight - metrics.topSideBearing - metrics.bottomSideBearing;
+        pmetrics->width = (INT32)metrics.advanceWidth - metrics.leftSideBearing - metrics.rightSideBearing;
+        pmetrics->height = (INT32)metrics.advanceHeight - metrics.topSideBearing - metrics.bottomSideBearing;
         pmetrics->bearing_x = metrics.leftSideBearing;
         pmetrics->bearing_y = metrics.verticalOriginY - metrics.topSideBearing;
         pmetrics->advance = metrics.advanceWidth;
@@ -734,16 +734,27 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         FALSE);
     assert(err == S_OK);
 
+    // is this correct?
     oc_26p6 em_size = oc_mul_16p16(face.metrics.upem, face.metrics.scale);
 
-    //float fppem = face.metrics.ppem;
-    //float fupem = face.metrics.upem;
+    // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L414
+    // todo: make this into a method!! and export it on api
+    oc_26p6 cxMin = oc_mul_16p16(metrics.leftSideBearing, face.metrics.scale);
+    oc_26p6 cyMin = oc_mul_16p16(metrics.verticalOriginY + metrics.bottomSideBearing - (INT32)metrics.advanceHeight, face.metrics.scale);
+    oc_26p6 cxMax = oc_mul_16p16(metrics.advanceWidth - metrics.rightSideBearing, face.metrics.scale);
+    oc_26p6 cyMax = oc_mul_16p16(metrics.verticalOriginY - metrics.topSideBearing, face.metrics.scale);
 
-    oc_26p6 origin_x = oc_mul_16p16(metrics.leftSideBearing, face.metrics.scale);
-    oc_26p6 origin_y = oc_mul_16p16((INT32)metrics.advanceHeight - metrics.verticalOriginY - metrics.bottomSideBearing, face.metrics.scale);
+    oc_26p6 pxMin = cxMin >> 6;
+    oc_26p6 pyMin = cyMin >> 6;
+    oc_26p6 pxMax = cxMax >> 6;
+    oc_26p6 pyMax = cyMax >> 6;
 
-    oc_26p6 frac_x = origin_x - OC_26P6_FLOOR(origin_x);
-    oc_26p6 frac_y = origin_y - OC_26P6_FLOOR(origin_y);
+    // take fractional part and ceil it
+    pxMax += ((cxMax & 63) + 63) >> 6;
+    pyMax += ((cyMax & 63) + 63) >> 6;
+
+    uint32_t rows = pyMax - pyMin;
+    uint32_t cols = pxMax - pxMin;
 
     // todo: add smth like this to our oc_render_glyph
     DWRITE_MATRIX transform = {
@@ -751,8 +762,8 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         0.0f,
         0.0f,
         1.0f,
-        frac_x / 64.0f,
-        frac_y / 64.0f,
+        (cxMin & 63) / 64.0f,
+        -(cxMin & 63) / 64.0f,
     };
 
     DWRITE_GLYPH_RUN glyph_run = { 0 };
@@ -769,8 +780,8 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         &transform,
         DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC,
         DWRITE_MEASURING_MODE_NATURAL,
-        -origin_x / 64.0f,
-        -origin_y / 64.0f,
+        cxMin / 64.0f,
+        -cyMin / 64.0f,
         &analysis);
     switch (err) {
     case S_OK:
@@ -780,23 +791,6 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     default:
         return unexpected(err);
     }
-
-    RECT bounds;
-    err = analysis->lpVtbl->GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
-    if (err != S_OK) {
-        analysis->lpVtbl->Release(analysis);
-        return unexpected(err);
-    }
-
-    // cut everything that is below (0, 0)
-    bounds.left = 0;
-    bounds.bottom = 0;
-
-    assert(bounds.top <= 0);
-    assert(bounds.right >= 0);
-
-    uint32_t rows = -bounds.top;
-    uint32_t cols = bounds.right;
 
     pbbox->rows = rows;
     pbbox->cols = cols;
@@ -815,6 +809,10 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         analysis->lpVtbl->Release(analysis);
         return oc_error_out_of_memory;
     }
+
+    RECT bounds = {0};
+    bounds.top = -(int32_t)rows;
+    bounds.right = cols;
 
     err = analysis->lpVtbl->CreateAlphaTexture(
         analysis,
