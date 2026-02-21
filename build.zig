@@ -1,60 +1,70 @@
 const std = @import("std");
-const apple_sdk = @import("apple_sdk");
+const builtin = @import("builtin");
+
+const FontBackend = enum {
+    Freetype,
+    CoreText,
+    DirectWrite,
+
+    fn default(target: std.Target) FontBackend {
+        return switch (target.os.tag) {
+            .windows => .DirectWrite,
+            // .driverkit, does not have ct
+            .ios,
+            .macos,
+            .tvos,
+            .visionos,
+            .watchos => .CoreText,
+            else => .Freetype,
+        };
+    }
+};
 
 pub fn build(b: *std.Build) void {
-    // todo: add freetype integration
-    //       select backend, lazy load unity???? (mb just on 0.16)
-
-
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const apple_sdk = b.dependency("apple_sdk", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // would be nice to lazy load this
     const unity = b.dependency("unity", .{
         .target = target,
         .optimize = optimize,
     });
 
-    const lib_mod = b.createModule(.{
+    const font_backend = b.option(
+        FontBackend,
+        "font-backend",
+        "The font backend to use for parsing and rasterization.",
+    ) orelse FontBackend.default(target.result);
+
+    const onecore_module = b.createModule(.{
         .target = target,
         .optimize = optimize,
     });
 
-    const lib = b.addLibrary(.{
-        .name = "onecore",
-        .root_module = lib_mod,
-    });
+    onecore_module.link_libc = true;
+    switch (font_backend) {
+        .DirectWrite => onecore_module.linkSystemLibrary("dwrite", .{}),
+        .Freetype => onecore_module.linkSystemLibrary("freetype2", .{}),
+        .CoreText => {
+            onecore_module.addSystemFrameworkPath(apple_sdk.path("System/Library/Frameworks"));
+            onecore_module.addSystemIncludePath(apple_sdk.path("usr/include"));
+            onecore_module.addLibraryPath(apple_sdk.path("usr/lib"));
 
-    lib.linkLibC();
-
-    switch (target.result.os.tag) {
-        .windows => lib.linkSystemLibrary("dwrite"),
-        else => |tag| {
-            if (tag.isDarwin()) {
-                lib.addSystemFrameworkPath(.{ .cwd_relative = "/home/nedas/Work/macos-sdk/Frameworks" });
-                lib.addSystemIncludePath(.{ .cwd_relative = "/home/nedas/Work/macos-sdk/include" });
-                lib.addLibraryPath(.{ .cwd_relative = "/home/nedas/Work/macos-sdk/lib" });
-
-                lib.linkFramework("CoreFoundation");
-                lib.linkFramework("CoreGraphics");
-                lib.linkFramework("CoreText");
-            } else {
-
-                // const ft = b.dependency("freetype", .{
-                //     .target = target,
-                //     .optimize = optimize,
-                // });
-                
-
-                lib.linkSystemLibrary("freetype2");
-                // lib.linkLibrary(ft.artifact("freetype"));
-            }
+            onecore_module.linkFramework("CoreFoundation", .{});
+            onecore_module.linkFramework("CoreGraphics", .{});
+            onecore_module.linkFramework("CoreText", .{});
         },
     }
 
-    lib.addIncludePath(b.path("include"));
-    lib.addIncludePath(b.path("src"));
+    onecore_module.addIncludePath(b.path("include"));
+    onecore_module.addIncludePath(b.path("src"));
 
-    lib.addCSourceFiles(.{
+    onecore_module.addCSourceFiles(.{
         .root = b.path("src"),
         .files = &.{
             "shared.c",
@@ -66,42 +76,21 @@ pub fn build(b: *std.Build) void {
             "-Wall",
             "-Wextra",
             "-Werror",
+            switch (font_backend) {
+                .Freetype => "-DONECORE_FREETYPE",
+                .CoreText => "-DONECORE_CORETEXT",
+                .DirectWrite => "-DONECORE_DWRITE",
+            },
         },
     });
 
-    b.installArtifact(lib);
-
-    const example = b.addExecutable(.{
-        .name = "render_to_image",
-        .root_module = b.createModule(.{
-            .target = target,
-            .optimize = optimize,
-        }),
+    const onecore = b.addLibrary(.{
+        .name = "onecore",
+        .linkage = .dynamic, // todo: need to make it static!!!
+        .root_module = onecore_module,
     });
 
-    example.linkLibC();
-    example.linkLibrary(lib);
-    example.addIncludePath(b.path("include"));
-
-    example.addCSourceFiles(.{
-        .root = b.path("examples"),
-        .files = &.{
-            "render_to_image.c",
-        },
-        .flags = &.{
-            "-Wall",
-            "-Wextra",
-            "-Werror",
-        },
-    });
-
-    if (target.result.os.tag.isDarwin()) {
-        example.addSystemFrameworkPath(.{ .cwd_relative = "/home/nedas/Work/macos-sdk/Frameworks" });
-        example.addSystemIncludePath(.{ .cwd_relative = "/home/nedas/Work/macos-sdk/include" });
-        example.addLibraryPath(.{ .cwd_relative = "/home/nedas/Work/macos-sdk/lib" });
-    }
-
-    b.installArtifact(example);
+    b.installArtifact(onecore);
 
     const lib_tests = b.addExecutable(.{
         .name = "test",
@@ -111,10 +100,9 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    lib_tests.addFrameworkPath(b.path("../macos-sdk/Frameworks"));
-
     lib_tests.linkLibC();
-    lib_tests.linkLibrary(lib);
+
+    lib_tests.linkLibrary(onecore);
 
     lib_tests.addIncludePath(b.path("include"));
 
@@ -133,12 +121,6 @@ pub fn build(b: *std.Build) void {
             "-Werror",
         },
     });
-
-    if (target.result.os.tag.isDarwin()) {
-        lib_tests.addSystemFrameworkPath(.{ .cwd_relative = "/home/nedas/Work/macos-sdk/Frameworks" });
-        lib_tests.addSystemIncludePath(.{ .cwd_relative = "/home/nedas/Work/macos-sdk/include" });
-        lib_tests.addLibraryPath(.{ .cwd_relative = "/home/nedas/Work/macos-sdk/lib" });
-    }
 
     const run_lib_tests = b.addRunArtifact(lib_tests);
 

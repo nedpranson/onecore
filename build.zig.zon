@@ -10,8 +10,15 @@
             .url = "git+https://github.com/allyourcodebase/freetype#1082522e99fcc2554ca849cf5042878a371b5bd2",
             .hash = "freetype-2.14.1-C3-WdWqKAADJcxSH2bo9uMDiBAoDcIhOSl1-DADGIIM2",
         },
+        .apple_sdk = .{
+            .url = "https://github.com/alexey-lysiuk/macos-sdk/releases/download/15.5/MacOSX15.5.tar.xz",
+            .hash = "N-V-__8AAGwnJycGuJCvu-9aG0jVe3x6zA3rCLWF_Bmsj4RV",
+        },
     },
     .minimum_zig_version = "0.15.2",
-    .paths = .{""},
+    .paths = .{
+        "include",
+        "src",
+    },
     .fingerprint = 0xc9772f36a7d8b35b,
 }
