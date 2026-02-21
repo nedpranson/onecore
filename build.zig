@@ -2,6 +2,10 @@ const std = @import("std");
 const apple_sdk = @import("apple_sdk");
 
 pub fn build(b: *std.Build) void {
+    // todo: add freetype integration
+    //       select backend, lazy load unity???? (mb just on 0.16)
+
+
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 

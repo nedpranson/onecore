@@ -1,3 +1,4 @@
+#include "onecore.h"
 #include "shared.h"
 #ifdef ONECORE_CORETEXT
 
@@ -192,6 +193,8 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
         return;
     }
 
+    oc_glyph_metrics metrics;
+
     CFIndex glyph_count = CTFontGetGlyphCount(face.internals);
     if (glyph_index >= glyph_count) {
         memset(pmetrics, 0, sizeof(oc_glyph_metrics));
@@ -206,21 +209,62 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
     CGFloat size = CTFontGetSize(face.internals);
     uint16_t upem = face.metrics.upem;
 
-    pmetrics->width = bbox.size.width * upem / size;
-    pmetrics->height = bbox.size.height * upem / size;
-    pmetrics->bearing_x = bbox.origin.x * upem / size;
-    pmetrics->bearing_y = (bbox.size.height + bbox.origin.y) * upem / size;
-    pmetrics->advance = advance.width * upem / size;
+    metrics.width = bbox.size.width * upem / size;
+    metrics.height = bbox.size.height * upem / size;
+    metrics.bearing_x = bbox.origin.x * upem / size;
+    metrics.bearing_y = (bbox.size.height + bbox.origin.y) * upem / size;
+    metrics.advance = advance.width * upem / size;
 
     if (flags & OC_LOAD_NO_SCALE) {
+        goto done;
         return;
     }
 
-    pmetrics->width = oc_mul_16p16(pmetrics->width, face.metrics.scale);
-    pmetrics->height = oc_mul_16p16(pmetrics->height, face.metrics.scale);
-    pmetrics->bearing_x = oc_mul_16p16(pmetrics->bearing_x, face.metrics.scale);
-    pmetrics->bearing_y = oc_mul_16p16(pmetrics->bearing_y, face.metrics.scale);
-    pmetrics->advance = oc_mul_16p16(pmetrics->advance, face.metrics.scale);
+    metrics.width = oc_mul_16p16(metrics.width, face.metrics.scale);
+    metrics.height = oc_mul_16p16(metrics.height, face.metrics.scale);
+    metrics.bearing_x = oc_mul_16p16(metrics.bearing_x, face.metrics.scale);
+    metrics.bearing_y = oc_mul_16p16(metrics.bearing_y, face.metrics.scale);
+    metrics.advance = oc_mul_16p16(metrics.advance, face.metrics.scale);
+
+done:
+    *pmetrics = metrics;
+}
+
+void oc_get_glyph_bbox(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_bbox* pbbox) {
+    if (pbbox == NULL) {
+        return;
+    }
+
+    oc_bbox bbox;
+    CGRect rect;
+
+    CTFontGetBoundingRectsForGlyphs(
+        face.internals,
+        kCTFontOrientationHorizontal,
+        &glyph_index,
+        &rect,
+        1);
+
+    CGFloat size = CTFontGetSize(face.internals);
+    uint16_t upem = face.metrics.upem;
+
+    bbox.min_x = CGRectGetMinX(rect) * upem / size;
+    bbox.min_y = CGRectGetMinY(rect) * upem / size;
+    bbox.max_x = CGRectGetMaxX(rect) * upem / size;
+    bbox.max_y = CGRectGetMaxY(rect) * upem / size;
+
+    if (flags & OC_LOAD_NO_SCALE) {
+        goto done;
+    }
+
+    oc_16p16 scale = face.metrics.scale;
+    bbox.min_x = oc_mul_16p16(bbox.min_x, scale);
+    bbox.min_y = oc_mul_16p16(bbox.min_y, scale);
+    bbox.max_x = oc_mul_16p16(bbox.max_x, scale);
+    bbox.max_y = oc_mul_16p16(bbox.max_y, scale);
+
+done:
+    *pbbox = bbox;
 }
 
 typedef struct point_2f {
@@ -326,8 +370,8 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
 }
 
 // smth is off with mac!!!!
-oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer, size_t buffer_size) {
-    if (pbbox == NULL) {
+oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, unsigned char* buffer, size_t buffer_size) {
+    if (psize == NULL) {
         return oc_error_invalid_param;
     }
 
@@ -365,8 +409,8 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
     uint32_t rows = pyMax - pyMin;
     uint32_t cols = pxMax - pxMin;
 
-    pbbox->rows = rows;
-    pbbox->cols = cols;
+    psize->rows = rows;
+    psize->cols = cols;
 
     if (buffer == NULL) {
         return oc_error_ok;

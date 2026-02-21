@@ -635,6 +635,9 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
         return;
     }
 
+    oc_glyph_metrics metrics;
+    DWRITE_GLYPH_METRICS dw_metrics;
+
     // for some reason GetDesignGlyphMetrics does not catch invalid glyph index
     UINT16 glyph_count = DW(face)->lpVtbl->GetGlyphCount(DW(face));
     if (glyph_index >= glyph_count) {
@@ -642,32 +645,76 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
         return;
     }
 
+    HRESULT err = DW(face)->lpVtbl->GetDesignGlyphMetrics(
+        DW(face),
+        &glyph_index,
+        1,
+        &dw_metrics,
+        FALSE);
+    (void)err;
+    assert(err == S_OK);
+
+    metrics.width = (INT32)dw_metrics.advanceWidth - dw_metrics.leftSideBearing - dw_metrics.rightSideBearing;
+    metrics.height = (INT32)dw_metrics.advanceHeight - dw_metrics.topSideBearing - dw_metrics.bottomSideBearing;
+    metrics.bearing_x = dw_metrics.leftSideBearing;
+    metrics.bearing_y = dw_metrics.verticalOriginY - dw_metrics.topSideBearing;
+    metrics.advance = dw_metrics.advanceWidth;
+
+    if (flags & OC_LOAD_NO_SCALE) {
+        goto done;
+        return;
+    }
+
+    metrics.width = oc_mul_16p16(metrics.width, face.metrics.scale);
+    metrics.height = oc_mul_16p16(metrics.height, face.metrics.scale);
+    metrics.bearing_x = oc_mul_16p16(metrics.bearing_x, face.metrics.scale);
+    metrics.bearing_y = oc_mul_16p16(metrics.bearing_y, face.metrics.scale);
+    metrics.advance = oc_mul_16p16(metrics.advance, face.metrics.scale);
+
+done:
+    *pmetrics = metrics;
+}
+
+
+void oc_get_glyph_bbox(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_bbox* pbbox) {
+    if (pbbox == NULL) {
+        return;
+    }
+
+    oc_bbox bbox;
     DWRITE_GLYPH_METRICS metrics;
+
+    UINT16 glyph_count = DW(face)->lpVtbl->GetGlyphCount(DW(face));
+    if (glyph_index >= glyph_count) {
+        memset(pbbox, 0, sizeof(oc_bbox));
+        return;
+    }
+
     HRESULT err = DW(face)->lpVtbl->GetDesignGlyphMetrics(
         DW(face),
         &glyph_index,
         1,
         &metrics,
         FALSE);
-
     (void)err;
     assert(err == S_OK);
+    
+    bbox.min_x = metrics.leftSideBearing;
+    bbox.min_y = metrics.verticalOriginY + metrics.bottomSideBearing - (INT32)metrics.advanceHeight;
+    bbox.max_x = metrics.advanceWidth - metrics.rightSideBearing;
+    bbox.max_y = metrics.verticalOriginY - metrics.topSideBearing;
 
     if (flags & OC_LOAD_NO_SCALE) {
-        pmetrics->width = (INT32)metrics.advanceWidth - metrics.leftSideBearing - metrics.rightSideBearing;
-        pmetrics->height = (INT32)metrics.advanceHeight - metrics.topSideBearing - metrics.bottomSideBearing;
-        pmetrics->bearing_x = metrics.leftSideBearing;
-        pmetrics->bearing_y = metrics.verticalOriginY - metrics.topSideBearing;
-        pmetrics->advance = metrics.advanceWidth;
-
-        return;
+        goto done;
     }
 
-    pmetrics->width = oc_mul_16p16(((INT32)metrics.advanceWidth - metrics.leftSideBearing - metrics.rightSideBearing), face.metrics.scale);
-    pmetrics->height = oc_mul_16p16(((INT32)metrics.advanceHeight - metrics.topSideBearing - metrics.bottomSideBearing), face.metrics.scale);
-    pmetrics->bearing_x = oc_mul_16p16(metrics.leftSideBearing, face.metrics.scale);
-    pmetrics->bearing_y = oc_mul_16p16((metrics.verticalOriginY - metrics.topSideBearing), face.metrics.scale);
-    pmetrics->advance = oc_mul_16p16(metrics.advanceWidth, face.metrics.scale);
+    bbox.min_x = oc_mul_16p16(bbox.min_x, face.metrics.scale);
+    bbox.min_y = oc_mul_16p16(bbox.min_y, face.metrics.scale);
+    bbox.max_x = oc_mul_16p16(bbox.max_x, face.metrics.scale);
+    bbox.max_y = oc_mul_16p16(bbox.max_y, face.metrics.scale);
+
+done:
+    *pbbox = bbox;
 }
 
 bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context) {
@@ -707,15 +754,13 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
     return true;
 }
 
-// todo: allow bbox to be bigger then glyph bbox
-//       just modify it back to required size or sum
-//       or mb just pass in buffer_size, not sure
-
-oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer, size_t buffer_size) {
+// todo: check this rendering thingy as smth is a bit off with dwrite
+//       it seems dwrite does hard edges, idk if we can change that
+oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, unsigned char* buffer, size_t buffer_size) {
     IDWriteFactory* library = ((struct face_internals*)face.internals)->library;
     HRESULT err;
 
-    if (pbbox == NULL) {
+    if (psize == NULL) {
         return oc_error_invalid_param;
     }
 
@@ -734,8 +779,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         FALSE);
     assert(err == S_OK);
 
-    // is this correct?
-    oc_26p6 em_size = oc_mul_16p16(face.metrics.upem, face.metrics.scale);
+    // todo: use oc_get_glyph_bbox
 
     // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L414
     // todo: make this into a method!! and export it on api
@@ -766,6 +810,9 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         -(cyMin & 63) / 64.0f,
     };
 
+    // is this correct?
+    oc_26p6 em_size = oc_mul_16p16(face.metrics.upem, face.metrics.scale);
+
     DWRITE_GLYPH_RUN glyph_run = { 0 };
     glyph_run.fontFace = DW(face);
     glyph_run.fontEmSize = em_size / 64.0f;
@@ -792,8 +839,8 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         return unexpected(err);
     }
 
-    pbbox->rows = rows;
-    pbbox->cols = cols;
+    psize->rows = rows;
+    psize->cols = cols;
 
     if (buffer == NULL) {
         analysis->lpVtbl->Release(analysis);
@@ -832,7 +879,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         uint8_t g = buffer_3x[i * 3 + 1];
         uint8_t b = buffer_3x[i * 3 + 2];
 
-        buffer[i] = (float)(r + b + g) / 3.0f;
+        buffer[i] = (r + b + g) / 3.0f;
     }
 
     free(buffer_3x);

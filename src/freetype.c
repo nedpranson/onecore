@@ -331,6 +331,37 @@ static int cubic_to(const FT_Vector* x2c1, const FT_Vector* x2c2, const FT_Vecto
     return 0;
 }
 
+
+void oc_get_glyph_bbox(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_bbox* pbbox) {
+    if (pbbox == NULL) {
+        return;
+    }
+
+    FT_Error err;
+    FT_BBox bbox;
+
+    // todo: we prob dont even need metrics
+    FT_Int32 ft_load_flags = FT_LOAD_NO_HINTING | FT_LOAD_NO_AUTOHINT | FT_LOAD_BITMAP_METRICS_ONLY;
+    if (flags & OC_LOAD_NO_SCALE) {
+        ft_load_flags |= FT_LOAD_NO_SCALE;
+    }
+
+    FACE_LOCK(face);
+    err = FT_Load_Glyph(FT(face), glyph_index, ft_load_flags);
+    if (err != FT_Err_Ok) {
+        memset(pbbox, 0, sizeof(oc_bbox));
+        FACE_UNLOCK(face);
+    }
+
+    FT_Outline_Get_CBox(&FT(face)->glyph->outline, &bbox);
+    FACE_UNLOCK(face);
+
+    pbbox->min_x = bbox.xMin;
+    pbbox->min_y = bbox.yMin;
+    pbbox->max_x = bbox.xMax;
+    pbbox->max_y = bbox.yMax;
+}
+
 bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context) {
     FT_Error err;
     if (outline_funcs == NULL) {
@@ -382,9 +413,9 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
     return true;
 }
 
-oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, unsigned char* buffer, size_t buffer_size) {
+oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, unsigned char* buffer, size_t buffer_size) {
     FT_Error err;
-    if (pbbox == NULL) {
+    if (psize == NULL) {
         return oc_error_invalid_param;
     }
 
@@ -410,8 +441,8 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_bbox* pbbox, uns
         return oc_error_unexpected;
     }
 
-    pbbox->rows = bitmap.rows;
-    pbbox->cols = bitmap.width;
+    psize->rows = bitmap.rows;
+    psize->cols = bitmap.width;
 
     if (buffer == NULL) {
         FACE_UNLOCK(face);

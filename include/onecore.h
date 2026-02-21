@@ -21,11 +21,6 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
-// todo: use 26p6, 16p16 percision!!!
-
-//int32_t oc_mul_fix(int32_t a, int32_t b) {
-//}
-
 #define OC_LOAD_DEFAULT 0x0
 #define OC_LOAD_NO_SCALE (1l << 0)
 // #define OC_LOAD_FIXED (1l << 1)
@@ -37,11 +32,6 @@ typedef uint32_t oc_tag;
 typedef uint32_t oc_load_flags;
 typedef int32_t oc_16p16;
 typedef int32_t oc_26p6;
-
-//#define OC_PIX_FLOOR( x )     ( (x) & ~(int32_t)63 )
-// unsafe adition bla bla bla!!
-//#define OC_PIX_ROUND( x )     OC_PIX_FLOOR( (x) + (int32_t)32 )
-//#define OC_PIX_CEIL( x )      OC_PIX_FLOOR( (x) + 63 )
 
 #define OC_26P6_FLOOR(x) ((int32_t)(x) & ~63)
 #define OC_26P6_ROUND(x) OC_26P6_FLOOR((int32_t)(x) + 32)
@@ -114,8 +104,15 @@ typedef struct {
 } oc_point;
 
 typedef struct {
-    uint32_t rows;
-    uint32_t cols;
+    uint32_t rows; // uint16_t?
+    uint32_t cols; // uint16_t??
+} oc_size;
+
+typedef struct {
+    oc_26p6 min_x;
+    oc_26p6 min_y;
+    oc_26p6 max_x;
+    oc_26p6 max_y;
 } oc_bbox;
 
 typedef void (*oc_outline_start_figure)(oc_point at, void* context);
@@ -194,6 +191,13 @@ oc_get_glyph_metrics(
     oc_load_flags flags,
     oc_glyph_metrics* pmetrics);
 
+OC_EXPORT void
+oc_get_glyph_bbox(
+    oc_face face,
+    uint16_t glyph_index,
+    oc_load_flags flags,
+    oc_bbox* pbbox);
+
 OC_EXPORT bool
 oc_get_outline(
     oc_face face,
@@ -210,7 +214,7 @@ OC_EXPORT oc_error
 oc_render_glyph(
     oc_face face,
     uint16_t glyph_index,
-    oc_bbox* pbbox,
+    oc_size* psize,
     unsigned char* buffer,
     size_t buffer_size);
 

@@ -329,28 +329,51 @@ void test_oc_get_glyph_metrics_scaled(void) {
     TEST_ASSERT_EQUAL_INT16(66, idx);
 
     oc_get_glyph_metrics(g_arial_ttf, idx, OC_LOAD_DEFAULT, &metrics);
-    TEST_ASSERT_EQUAL_UINT32(597, metrics.width);
-    TEST_ASSERT_EQUAL_UINT32(65, metrics.height);
+    TEST_ASSERT_EQUAL_INT32(597, metrics.width);
+    TEST_ASSERT_EQUAL_INT32(65, metrics.height);
     TEST_ASSERT_EQUAL_INT32(-16, metrics.bearing_x);
     TEST_ASSERT_EQUAL_INT32(-139, metrics.bearing_y);
-    TEST_ASSERT_EQUAL_UINT32(570, metrics.advance);
+    TEST_ASSERT_EQUAL_INT32(570, metrics.advance);
 
     idx = oc_get_char_index(g_arial_ttf, 'M');
     TEST_ASSERT_EQUAL_INT16(48, idx);
 
     oc_get_glyph_metrics(g_arial_ttf, idx, OC_LOAD_DEFAULT, &metrics);
-    TEST_ASSERT_EQUAL_UINT32(700, metrics.width);
-    TEST_ASSERT_EQUAL_UINT32(733, metrics.height);
+    TEST_ASSERT_EQUAL_INT32(700, metrics.width);
+    TEST_ASSERT_EQUAL_INT32(733, metrics.height);
     TEST_ASSERT_EQUAL_INT32(76, metrics.bearing_x);
     TEST_ASSERT_EQUAL_INT32(733, metrics.bearing_y);
-    TEST_ASSERT_EQUAL_UINT32(853, metrics.advance);
+    TEST_ASSERT_EQUAL_INT32(853, metrics.advance);
 
     oc_get_glyph_metrics(g_arial_ttf, 4444, OC_LOAD_DEFAULT, &metrics);
-    TEST_ASSERT_EQUAL_UINT32(0, metrics.width);
-    TEST_ASSERT_EQUAL_UINT32(0, metrics.height);
+    TEST_ASSERT_EQUAL_INT32(0, metrics.width);
+    TEST_ASSERT_EQUAL_INT32(0, metrics.height);
     TEST_ASSERT_EQUAL_INT32(0, metrics.bearing_x);
     TEST_ASSERT_EQUAL_INT32(0, metrics.bearing_y);
-    TEST_ASSERT_EQUAL_UINT32(0, metrics.advance);
+    TEST_ASSERT_EQUAL_INT32(0, metrics.advance);
+}
+
+void test_oc_get_glyph_bbox(void) {
+    uint16_t idx;
+    oc_bbox bbox;
+    
+    idx = oc_get_char_index(g_arial_ttf, '_');
+    TEST_ASSERT_EQUAL_INT16(66, idx);
+
+    oc_get_glyph_bbox(g_arial_ttf, idx, OC_LOAD_DEFAULT, &bbox);
+    TEST_ASSERT_EQUAL_INT32(-16, bbox.min_x);
+    TEST_ASSERT_EQUAL_INT32(-204, bbox.min_y);
+    TEST_ASSERT_EQUAL_INT32(581, bbox.max_x);
+    TEST_ASSERT_EQUAL_INT32(-139, bbox.max_y);
+
+    idx = oc_get_char_index(g_arial_ttf, 'e');
+    TEST_ASSERT_EQUAL_INT16(72, idx);
+
+    oc_get_glyph_bbox(g_arial_ttf, idx, OC_LOAD_DEFAULT, &bbox);
+    TEST_ASSERT_EQUAL_INT32(38, bbox.min_x);
+    TEST_ASSERT_EQUAL_INT32(-12, bbox.min_y);
+    TEST_ASSERT_EQUAL_INT32(527, bbox.max_x);
+    TEST_ASSERT_EQUAL_INT32(543, bbox.max_y);
 }
 
 typedef struct outline_end_check {
@@ -548,7 +571,7 @@ void test_oc_get_outline(void) {
 //       specify origins, allow for a matrix if no matrix is passed we can use default (0, 0) point rendering
 void test_oc_render_glyph(void) {
     uint16_t idx;
-    oc_bbox bbox;
+    oc_size size;
     oc_error err;
 
     uint8_t buffer[12 * 3];
@@ -556,43 +579,43 @@ void test_oc_render_glyph(void) {
     idx = oc_get_char_index(g_arial_ttf, '!');
     TEST_ASSERT_EQUAL_INT16(4, idx);
 
-    err = oc_render_glyph(g_arial_ttf, idx, &bbox, NULL, 0);
+    err = oc_render_glyph(g_arial_ttf, idx, &size, NULL, 0);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    TEST_ASSERT_EQUAL_UINT32(12, bbox.rows);
-    TEST_ASSERT_EQUAL_UINT32(3, bbox.cols);
+    TEST_ASSERT_EQUAL_UINT32(12, size.rows);
+    TEST_ASSERT_EQUAL_UINT32(3, size.cols);
 
-    err = oc_render_glyph(g_arial_ttf, idx, &bbox, buffer, 10);
+    err = oc_render_glyph(g_arial_ttf, idx, &size, buffer, 10);
     TEST_ASSERT_EQUAL(oc_error_insufficient_buffer, err);
 
     err = oc_render_glyph(g_arial_ttf, idx, NULL, buffer, sizeof(buffer));
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
-    bbox.rows = 0;
-    bbox.cols = 0;
+    size.rows = 0;
+    size.cols = 0;
 
-    err = oc_render_glyph(g_arial_ttf, idx, &bbox, buffer, sizeof(buffer));
+    err = oc_render_glyph(g_arial_ttf, idx, &size, buffer, sizeof(buffer));
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    TEST_ASSERT_EQUAL_UINT32(12, bbox.rows);
-    TEST_ASSERT_EQUAL_UINT32(3, bbox.cols);
+    TEST_ASSERT_EQUAL_UINT32(12, size.rows);
+    TEST_ASSERT_EQUAL_UINT32(3, size.cols);
 
     idx = oc_get_char_index(g_arial_ttf, ' ');
     TEST_ASSERT_EQUAL_INT16(3, idx);
 
-    err = oc_render_glyph(g_arial_ttf, idx, &bbox, NULL, 0);
+    err = oc_render_glyph(g_arial_ttf, idx, &size, NULL, 0);
     TEST_ASSERT_EQUAL(err, oc_error_ok);
-    TEST_ASSERT_EQUAL_UINT32(0, bbox.rows);
-    TEST_ASSERT_EQUAL_UINT32(0, bbox.cols);
+    TEST_ASSERT_EQUAL_UINT32(0, size.rows);
+    TEST_ASSERT_EQUAL_UINT32(0, size.cols);
 
-    err = oc_render_glyph(g_arial_ttf, 4444, &bbox, NULL, 0);
+    err = oc_render_glyph(g_arial_ttf, 4444, &size, NULL, 0);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
     idx = oc_get_char_index(g_arial_ttf, 'l');
     TEST_ASSERT_EQUAL_INT16(79, idx);
 
-    err = oc_render_glyph(g_arial_ttf, idx, &bbox, NULL, 0);
+    err = oc_render_glyph(g_arial_ttf, idx, &size, NULL, 0);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    TEST_ASSERT_EQUAL_UINT32(12, bbox.rows);
-    TEST_ASSERT_EQUAL_UINT32(2, bbox.cols);
+    TEST_ASSERT_EQUAL_UINT32(12, size.rows);
+    TEST_ASSERT_EQUAL_UINT32(2, size.cols);
 }
 
 int main(void) {
@@ -620,10 +643,9 @@ int main(void) {
     RUN_TEST(test_oc_font_metrics);
     RUN_TEST(test_oc_get_glyph_metrics);
     RUN_TEST(test_oc_get_glyph_metrics_scaled);
+    RUN_TEST(test_oc_get_glyph_bbox);
     RUN_TEST(test_oc_get_outline);
     RUN_TEST(test_oc_render_glyph);
-
-    // render_test();
 
     oc_free_face(g_arial_ttf);
     oc_free_library(g_library);
