@@ -39,24 +39,24 @@ int main() {
         oc_glyph_metrics metrics;
         oc_get_glyph_metrics(face, index, 0, &metrics);
 
-        oc_bbox bbox;
+        oc_size size;
         uint8_t bitmap[32 * 32];
-        if ((err = oc_render_glyph(face, index, &bbox, bitmap, sizeof(bitmap)))) {
+        if ((err = oc_render_glyph(face, index, &size, bitmap, sizeof(bitmap)))) {
             oc_free_face(face);
             oc_free_library(library);
             printf("oc_render_glyph: %s\n", oc_strerror(err));
             return 1;
         }
 
-        printf("bx: %f, by: %f, adv: %f ", metrics.bearing_x / 64.0, metrics.bearing_y / 64.0, metrics.advance / 64.0);
-        printf("rows: %d, cols: %d\n", bbox.rows, bbox.cols);
+        // printf("bx: %f, by: %f, adv: %f ", metrics.bearing_x / 64.0, metrics.bearing_y / 64.0, metrics.advance / 64.0);
+        // printf("rows: %d, cols: %d\n", size.rows, size.cols);
 
-        for (int32_t row = 0; row < (int32_t)bbox.rows; row++) {
-            for (int32_t col = 0; col < (int32_t)bbox.cols; col++) {
+        for (int32_t row = 0; row < (int32_t)size.rows; row++) {
+            for (int32_t col = 0; col < (int32_t)size.cols; col++) {
                 uint32_t y = row + baseline - (metrics.bearing_y >> 6);
                 uint32_t x = col + advance + (metrics.bearing_x >> 6);
 
-                uint8_t src = bitmap[row * bbox.cols + col];
+                uint8_t src = bitmap[row * size.cols + col];
                 uint8_t *dst = &canvas[y * 128 + x];
 
                 *dst = src + (*dst * (255 - src) / 255);

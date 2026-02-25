@@ -19,6 +19,9 @@
     },
     .minimum_zig_version = "0.15.2",
     .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "build",
         "include",
         "src",
     },
