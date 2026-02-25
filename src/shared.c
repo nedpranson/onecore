@@ -39,12 +39,11 @@ oc_16p16 oc_div_16p16(oc_16p16 a, oc_16p16 b) {
 }
 
 
-// todo: rename to i16p16 the heck is this
- oc_16p16 oc_mul_16p16(oc_16p16 a, oc_16p16 b) {
-    #ifdef ONECORE_FREETYPE
+oc_16p16 oc_mul_16p16(oc_16p16 a, oc_16p16 b) {
+#ifdef ONECORE_FREETYPE
     return FT_MulFix(a, b);
-    #else /* !ONECORE_FREETYPE */
+#else /* !ONECORE_FREETYPE */
     int64_t ab = (uint64_t)a * (uint64_t)b;
     return (int32_t)((ab + 0x8000L + (ab >> 63)) >> 16);
-    #endif /* !ONECORE_FREETYPE */
- }
+#endif /* !ONECORE_FREETYPE */
+}

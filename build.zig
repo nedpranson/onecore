@@ -106,7 +106,9 @@ pub fn build(b: *std.Build) void {
     lib_tests.linkLibC();
 
     lib_tests.linkLibrary(onecore);
-    addAppleSDK(b, lib_tests.root_module);
+    if (target.result.os.tag.isDarwin()) {
+        addAppleSDK(b, lib_tests.root_module);
+    }
 
     lib_tests.addIncludePath(b.path("include"));
 
