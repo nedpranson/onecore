@@ -8,22 +8,22 @@
 #else /* !ONECORE_FREETYPE */
 
 #define MOVE_SIGN(utype, ix, ux, s) \
-    do {                           \
-        if (ix < 0) {              \
-            ux = 0U - (utype)ix;   \
-            s = !s;                \
-        } else {                   \
-            ux = (utype)ix;        \
-        }                          \
+    do {                            \
+        if (ix < 0) {               \
+            ux = 0U - (utype)ix;    \
+            s = !s;                 \
+        } else {                    \
+            ux = (utype)ix;         \
+        }                           \
     } while (0)
 
 #endif /* !ONECORE_FREETYPE */
 
 // https://github.com/freetype/freetype/blob/85c8efe0afa5ad0df35114e317a065f544943c52/src/base/ftcalc.c#L233
 oc_16p16 oc_div_16p16(oc_16p16 a, oc_16p16 b) {
-    #ifdef ONECORE_FREETYPE
+#ifdef ONECORE_FREETYPE
     return FT_DivFix(a, b);
-    #else /* !ONECORE_FREETYPE */
+#else /* !ONECORE_FREETYPE */
     bool s = false;
     uint64_t ua, ub, uq;
     oc_16p16 q;
@@ -35,9 +35,8 @@ oc_16p16 oc_div_16p16(oc_16p16 a, oc_16p16 b) {
     q = (int32_t)uq;
 
     return s ? (0U - (uint32_t)q) : q;
-    #endif /* !ONECORE_FREETYPE */
+#endif /* !ONECORE_FREETYPE */
 }
-
 
 oc_16p16 oc_mul_16p16(oc_16p16 a, oc_16p16 b) {
 #ifdef ONECORE_FREETYPE

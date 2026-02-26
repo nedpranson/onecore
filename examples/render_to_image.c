@@ -1,5 +1,5 @@
-#include <stdio.h>
 #include <onecore.h>
+#include <stdio.h>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
@@ -14,7 +14,7 @@ int main() {
         return 1;
     }
 
-    oc_face_params open_params = {0}; // todo: nename to oc_open_params
+    oc_face_params open_params = { 0 }; // todo: nename to oc_open_params
     open_params.desired_size = 16 << 6;
     open_params.dpi = 96;
 
@@ -34,7 +34,8 @@ int main() {
     const char* ch = message;
     for (; *ch; ch++) {
         uint16_t index = oc_get_char_index(face, *ch);
-        if (index == 0) continue;
+        if (index == 0)
+            continue;
 
         oc_glyph_metrics metrics;
         oc_get_glyph_metrics(face, index, 0, &metrics);
@@ -48,16 +49,13 @@ int main() {
             return 1;
         }
 
-        // printf("bx: %f, by: %f, adv: %f ", metrics.bearing_x / 64.0, metrics.bearing_y / 64.0, metrics.advance / 64.0);
-        // printf("rows: %d, cols: %d\n", size.rows, size.cols);
-
         for (int32_t row = 0; row < (int32_t)size.rows; row++) {
             for (int32_t col = 0; col < (int32_t)size.cols; col++) {
                 uint32_t y = row + baseline - (metrics.bearing_y >> 6);
                 uint32_t x = col + advance + (metrics.bearing_x >> 6);
 
                 uint8_t src = bitmap[row * size.cols + col];
-                uint8_t *dst = &canvas[y * 128 + x];
+                uint8_t* dst = &canvas[y * 128 + x];
 
                 *dst = src + (*dst * (255 - src) / 255);
             }

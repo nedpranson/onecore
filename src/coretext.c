@@ -290,7 +290,7 @@ static void oc_path_applier(void* info, const CGPathElement* element) {
     case kCGPathElementMoveToPoint: {
         oc_point point = {
             element->points[0].x * fupem / fppem,
-            element->points[0].y * fupem / fppem 
+            element->points[0].y * fupem / fppem
         };
 
         ctx->funcs->start_figure(point, ctx->ctx);
@@ -300,7 +300,7 @@ static void oc_path_applier(void* info, const CGPathElement* element) {
     case kCGPathElementAddLineToPoint: {
         oc_point point = {
             element->points[0].x * fupem / fppem,
-            element->points[0].y * fupem / fppem 
+            element->points[0].y * fupem / fppem
         };
 
         ctx->funcs->line_to(point, ctx->ctx);

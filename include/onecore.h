@@ -23,10 +23,10 @@ extern "C" {
 
 #define OC_LOAD_DEFAULT 0x0
 #define OC_LOAD_NO_SCALE (1l << 0)
-// #define OC_LOAD_FIXED (1l << 1)
-// #define OC_LOAD_VERTICAL (1l << 2)
-// #define OC_LOAD_COLOR (1l << 3)
-// #define OC_LOAD_NO_HINTING (1l << 4) // for now there is no hinting
+// #define OC_LOAD_VERTICAL (1l << 1)
+// #define OC_LOAD_COLOR (1l << 2)
+#define OC_LOAD_NO_HINTING (1l << 3)
+// todo: add hinting https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L861
 
 typedef uint32_t oc_tag;
 typedef uint32_t oc_load_flags;
@@ -35,14 +35,16 @@ typedef int32_t oc_26p6;
 
 #define OC_26P6_FLOOR(x) ((int32_t)(x) & ~63)
 #define OC_26P6_ROUND(x) OC_26P6_FLOOR((int32_t)(x) + 32)
-#define OC_26P6_CEIL(x)  OC_26P6_FLOOR((int32_t)(x) + 63)
+#define OC_26P6_CEIL(x) OC_26P6_FLOOR((int32_t)(x) + 63)
+#define OC_26P6_ADD(a, b) (int32_t)((uint32_t)(a) + (uint32_t)(b))
+#define OC_26P6_SUB(a, b) (int32_t)((uint32_t)(a) - (uint32_t)(b))
 
-#define OC_ERROR_LIST \
-    X(oc_error_ok, "no error") \
-    X(oc_error_invalid_param, "invalid parameter") \
-    X(oc_error_table_missing, "table is missing") \
-    X(oc_error_out_of_memory, "out of memory") \
-    X(oc_error_failed_to_open, "failed to open") \
+#define OC_ERROR_LIST                                      \
+    X(oc_error_ok, "no error")                             \
+    X(oc_error_invalid_param, "invalid parameter")         \
+    X(oc_error_table_missing, "table is missing")          \
+    X(oc_error_out_of_memory, "out of memory")             \
+    X(oc_error_failed_to_open, "failed to open")           \
     X(oc_error_insufficient_buffer, "insufficient buffer") \
     X(oc_error_unexpected, "unexpected error")
 
@@ -55,10 +57,13 @@ typedef enum {
 // todo: add option for strings
 static inline const char* oc_strerror(oc_error err) {
     switch (err) {
-#define X(e, s) case e: return s;
+#define X(e, s) \
+    case e:     \
+        return s;
         OC_ERROR_LIST
 #undef X
-        default: return "unknown error";
+    default:
+        return "unknown error";
     }
 }
 

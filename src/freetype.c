@@ -1,3 +1,4 @@
+#include "onecore.h"
 #include "shared.h"
 #ifdef ONECORE_FREETYPE
 
@@ -62,12 +63,12 @@ static oc_error init_face(FT_Face ft_face, const oc_face_params* pparams, oc_fac
     internals->face = ft_face;
     mutex_init(&internals->lock);
 
-    //printf("y_ppem: %d, x_ppem: %d\n", ft_face->size->metrics.y_ppem, ft_face->size->metrics.x_ppem);
-    //printf("my_sclae_y: %ld\n", FT_DivFix(((long)(pparams->desired_size * 64.0f) * pparams->dpi + 32) / 72, ft_face->units_per_EM));
+    // printf("y_ppem: %d, x_ppem: %d\n", ft_face->size->metrics.y_ppem, ft_face->size->metrics.x_ppem);
+    // printf("my_sclae_y: %ld\n", FT_DivFix(((long)(pparams->desired_size * 64.0f) * pparams->dpi + 32) / 72, ft_face->units_per_EM));
 
-    //printf("scale_x: %ld\n", ft_face->size->metrics.y_scale);
-    //printf("mul: %ld\n", FT_MulFix(677, ft_face->size->metrics.y_scale));
-    
+    // printf("scale_x: %ld\n", ft_face->size->metrics.y_scale);
+    // printf("mul: %ld\n", FT_MulFix(677, ft_face->size->metrics.y_scale));
+
     pface->internals = internals;
     pface->metrics.upem = ft_face->units_per_EM;
     pface->metrics.ppem = ft_face->size->metrics.y_ppem;
@@ -217,10 +218,13 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
         return;
     }
 
-    // disable hinting bla bla bla!
-    FT_Int32 ft_load_flags = FT_LOAD_NO_HINTING | FT_LOAD_NO_AUTOHINT | FT_LOAD_BITMAP_METRICS_ONLY;
+    FT_Int32 ft_load_flags = FT_LOAD_NO_AUTOHINT | FT_LOAD_BITMAP_METRICS_ONLY;
     if (flags & OC_LOAD_NO_SCALE) {
         ft_load_flags |= FT_LOAD_NO_SCALE;
+    }
+
+    if (flags & OC_LOAD_NO_HINTING) {
+        ft_load_flags |= FT_LOAD_NO_HINTING;
     }
 
     FACE_LOCK(face);
@@ -240,12 +244,6 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
     pmetrics->bearing_x = glyph_metrics.horiBearingX;
     pmetrics->bearing_y = glyph_metrics.horiBearingY;
     pmetrics->advance = glyph_metrics.horiAdvance;
-
-    //FT_Load_Glyph(FT(face), glyph_index, 0);
-    //slot = FT(face)->glyph;
-    //glyph_metrics = slot->metrics;
-
-    //printf("bx: %f, by: %f, adv: %f\n", glyph_metrics.horiBearingX / 64.0f, glyph_metrics.horiBearingY / 64.0f, glyph_metrics.horiAdvance / 64.0f);
 }
 
 typedef struct outline_context {
@@ -331,7 +329,6 @@ static int cubic_to(const FT_Vector* x2c1, const FT_Vector* x2c2, const FT_Vecto
     return 0;
 }
 
-
 void oc_get_glyph_bbox(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_bbox* pbbox) {
     if (pbbox == NULL) {
         return;
@@ -341,9 +338,13 @@ void oc_get_glyph_bbox(oc_face face, uint16_t glyph_index, oc_load_flags flags, 
     FT_BBox bbox;
 
     // todo: we prob dont even need metrics
-    FT_Int32 ft_load_flags = FT_LOAD_NO_HINTING | FT_LOAD_NO_AUTOHINT | FT_LOAD_BITMAP_METRICS_ONLY;
+    FT_Int32 ft_load_flags = FT_LOAD_NO_AUTOHINT | FT_LOAD_BITMAP_METRICS_ONLY;
     if (flags & OC_LOAD_NO_SCALE) {
         ft_load_flags |= FT_LOAD_NO_SCALE;
+    }
+
+    if (flags & OC_LOAD_NO_HINTING) {
+        ft_load_flags |= FT_LOAD_NO_HINTING;
     }
 
     FACE_LOCK(face);

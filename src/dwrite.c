@@ -1,3 +1,4 @@
+#include "onecore.h"
 #include "shared.h"
 #ifdef ONECORE_DWRITE
 
@@ -630,6 +631,19 @@ inline void oc_free_table(oc_face face, void* context) {
     DW(face)->lpVtbl->ReleaseFontTable(DW(face), context);
 }
 
+static void fit_metrics(oc_glyph_metrics* pmetrics) {
+    oc_26p6 right = OC_26P6_CEIL(OC_26P6_ADD(pmetrics->bearing_x, pmetrics->width));
+    oc_26p6 bottom = OC_26P6_FLOOR(OC_26P6_SUB(pmetrics->bearing_y, pmetrics->height));
+
+    pmetrics->bearing_x = OC_26P6_FLOOR(pmetrics->bearing_x);
+    pmetrics->bearing_y = OC_26P6_CEIL(pmetrics->bearing_y);
+
+    pmetrics->width = OC_26P6_SUB(right, pmetrics->bearing_x);
+    pmetrics->height = OC_26P6_SUB(pmetrics->bearing_y, bottom);
+
+    pmetrics->advance = OC_26P6_ROUND(pmetrics->advance);
+}
+
 void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_glyph_metrics* pmetrics) {
     if (pmetrics == NULL) {
         return;
@@ -662,7 +676,6 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
 
     if (flags & OC_LOAD_NO_SCALE) {
         goto done;
-        return;
     }
 
     metrics.width = oc_mul_16p16(metrics.width, face.metrics.scale);
@@ -671,10 +684,15 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
     metrics.bearing_y = oc_mul_16p16(metrics.bearing_y, face.metrics.scale);
     metrics.advance = oc_mul_16p16(metrics.advance, face.metrics.scale);
 
+    if (flags & OC_LOAD_NO_HINTING) {
+        goto done;
+    }
+
+    fit_metrics(&metrics);
+
 done:
     *pmetrics = metrics;
 }
-
 
 void oc_get_glyph_bbox(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_bbox* pbbox) {
     if (pbbox == NULL) {
@@ -698,7 +716,7 @@ void oc_get_glyph_bbox(oc_face face, uint16_t glyph_index, oc_load_flags flags, 
         FALSE);
     (void)err;
     assert(err == S_OK);
-    
+
     bbox.min_x = metrics.leftSideBearing;
     bbox.min_y = metrics.verticalOriginY + metrics.bottomSideBearing - (INT32)metrics.advanceHeight;
     bbox.max_x = metrics.advanceWidth - metrics.rightSideBearing;
@@ -857,7 +875,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
         return oc_error_out_of_memory;
     }
 
-    RECT bounds = {0};
+    RECT bounds = { 0 };
     bounds.top = -(int32_t)rows;
     bounds.right = cols;
 
