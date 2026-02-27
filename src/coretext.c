@@ -458,7 +458,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
 
     CGPoint pos = {
         -cbox.min_x / 64.0,
-        -cbox_min_y / 64.0,
+        -cbox.min_y / 64.0,
     };
 
     CTFontDrawGlyphs(
