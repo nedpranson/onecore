@@ -45,7 +45,7 @@ inline void oc_free_library(oc_library library) {
     FT_Done_FreeType(FT(library));
 }
 
-static oc_error init_face(FT_Face ft_face, const oc_face_params* pparams, oc_face* pface) {
+static oc_error init_face(FT_Face ft_face, const oc_open_params* pparams, oc_face* pface) {
     FT_Error err = FT_Set_Char_Size(ft_face, 0, pparams->desired_size, pparams->dpi, pparams->dpi);
     if (err != FT_Err_Ok) {
         return unexpected(err);
@@ -83,7 +83,7 @@ static oc_error init_face(FT_Face ft_face, const oc_face_params* pparams, oc_fac
     return oc_error_ok;
 }
 
-oc_error oc_open_face(oc_library library, const char* path, const oc_face_params* pparams, oc_face* pface) {
+oc_error oc_open_face(oc_library library, const char* path, const oc_open_params* pparams, oc_face* pface) {
     if (pface == NULL) {
         return oc_error_invalid_param;
     }
@@ -99,7 +99,7 @@ oc_error oc_open_face(oc_library library, const char* path, const oc_face_params
     open_args.flags = FT_OPEN_PATHNAME;
     open_args.pathname = (char*)path;
 
-    oc_face_params params = fill_face_params(pparams);
+    oc_open_params params = fill_face_params(pparams);
 
     // using FT_Open_Face as FT_New_Face fails if file extention does not match file type
     err = FT_Open_Face(FT(library), &open_args, params.face_index, &face);
@@ -126,7 +126,7 @@ oc_error oc_open_face(oc_library library, const char* path, const oc_face_params
     return oc_err;
 }
 
-oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, const oc_face_params* pparams, oc_face* pface) {
+oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, const oc_open_params* pparams, oc_face* pface) {
     if (pface == NULL) {
         return oc_error_invalid_param;
     }
@@ -134,7 +134,7 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
     FT_Face face;
     FT_Error err;
 
-    oc_face_params params = fill_face_params(pparams);
+    oc_open_params params = fill_face_params(pparams);
     err = FT_New_Memory_Face(FT(library), data, size, params.face_index, &face);
     switch (err) {
     case FT_Err_Ok:

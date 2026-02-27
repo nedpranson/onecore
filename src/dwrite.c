@@ -381,7 +381,7 @@ inline void oc_free_library(oc_library library) {
     DW(library)->lpVtbl->Release(DW(library));
 }
 
-static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* font_file, const oc_face_params* pparams, oc_face* pface) {
+static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* font_file, const oc_open_params* pparams, oc_face* pface) {
     HRESULT err;
     WINBOOL is_supported_fonttype;
 
@@ -411,7 +411,7 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
     }
 
     IDWriteFontFace* dw_font_face;
-    oc_face_params params = fill_face_params(pparams);
+    oc_open_params params = fill_face_params(pparams);
 
     // todo: we should handle simulations
     err = DW(library)->lpVtbl->CreateFontFace(
@@ -475,7 +475,7 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
     return oc_error_ok;
 }
 
-oc_error oc_open_face(oc_library library, const char* path, const oc_face_params* pparams, oc_face* pface) {
+oc_error oc_open_face(oc_library library, const char* path, const oc_open_params* pparams, oc_face* pface) {
     if (pface == NULL) {
         return oc_error_invalid_param;
     }
@@ -529,7 +529,7 @@ oc_error oc_open_face(oc_library library, const char* path, const oc_face_params
     return result;
 }
 
-oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, const oc_face_params* pparams, oc_face* pface) {
+oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, const oc_open_params* pparams, oc_face* pface) {
     if (pface == NULL) {
         return oc_error_invalid_param;
     }
@@ -631,18 +631,18 @@ inline void oc_free_table(oc_face face, void* context) {
     DW(face)->lpVtbl->ReleaseFontTable(DW(face), context);
 }
 
-static void fit_metrics(oc_glyph_metrics* pmetrics) {
-    oc_26p6 right = OC_26P6_CEIL(OC_26P6_ADD(pmetrics->bearing_x, pmetrics->width));
-    oc_26p6 bottom = OC_26P6_FLOOR(OC_26P6_SUB(pmetrics->bearing_y, pmetrics->height));
-
-    pmetrics->bearing_x = OC_26P6_FLOOR(pmetrics->bearing_x);
-    pmetrics->bearing_y = OC_26P6_CEIL(pmetrics->bearing_y);
-
-    pmetrics->width = OC_26P6_SUB(right, pmetrics->bearing_x);
-    pmetrics->height = OC_26P6_SUB(pmetrics->bearing_y, bottom);
-
-    pmetrics->advance = OC_26P6_ROUND(pmetrics->advance);
-}
+// static void fit_metrics(oc_glyph_metrics* pmetrics) {
+//     oc_26p6 right = OC_26P6_CEIL(OC_26P6_ADD(pmetrics->bearing_x, pmetrics->width));
+//     oc_26p6 bottom = OC_26P6_FLOOR(OC_26P6_SUB(pmetrics->bearing_y, pmetrics->height));
+//
+//     pmetrics->bearing_x = OC_26P6_FLOOR(pmetrics->bearing_x);
+//     pmetrics->bearing_y = OC_26P6_CEIL(pmetrics->bearing_y);
+//
+//     pmetrics->width = OC_26P6_SUB(right, pmetrics->bearing_x);
+//     pmetrics->height = OC_26P6_SUB(pmetrics->bearing_y, bottom);
+//
+//     pmetrics->advance = OC_26P6_ROUND(pmetrics->advance);
+// }
 
 void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_glyph_metrics* pmetrics) {
     if (pmetrics == NULL) {
@@ -788,35 +788,22 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
         return oc_error_invalid_param;
     }
 
-    DWRITE_GLYPH_METRICS metrics;
-    err = DW(face)->lpVtbl->GetDesignGlyphMetrics(
-        DW(face),
-        &glyph_index,
-        1,
-        &metrics,
-        FALSE);
-    assert(err == S_OK);
-
-    // todo: use oc_get_glyph_bbox
-
     // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L414
-    // todo: make this into a method!! and export it on api
-    oc_26p6 cxMin = oc_mul_16p16(metrics.leftSideBearing, face.metrics.scale);
-    oc_26p6 cyMin = oc_mul_16p16(metrics.verticalOriginY + metrics.bottomSideBearing - (INT32)metrics.advanceHeight, face.metrics.scale);
-    oc_26p6 cxMax = oc_mul_16p16(metrics.advanceWidth - metrics.rightSideBearing, face.metrics.scale);
-    oc_26p6 cyMax = oc_mul_16p16(metrics.verticalOriginY - metrics.topSideBearing, face.metrics.scale);
+    oc_bbox cbox;
+    oc_bbox pbox;
+    oc_get_glyph_bbox(face, glyph_index, OC_LOAD_DEFAULT, &cbox);
 
-    oc_26p6 pxMin = cxMin >> 6;
-    oc_26p6 pyMin = cyMin >> 6;
-    oc_26p6 pxMax = cxMax >> 6;
-    oc_26p6 pyMax = cyMax >> 6;
+    pbox.min_x = cbox.min_x >> 6;
+    pbox.min_y = cbox.min_y >> 6;
+    pbox.max_x = cbox.max_x >> 6;
+    pbox.max_y = cbox.max_y >> 6;
 
     // take fractional part and ceil it
-    pxMax += ((cxMax & 63) + 63) >> 6;
-    pyMax += ((cyMax & 63) + 63) >> 6;
+    pbox.max_x += ((cbox.max_x & 63) + 63) >> 6;
+    pbox.max_y += ((cbox.max_y & 63) + 63) >> 6;
 
-    uint32_t rows = pyMax - pyMin;
-    uint32_t cols = pxMax - pxMin;
+    uint32_t rows = pbox.max_y - pbox.min_y;
+    uint32_t cols = pbox.max_x- pbox.min_x;
 
     // todo: add smth like this to our oc_render_glyph
     DWRITE_MATRIX transform = {
@@ -824,8 +811,8 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
         0.0f,
         0.0f,
         1.0f,
-        (cxMin & 63) / 64.0f,
-        -(cyMin & 63) / 64.0f,
+        (cbox.min_x & 63) / 64.0f,
+        -(cbox.min_y & 63) / 64.0f,
     };
 
     // is this correct?
@@ -845,8 +832,8 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
         &transform,
         DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC,
         DWRITE_MEASURING_MODE_NATURAL,
-        -cxMin / 64.0f,
-        cyMin / 64.0f,
+        -cbox.min_x / 64.0f,
+        cbox.min_y / 64.0f,
         &analysis);
     switch (err) {
     case S_OK:

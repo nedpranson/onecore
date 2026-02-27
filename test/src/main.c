@@ -61,7 +61,7 @@ void test_oc_open_face(void) {
     err = oc_open_face(g_library, NULL, 0, &face);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
-    oc_face_params params = { 0 };
+    oc_open_params params = { 0 };
     params.face_index = 10;
     err = oc_open_face(g_library, "test/files/arial.ttf", &params, &face);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
@@ -132,7 +132,7 @@ void test_oc_open_memory_face(void) {
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     oc_free_face(face);
 
-    oc_face_params params = { 0 };
+    oc_open_params params = { 0 };
     params.face_index = 10;
     err = oc_open_memory_face(g_library, data, 0, &params, &face);
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
@@ -150,7 +150,7 @@ void test_oc_test_dpi_scales(void) {
     oc_error err;
     oc_face face;
 
-    oc_face_params params = { 0 };
+    oc_open_params params = { 0 };
     params.desired_size = 16 << 6;
     params.dpi = 128;
 
@@ -303,7 +303,7 @@ void test_oc_get_glyph_metrics(void) {
     TEST_ASSERT_EQUAL_UINT32(0, metrics.advance);
 
     oc_face face;
-    oc_face_params face_params = { 0 };
+    oc_open_params face_params = { 0 };
     face_params.desired_size = 16 << 6;
     face_params.dpi = 96;
 
@@ -681,7 +681,7 @@ int main(void) {
     err = oc_init_library(&g_library);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
-    oc_face_params face_params = { 0 };
+    oc_open_params face_params = { 0 };
     face_params.dpi = 96;
 
     err = oc_open_face(g_library, "test/files/arial.ttf", &face_params, &g_arial_ttf);

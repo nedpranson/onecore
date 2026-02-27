@@ -13,13 +13,13 @@ inline void oc_free_library(oc_library library) {
     (void)library;
 }
 
-static oc_error open_face_from_descriptors(CFArrayRef cf_descriptors_ref, const oc_face_params* pparams, oc_face* pface) {
+static oc_error open_face_from_descriptors(CFArrayRef cf_descriptors_ref, const oc_open_params* pparams, oc_face* pface) {
     CFIndex count = CFArrayGetCount(cf_descriptors_ref);
     if (count == 0) {
         return oc_error_failed_to_open;
     }
 
-    oc_face_params params = fill_face_params(pparams);
+    oc_open_params params = fill_face_params(pparams);
     if (params.face_index >= count) {
         return oc_error_invalid_param;
     }
@@ -58,7 +58,7 @@ static oc_error open_face_from_descriptors(CFArrayRef cf_descriptors_ref, const 
     return oc_error_ok;
 }
 
-oc_error oc_open_face(oc_library library, const char* path, const oc_face_params* pparams, oc_face* pface) {
+oc_error oc_open_face(oc_library library, const char* path, const oc_open_params* pparams, oc_face* pface) {
     (void)library;
 
     if (pface == NULL) {
@@ -95,7 +95,7 @@ oc_error oc_open_face(oc_library library, const char* path, const oc_face_params
     return err;
 }
 
-oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, const oc_face_params* pparams, oc_face* pface) {
+oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, const oc_open_params* pparams, oc_face* pface) {
     (void)library;
 
     if (pface == NULL) {

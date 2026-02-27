@@ -77,15 +77,15 @@ static inline oc_error __unexpected(int64_t err, const char* file, int line) {
 #define unexpected(err) __unexpected((int64_t)err, __FILE__, __LINE__)
 #endif
 
-static inline oc_face_params fill_face_params(const oc_face_params* pparams) {
+static inline oc_open_params fill_face_params(const oc_open_params* pparams) {
     if (pparams == NULL)
-        return (oc_face_params) {
+        return (oc_open_params) {
             .face_index = 0,
             .desired_size = 12 << 6,
             .dpi = ONECORE_SYSTEM_DPI,
         };
 
-    oc_face_params params = *pparams;
+    oc_open_params params = *pparams;
 
     if (params.desired_size <= 0) {
         params.desired_size = 12 << 6;

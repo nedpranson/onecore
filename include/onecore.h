@@ -136,7 +136,7 @@ typedef struct {
     uint32_t face_index;
     oc_26p6 desired_size;
     short dpi;
-} oc_face_params;
+} oc_open_params;
 
 // todo: cast (uint32_t)(uint8_t)
 #define OC_MAKE_TAG(x1, x2, x3, x4) \
@@ -158,7 +158,7 @@ OC_EXPORT oc_error
 oc_open_face(
     oc_library library,
     const char* path,
-    const oc_face_params* pparams, // can be nil
+    const oc_open_params* pparams, // can be nil
     oc_face* pface);
 
 /*
@@ -170,7 +170,7 @@ oc_open_memory_face(
     oc_library library,
     const void* data,
     size_t data_size,
-    const oc_face_params* pparams, // can be nil
+    const oc_open_params* pparams, // can be nil
     oc_face* pface);
 
 // OC_EXPORT oc_error
