@@ -25,7 +25,7 @@ extern "C" {
 #define OC_LOAD_NO_SCALE (1l << 0)
 // #define OC_LOAD_VERTICAL (1l << 1)
 // #define OC_LOAD_COLOR (1l << 2)
-#define OC_LOAD_NO_HINTING (1l << 3)
+// #define OC_LOAD_NO_HINTING (1l << 3)
 // todo: add hinting https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L861
 
 typedef uint32_t oc_tag;

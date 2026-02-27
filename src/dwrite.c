@@ -684,11 +684,11 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
     metrics.bearing_y = oc_mul_16p16(metrics.bearing_y, face.metrics.scale);
     metrics.advance = oc_mul_16p16(metrics.advance, face.metrics.scale);
 
-    if (flags & OC_LOAD_NO_HINTING) {
-        goto done;
-    }
+    //if (flags & OC_LOAD_NO_HINTING) {
+        //goto done;
+    //}
 
-    fit_metrics(&metrics);
+    //fit_metrics(&metrics);
 
 done:
     *pmetrics = metrics;
