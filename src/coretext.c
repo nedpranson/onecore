@@ -380,34 +380,22 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
         return oc_error_invalid_param;
     }
 
-    CGRect rect;
-    CTFontGetBoundingRectsForGlyphs(
-        face.internals,
-        kCTFontOrientationHorizontal,
-        &glyph_index,
-        &rect,
-        1);
-
-    CGFloat size = CTFontGetSize(face.internals);
-    uint16_t upem = face.metrics.upem;
-
     // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L414
-    oc_26p6 cxMin = oc_mul_16p16(CGRectGetMinX(rect) * upem / size, face.metrics.scale);
-    oc_26p6 cyMin = oc_mul_16p16(CGRectGetMinY(rect) * upem / size, face.metrics.scale);
-    oc_26p6 cxMax = oc_mul_16p16(CGRectGetMaxX(rect) * upem / size, face.metrics.scale);
-    oc_26p6 cyMax = oc_mul_16p16(CGRectGetMaxY(rect) * upem / size, face.metrics.scale);
+    oc_bbox cbox;
+    oc_bbox pbox;
+    oc_get_glyph_bbox(face, glyph_index, OC_LOAD_DEFAULT, &cbox);
 
-    oc_26p6 pxMin = cxMin >> 6;
-    oc_26p6 pyMin = cyMin >> 6;
-    oc_26p6 pxMax = cxMax >> 6;
-    oc_26p6 pyMax = cyMax >> 6;
+    pbox.min_x = cbox.min_x >> 6;
+    pbox.min_y = cbox.min_y >> 6;
+    pbox.max_x = cbox.max_x >> 6;
+    pbox.max_y = cbox.max_y >> 6;
 
     // take fractional part and ceil it
-    pxMax += ((cxMax & 63) + 63) >> 6;
-    pyMax += ((cyMax & 63) + 63) >> 6;
+    pbox.max_x += ((cbox.max_x & 63) + 63) >> 6;
+    pbox.max_y += ((cbox.max_y & 63) + 63) >> 6;
 
-    uint32_t rows = pyMax - pyMin;
-    uint32_t cols = pxMax - pxMin;
+    uint32_t rows = pbox.max_y - pbox.min_y;
+    uint32_t cols = pbox.max_x- pbox.min_x;
 
     psize->rows = rows;
     psize->cols = cols;
@@ -466,11 +454,11 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
     CGContextSetGrayFillColor(ctx, 1.0, 1.0);
     CGContextSetGrayStrokeColor(ctx, 1.0, 1.0);
 
-    CGContextTranslateCTM(ctx, (cxMin & 63) / 64.0, (cyMin & 63) / 64.0);
+    CGContextTranslateCTM(ctx, (cbox.min_x & 63) / 64.0, (cbox.min_y & 63) / 64.0);
 
     CGPoint pos = {
-        -cxMin / 64.0,
-        -cyMin / 64.0,
+        -cbox.min_x / 64.0,
+        -cbox_min_y / 64.0,
     };
 
     CTFontDrawGlyphs(

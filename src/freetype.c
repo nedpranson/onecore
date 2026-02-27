@@ -337,8 +337,7 @@ void oc_get_glyph_bbox(oc_face face, uint16_t glyph_index, oc_load_flags flags, 
     FT_Error err;
     FT_BBox bbox;
 
-    // todo: we prob dont even need metrics
-    FT_Int32 ft_load_flags = FT_LOAD_NO_AUTOHINT | FT_LOAD_BITMAP_METRICS_ONLY | FT_LOAD_NO_HINTING;
+    FT_Int32 ft_load_flags = FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING;
     if (flags & OC_LOAD_NO_SCALE) {
         ft_load_flags |= FT_LOAD_NO_SCALE;
     }

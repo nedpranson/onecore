@@ -26,7 +26,8 @@ extern "C" {
 // #define OC_LOAD_VERTICAL (1l << 1)
 // #define OC_LOAD_COLOR (1l << 2)
 // #define OC_LOAD_NO_HINTING (1l << 3)
-// todo: add hinting https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L861
+// todo: add hinting https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L861 (grid fitting)
+//       hintign it self is a hard problem to solve
 
 typedef uint32_t oc_tag;
 typedef uint32_t oc_load_flags;

@@ -14,7 +14,7 @@ int main() {
         return 1;
     }
 
-    oc_open_params open_params = { 0 }; // todo: nename to oc_open_params
+    oc_open_params open_params = { 0 };
     open_params.desired_size = 16 << 6;
     open_params.dpi = 96;
 
