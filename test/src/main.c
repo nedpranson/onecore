@@ -671,6 +671,14 @@ void test_oc_render_glyph(void) {
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     TEST_ASSERT_EQUAL_UINT32(12, size.rows);
     TEST_ASSERT_EQUAL_UINT32(2, size.cols);
+
+    idx = oc_get_char_index(g_arial_ttf, 'c');
+    TEST_ASSERT_EQUAL_INT16(70, idx);
+
+    err = oc_render_glyph(g_arial_ttf, idx, &size, NULL, 0);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+    TEST_ASSERT_EQUAL_UINT32(10, size.rows);
+    TEST_ASSERT_EQUAL_UINT32(8, size.cols);
 }
 
 int main(void) {

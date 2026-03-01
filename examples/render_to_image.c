@@ -5,7 +5,8 @@
 #include "stb_image_write.h"
 
 int main() {
-    const char* message = "Hello_World!";
+    // c is renderer weirdly on dwrite
+    const char* message = "Travis Scott!";
 
     oc_error err;
     oc_library library;
@@ -15,7 +16,7 @@ int main() {
     }
 
     oc_open_params open_params = { 0 };
-    open_params.desired_size = 16 << 6;
+    open_params.desired_size = 12 << 6;
     open_params.dpi = 96;
 
     oc_face face;
