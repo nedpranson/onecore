@@ -21,6 +21,9 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
+// todo: add some font collections FontConfig, DWRITE, CORETEXT
+//       add ability to filter and sort fonts, say by codepoints, families, sizes
+
 #define OC_LOAD_DEFAULT 0x0
 #define OC_LOAD_NO_SCALE (1l << 0)
 // #define OC_LOAD_VERTICAL (1l << 1)
@@ -28,6 +31,7 @@ extern "C" {
 // #define OC_LOAD_NO_HINTING (1l << 3)
 // todo: add hinting https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L861 (grid fitting)
 //       hintign it self is a hard problem to solve
+
 
 typedef uint32_t oc_tag;
 typedef uint32_t oc_load_flags;
