@@ -661,6 +661,13 @@ void test_oc_render_glyph(void) {
     TEST_ASSERT_EQUAL_UINT32(0, size.rows);
     TEST_ASSERT_EQUAL_UINT32(0, size.cols);
 
+    uint8_t buf[8];
+    err = oc_render_glyph(g_arial_ttf, idx, &size, buf, 0);
+    TEST_ASSERT_EQUAL(err, oc_error_ok);
+
+    err = oc_render_glyph(g_arial_ttf, idx, &size, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL(err, oc_error_ok);
+
     err = oc_render_glyph(g_arial_ttf, 4444, &size, NULL, 0);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 

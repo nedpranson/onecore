@@ -404,6 +404,10 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
         return oc_error_ok;
     }
 
+    if (rows == 0 || cols == 0) {
+        return oc_error_ok;
+    }
+
     if (buffer_size < rows * cols) {
         return oc_error_insufficient_buffer;
     }
