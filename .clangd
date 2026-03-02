@@ -1,7 +1,7 @@
 CompileFlags:
   Add:
-    - -DONECORE_FREETYPE_IMPLEMENTATION
-    - -I/home/nedas/Work/onecore/include
+    # - -DONECORE_FREETYPE_IMPLEMENTATION
+    - -I/home/nedas/Work/onecore
     - -I/usr/include/freetype2
     # - "--target=x86_64-windows-gnu"
     # - "-I/usr/lib/zig/libc/include/any-windows-any"

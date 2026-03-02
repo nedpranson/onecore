@@ -38,7 +38,7 @@ pub fn build(b: *std.Build) void {
     lib_tests.root_module.linkSystemLibrary("freetype2", .{});
 
     lib_tests.root_module.addIncludePath(b.path("test/src"));
-    lib_tests.root_module.addIncludePath(b.path("include"));
+    lib_tests.root_module.addIncludePath(b.path(""));
 
     lib_tests.root_module.addCSourceFiles(.{
         .root = b.path("test/src"),
