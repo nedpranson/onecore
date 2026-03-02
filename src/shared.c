@@ -19,6 +19,22 @@
 
 #endif /* !ONECORE_FREETYPE */
 
+const char* oc_strerror(oc_error err) {
+#ifdef ONECORE_NO_ERROR_STRINGS
+    return NULL;
+#else
+    switch (err) {
+#define X(e, s) \
+    case e:     \
+        return s;
+        OC_ERROR_LIST
+#undef X
+    default:
+        return "unknown error";
+    }
+#endif /* ONECORE_NO_ERROR_STRINGS */
+}
+
 // https://github.com/freetype/freetype/blob/85c8efe0afa5ad0df35114e317a065f544943c52/src/base/ftcalc.c#L233
 oc_16p16 oc_div_16p16(oc_16p16 a, oc_16p16 b) {
 #ifdef ONECORE_FREETYPE
