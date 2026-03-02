@@ -1,5 +1,6 @@
 CompileFlags:
   Add:
+    - -DONECORE_FREETYPE_IMPLEMENTATION
     - -I/home/nedas/Work/onecore/include
     - -I/usr/include/freetype2
     # - "--target=x86_64-windows-gnu"

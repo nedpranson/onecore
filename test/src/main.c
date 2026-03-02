@@ -1,7 +1,9 @@
-#include <onecore.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unity.h>
+
+#define ONECORE_FREETYPE_IMPLEMENTATION
+#include <onecore.h>
 
 oc_library g_library;
 oc_face g_arial_ttf;

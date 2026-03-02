@@ -7,18 +7,18 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const font_backend = b.option(
-        libonecore.FontBackend,
-        "font-backend",
-        "The font backend to use for parsing and rasterization.",
-    );
+    // const font_backend = b.option(
+    //     libonecore.FontBackend,
+    //     "font-backend",
+    //     "The font backend to use for parsing and rasterization.",
+    // );
 
-    const onecore = libonecore.buildLibrary(b, .{
-        .target = target,
-        .optimize = optimize,
-        .font_backend = font_backend,
-    });
-    b.installArtifact(onecore);
+    // const onecore = libonecore.buildLibrary(b, .{
+    //     .target = target,
+    //     .optimize = optimize,
+    //     .font_backend = font_backend,
+    // });
+    // b.installArtifact(onecore);
 
     const unity = libunity.buildLibrary(b, .{
         .target = target,
@@ -33,10 +33,13 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    lib_tests.root_module.linkLibrary(onecore);
+    // lib_tests.root_module.linkLibrary(onecore);
     lib_tests.root_module.linkLibrary(unity);
+    lib_tests.root_module.linkSystemLibrary("freetype2", .{});
 
     lib_tests.root_module.addIncludePath(b.path("test/src"));
+    lib_tests.root_module.addIncludePath(b.path("include"));
+
     lib_tests.root_module.addCSourceFiles(.{
         .root = b.path("test/src"),
         .files = &.{
@@ -63,7 +66,7 @@ pub fn build(b: *std.Build) void {
     });
 
     example.root_module.link_libc = true;
-    example.root_module.linkLibrary(onecore);
+    // example.root_module.linkLibrary(onecore);
 
     example.root_module.addIncludePath(b.path("examples"));
     example.root_module.addCSourceFile(.{ .file = b.path("examples/render_to_image.c") });
