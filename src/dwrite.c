@@ -210,7 +210,7 @@ OC__IDWriteFontFileLoader_QueryInterface(IDWriteFontFileLoader* This, REFIID rii
     return E_NOINTERFACE;
 }
 
-static const IDWriteFontFileLoaderVtbl OC__IDWriteFontFileLoaderVtbl  = {
+static const IDWriteFontFileLoaderVtbl OC__IDWriteFontFileLoaderVtbl = {
     OC__IDWriteFontFileLoader_QueryInterface,
     OC__IDWriteFontFileLoader_AddRef,
     OC__IDWriteFontFileLoader_Release,
@@ -690,11 +690,11 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
     metrics.bearing_y = oc_mul_16p16(metrics.bearing_y, face.metrics.scale);
     metrics.advance = oc_mul_16p16(metrics.advance, face.metrics.scale);
 
-    //if (flags & OC_LOAD_NO_HINTING) {
-        //goto done;
+    // if (flags & OC_LOAD_NO_HINTING) {
+    // goto done;
     //}
 
-    //fit_metrics(&metrics);
+    // fit_metrics(&metrics);
 
 done:
     *pmetrics = metrics;
@@ -808,7 +808,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
     pbox.max_y += ((cbox.max_y & 63) + 63) >> 6;
 
     uint32_t rows = pbox.max_y - pbox.min_y;
-    uint32_t cols = pbox.max_x- pbox.min_x;
+    uint32_t cols = pbox.max_x - pbox.min_x;
 
     // todo: add smth like this to our oc_render_glyph
     DWRITE_MATRIX transform = {

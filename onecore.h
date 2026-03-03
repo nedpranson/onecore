@@ -250,6 +250,7 @@ oc_mul_16p16(oc_16p16 a, oc_16p16 b);
 /*                                                                                                    */
 /******************************************************************************************************/
 
+// how to dorce like freetype with dwrite
 // ONECORE_FORCE_FREETYPE
 // ONECORE_FORCE_CORETEXT
 // ONECORE_FORCE_DIRECTWRITE
@@ -562,8 +563,8 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
         ft_load_flags |= FT_LOAD_NO_SCALE;
     }
 
-    //if (flags & OC_LOAD_NO_HINTING) {
-        //ft_load_flags |= FT_LOAD_NO_HINTING;
+    // if (flags & OC_LOAD_NO_HINTING) {
+    // ft_load_flags |= FT_LOAD_NO_HINTING;
     //}
 
     oc__mutex_impl_lock(&face.impl->lock);
@@ -677,8 +678,8 @@ void oc_get_glyph_bbox(oc_face face, uint16_t glyph_index, oc_load_flags flags, 
         ft_load_flags |= FT_LOAD_NO_SCALE;
     }
 
-    //if (flags & OC_LOAD_NO_HINTING) {
-        //ft_load_flags |= FT_LOAD_NO_HINTING;
+    // if (flags & OC_LOAD_NO_HINTING) {
+    // ft_load_flags |= FT_LOAD_NO_HINTING;
     //}
 
     oc__mutex_impl_lock(&face.impl->lock);
@@ -997,7 +998,6 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pc
         return oc_error_invalid_param;
     }
 
-
     CTFontRef ct_font = (CTFontRef)face.impl;
     CFDataRef cf_data_ref = CTFontCopyTable(ct_font, tag, kCTFontTableOptionNoOptions);
     if (cf_data_ref == NULL) {
@@ -1231,7 +1231,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
     pbox.max_y += ((cbox.max_y & 63) + 63) >> 6;
 
     uint32_t rows = pbox.max_y - pbox.min_y;
-    uint32_t cols = pbox.max_x- pbox.min_x;
+    uint32_t cols = pbox.max_x - pbox.min_x;
 
     psize->rows = rows;
     psize->cols = cols;
@@ -1522,7 +1522,7 @@ OC__IDWriteFontFileLoader_QueryInterface(IDWriteFontFileLoader* This, REFIID rii
     return E_NOINTERFACE;
 }
 
-static const IDWriteFontFileLoaderVtbl OC__IDWriteFontFileLoaderVtbl  = {
+static const IDWriteFontFileLoaderVtbl OC__IDWriteFontFileLoaderVtbl = {
     OC__IDWriteFontFileLoader_QueryInterface,
     OC__IDWriteFontFileLoader_AddRef,
     OC__IDWriteFontFileLoader_Release,
@@ -2002,11 +2002,11 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
     metrics.bearing_y = oc_mul_16p16(metrics.bearing_y, face.metrics.scale);
     metrics.advance = oc_mul_16p16(metrics.advance, face.metrics.scale);
 
-    //if (flags & OC_LOAD_NO_HINTING) {
-        //goto done;
+    // if (flags & OC_LOAD_NO_HINTING) {
+    // goto done;
     //}
 
-    //fit_metrics(&metrics);
+    // fit_metrics(&metrics);
 
 done:
     *pmetrics = metrics;
@@ -2120,7 +2120,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
     pbox.max_y += ((cbox.max_y & 63) + 63) >> 6;
 
     uint32_t rows = pbox.max_y - pbox.min_y;
-    uint32_t cols = pbox.max_x- pbox.min_x;
+    uint32_t cols = pbox.max_x - pbox.min_x;
 
     // todo: add smth like this to our oc_render_glyph
     DWRITE_MATRIX transform = {

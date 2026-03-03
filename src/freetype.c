@@ -224,8 +224,8 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
         ft_load_flags |= FT_LOAD_NO_SCALE;
     }
 
-    //if (flags & OC_LOAD_NO_HINTING) {
-        //ft_load_flags |= FT_LOAD_NO_HINTING;
+    // if (flags & OC_LOAD_NO_HINTING) {
+    // ft_load_flags |= FT_LOAD_NO_HINTING;
     //}
 
     oc__mutex_impl_lock(&face.impl->lock);
@@ -339,8 +339,8 @@ void oc_get_glyph_bbox(oc_face face, uint16_t glyph_index, oc_load_flags flags, 
         ft_load_flags |= FT_LOAD_NO_SCALE;
     }
 
-    //if (flags & OC_LOAD_NO_HINTING) {
-        //ft_load_flags |= FT_LOAD_NO_HINTING;
+    // if (flags & OC_LOAD_NO_HINTING) {
+    // ft_load_flags |= FT_LOAD_NO_HINTING;
     //}
 
     oc__mutex_impl_lock(&face.impl->lock);

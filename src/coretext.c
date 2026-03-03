@@ -168,7 +168,6 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pc
         return oc_error_invalid_param;
     }
 
-
     CTFontRef ct_font = (CTFontRef)face.impl;
     CFDataRef cf_data_ref = CTFontCopyTable(ct_font, tag, kCTFontTableOptionNoOptions);
     if (cf_data_ref == NULL) {
@@ -402,7 +401,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
     pbox.max_y += ((cbox.max_y & 63) + 63) >> 6;
 
     uint32_t rows = pbox.max_y - pbox.min_y;
-    uint32_t cols = pbox.max_x- pbox.min_x;
+    uint32_t cols = pbox.max_x - pbox.min_x;
 
     psize->rows = rows;
     psize->cols = cols;
