@@ -1,5 +1,5 @@
 #define ONECORE_IMPLEMENTATION
-#include <onecore.h>
+#include "onecore.h"
 
 /* ONECORE_FREETYPE_IMPLEMENTATION */
 #include <assert.h>
@@ -45,7 +45,7 @@ oc_error oc_init_library(oc_library* plibrary) {
     case FT_Err_Out_Of_Memory:
         return oc_error_out_of_memory;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     plibrary->internals = library;
@@ -59,7 +59,7 @@ inline void oc_free_library(oc_library library) {
 static oc_error oc__init_face(FT_Face ft_face, const oc_open_params* pparams, oc_face* pface) {
     FT_Error err = FT_Set_Char_Size(ft_face, 0, pparams->desired_size, pparams->dpi, pparams->dpi);
     if (err != FT_Err_Ok) {
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     oc_face_impl* impl = (oc_face_impl*)malloc(sizeof(oc_face_impl));
@@ -116,7 +116,7 @@ oc_error oc_open_face(oc_library library, const char* path, const oc_open_params
     case FT_Err_Invalid_Argument:
         return oc_error_invalid_param;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     oc_error oc_err = oc__init_face(face, &params, pface);
@@ -149,7 +149,7 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
     case FT_Err_Invalid_Stream_Operation:
         return oc_error_failed_to_open;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     oc_error oc_err = oc__init_face(face, &params, pface);
@@ -187,7 +187,7 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pc
     case FT_Err_Table_Missing:
         return oc_error_table_missing;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     uint8_t* buffer = (uint8_t*)malloc(size);
@@ -424,7 +424,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
         case FT_Err_Invalid_Argument:
             return oc_error_invalid_param;
         default:
-            return oc_unexpected(err);
+            return oc__unexpected(err);
         }
     }
 
@@ -465,7 +465,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
     case FT_Err_Out_Of_Memory:
         return oc_error_out_of_memory;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     err = FT_Glyph_To_Bitmap(&glyph, FT_RENDER_MODE_NORMAL, NULL, 1);
@@ -477,7 +477,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
         case FT_Err_Out_Of_Memory:
             return oc_error_out_of_memory;
         default:
-            return oc_unexpected(err);
+            return oc__unexpected(err);
         }
     }
 

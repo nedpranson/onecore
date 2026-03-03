@@ -1,5 +1,5 @@
 #define ONECORE_IMPLEMENTATION
-#include <onecore.h>
+#include "onecore.h"
 
 /* ONECORE_CORETEXT_IMPLEMENTATION */
 #include <CoreText/CoreText.h>

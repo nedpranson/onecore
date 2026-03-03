@@ -250,21 +250,31 @@ oc_mul_16p16(oc_16p16 a, oc_16p16 b);
 /*                                                                                                    */
 /******************************************************************************************************/
 
-#ifdef ONECORE_NATIVE_IMPLEMENTATION
-#endif
-
-#if (defined(ONECORE_FREETYPE_IMPLEMENTATION) || defined(ONECORE_CORETEXT_IMPLEMENTATION) || defined(ONECORE_DIRECTWRITE_IMPLEMENTATION)) && !defined(ONECORE_IMPLEMENTATION)
-#define ONECORE_IMPLEMENTATION
-#endif
-
 // ONECORE_FORCE_FREETYPE
 // ONECORE_FORCE_CORETEXT
 // ONECORE_FORCE_DIRECTWRITE
 // ONECORE_FORCE_FONTCONFIG
 
 #ifdef ONECORE_IMPLEMENTATION
-// todo: implement this!
-#define oc_unexpected(e) oc_error_unexpected
+
+#if defined(_MSC_VER) || defined(__MINGW32__)
+#define ONECORE_DIRECTWRITE_IMPLEMENTATION
+#elif defined(__APPLE__)
+#define ONECORE_CORETEXT_IMPLEMENTATION
+#else
+#define ONECORE_FREETYPE_IMPLEMENTATION
+#endif
+
+#ifdef NDEBUG
+#define oc__unexpected(e) oc_error_unexpected
+#else
+#include <stdio.h>
+static inline oc_error oc__unexpected_impl(long err, const char* file, int line) {
+    fprintf(stderr, "%s:%d: unexpected error: %ld\n", file, line, err);
+    return oc_error_unexpected;
+}
+#define oc__unexpected(e) oc__unexpected_impl((long)e, __FILE__, __LINE__)
+#endif /* NDEBUG */
 
 const char* oc_strerror(oc_error err) {
 #ifdef ONECORE_NO_ERROR_STRINGS
@@ -312,14 +322,11 @@ oc_16p16 oc_mul_16p16(oc_16p16 a, oc_16p16 b) {
 }
 
 static inline oc_open_params oc__open_params_defaults(const oc_open_params* pparams) {
-    if (pparams == NULL)
-        return (oc_open_params) {
-            .face_index = 0,
-            .desired_size = 12 << 6,
-            .dpi = 96,
-        };
+    oc_open_params params = { 0 };
 
-    oc_open_params params = *pparams;
+    if (pparams != NULL) {
+        params = *pparams;
+    }
 
     if (params.desired_size <= 0) {
         params.desired_size = 12 << 6;
@@ -331,7 +338,6 @@ static inline oc_open_params oc__open_params_defaults(const oc_open_params* ppar
 
     return params;
 }
-#endif /* ONECORE_IMPLEMENTATION */
 
 #ifdef ONECORE_FREETYPE_IMPLEMENTATION
 #include <assert.h>
@@ -377,7 +383,7 @@ oc_error oc_init_library(oc_library* plibrary) {
     case FT_Err_Out_Of_Memory:
         return oc_error_out_of_memory;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     plibrary->internals = library;
@@ -391,7 +397,7 @@ inline void oc_free_library(oc_library library) {
 static oc_error oc__init_face(FT_Face ft_face, const oc_open_params* pparams, oc_face* pface) {
     FT_Error err = FT_Set_Char_Size(ft_face, 0, pparams->desired_size, pparams->dpi, pparams->dpi);
     if (err != FT_Err_Ok) {
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     oc_face_impl* impl = (oc_face_impl*)malloc(sizeof(oc_face_impl));
@@ -448,7 +454,7 @@ oc_error oc_open_face(oc_library library, const char* path, const oc_open_params
     case FT_Err_Invalid_Argument:
         return oc_error_invalid_param;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     oc_error oc_err = oc__init_face(face, &params, pface);
@@ -481,7 +487,7 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
     case FT_Err_Invalid_Stream_Operation:
         return oc_error_failed_to_open;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     oc_error oc_err = oc__init_face(face, &params, pface);
@@ -519,7 +525,7 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pc
     case FT_Err_Table_Missing:
         return oc_error_table_missing;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     uint8_t* buffer = (uint8_t*)malloc(size);
@@ -756,7 +762,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
         case FT_Err_Invalid_Argument:
             return oc_error_invalid_param;
         default:
-            return oc_unexpected(err);
+            return oc__unexpected(err);
         }
     }
 
@@ -797,7 +803,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
     case FT_Err_Out_Of_Memory:
         return oc_error_out_of_memory;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     err = FT_Glyph_To_Bitmap(&glyph, FT_RENDER_MODE_NORMAL, NULL, 1);
@@ -809,7 +815,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
         case FT_Err_Out_Of_Memory:
             return oc_error_out_of_memory;
         default:
-            return oc_unexpected(err);
+            return oc__unexpected(err);
         }
     }
 
@@ -1668,14 +1674,14 @@ oc_error oc_init_library(oc_library* plibrary) {
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     err = dw_factory->lpVtbl->RegisterFontFileLoader(dw_factory, oc__dw_file_loader);
     if (err != S_OK) {
         // DWRITE_E_ALREADYREGISTERED;
         dw_factory->lpVtbl->Release(dw_factory);
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     plibrary->internals = dw_factory;
@@ -1712,7 +1718,7 @@ static oc_error oc__open_face_from_font_file(oc_library library, IDWriteFontFile
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     if (!is_supported_fonttype) {
@@ -1742,7 +1748,7 @@ static oc_error oc__open_face_from_font_file(oc_library library, IDWriteFontFile
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     oc_face_impl* impl = malloc(sizeof(oc_face_impl));
@@ -1830,7 +1836,7 @@ oc_error oc_open_face(oc_library library, const char* path, const oc_open_params
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     oc_error result = oc__open_face_from_font_file(library, font_file, pparams, pface);
@@ -1867,7 +1873,7 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     oc_error result = oc__open_face_from_font_file(library, font_file, pparams, pface);
@@ -1921,7 +1927,7 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pc
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     if (exists == FALSE) {
@@ -2152,7 +2158,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     psize->rows = rows;
@@ -2193,7 +2199,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
 
     if (err != S_OK) {
         free(buffer_3x);
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     for (uint32_t i = 0; i < rows * cols; i++) {
@@ -2208,3 +2214,5 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
     return oc_error_ok;
 }
 #endif /* ONECORE_DIRECTWRITE_IMPLEMENTATION */
+
+#endif /* ONECORE_IMPLEMENTATION */

@@ -7,7 +7,6 @@ source_dir = pathlib.Path("src")
 onecore_h = source_dir / "onecore.h"
 
 sources = [
-    (source_dir / "shared.c", "ONECORE_IMPLEMENTATION"),
     (source_dir / "freetype.c", "ONECORE_FREETYPE_IMPLEMENTATION"),
     (source_dir / "coretext.c", "ONECORE_CORETEXT_IMPLEMENTATION"),
     (source_dir / "dwrite.c", "ONECORE_DIRECTWRITE_IMPLEMENTATION"),
@@ -20,13 +19,13 @@ def strip(path, marker):
                 return file.read()
 
 def concat(source, marker, body):
-    begin = source.find(f"#ifdef {marker}")
-    end = source.find(f"#endif /* {marker} */")
+    header = source.find(f"#ifdef {marker}")
+    pos = source.find('\n', header) + 1
 
-    header = source[:begin]
-    footer = source[end:]
+    header = source[:pos]
+    footer = source[pos:]
     
-    return f"{header}#ifdef {marker}\n{body}{footer}"
+    return f"{header}{body}{footer}"
 
 def inject(source, file, marker):
     body = strip(file, marker)

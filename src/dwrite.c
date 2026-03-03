@@ -1,5 +1,5 @@
 #define ONECORE_IMPLEMENTATION
-#include <onecore.h>
+#include "onecore.h"
 
 /* ONECORE_DIRECTWRITE_IMPLEMENTATION */
 #include <assert.h>
@@ -362,14 +362,14 @@ oc_error oc_init_library(oc_library* plibrary) {
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     err = dw_factory->lpVtbl->RegisterFontFileLoader(dw_factory, oc__dw_file_loader);
     if (err != S_OK) {
         // DWRITE_E_ALREADYREGISTERED;
         dw_factory->lpVtbl->Release(dw_factory);
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     plibrary->internals = dw_factory;
@@ -406,7 +406,7 @@ static oc_error oc__open_face_from_font_file(oc_library library, IDWriteFontFile
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     if (!is_supported_fonttype) {
@@ -436,7 +436,7 @@ static oc_error oc__open_face_from_font_file(oc_library library, IDWriteFontFile
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     oc_face_impl* impl = malloc(sizeof(oc_face_impl));
@@ -524,7 +524,7 @@ oc_error oc_open_face(oc_library library, const char* path, const oc_open_params
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     oc_error result = oc__open_face_from_font_file(library, font_file, pparams, pface);
@@ -561,7 +561,7 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     oc_error result = oc__open_face_from_font_file(library, font_file, pparams, pface);
@@ -615,7 +615,7 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pc
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     if (exists == FALSE) {
@@ -846,7 +846,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     psize->rows = rows;
@@ -887,7 +887,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
 
     if (err != S_OK) {
         free(buffer_3x);
-        return oc_unexpected(err);
+        return oc__unexpected(err);
     }
 
     for (uint32_t i = 0; i < rows * cols; i++) {
