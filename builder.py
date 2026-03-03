@@ -2,15 +2,14 @@
 import pathlib
 
 output_path = pathlib.Path("onecore.h")
-
-header_dir = pathlib.Path("include")
 source_dir = pathlib.Path("src")
 
-onecore_h = header_dir / "onecore.h"
+onecore_h = source_dir / "onecore.h"
 
 sources = [
     (source_dir / "shared.c", "ONECORE_IMPLEMENTATION"),
     (source_dir / "freetype.c", "ONECORE_FREETYPE_IMPLEMENTATION"),
+    (source_dir / "dwrite.c", "ONECORE_DIRECTWRITE_IMPLEMENTATION"),
 ]
 
 def strip(path, marker):

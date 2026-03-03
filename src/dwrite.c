@@ -1,49 +1,48 @@
-#include "onecore.h"
-#include "shared.h"
-#ifdef ONECORE_DWRITE
+#define ONECORE_IMPLEMENTATION
+#include <onecore.h>
 
+/* ONECORE_DIRECTWRITE_IMPLEMENTATION */
 #include <initguid.h>
 
 #include <d2d1.h>
 #include <dwrite.h>
-#include <math.h>
 
-struct face_internals {
-    IDWriteFontFace* face;
-    IDWriteFactory* library;
+struct oc_face_impl {
+    IDWriteFontFace* dw_face;
+    IDWriteFactory* dw_factory;
 };
 
-#define DW(x) _Generic((x),                       \
-    oc_library: ((IDWriteFactory*)(x).internals), \
-    oc_face: ((struct face_internals*)(x).internals)->face)
+// #define DW(x) _Generic((x),                       \
+//     oc_library: ((IDWriteFactory*)(x).internals), \
+//     oc_face: ((struct face_internals*)(x).internals)->face)
 
-typedef struct memory_view_s {
+typedef struct {
     const void* data;
     size_t size;
-} memory_view;
+} oc__memory_view;
 
-typedef struct IOCFontFileStream {
+typedef struct {
     const IDWriteFontFileStreamVtbl* lpVtbl;
     LONG ref_count;
-    memory_view memory_view;
-} IOCFontFileStream;
+    oc__memory_view memory_view;
+} OC__IDWriteFontFileStream;
 
-typedef struct IOCFontFileLoader {
+typedef struct {
     const IDWriteFontFileLoaderVtbl* lpVtbl;
     LONG ref_count;
-} IOCFontFileLoader;
+} OC__IDWriteFontFileLoader;
 
-typedef struct IOCSimplifiedGeometrySink {
+typedef struct {
     const ID2D1SimplifiedGeometrySinkVtbl* lpVtbl;
     const oc_outline_funcs* funcs;
     D2D1_POINT_2F start;
     D2D1_POINT_2F origin;
     void* ctx;
     LONG ref_count;
-} IOCSimplifiedGeometrySink;
+} OC__ID2D1SimplifiedGeometrySink;
 
 static HRESULT STDMETHODCALLTYPE
-IOCFontFileStream_GetLastWriteTime(IDWriteFontFileStream* This, UINT64* last_writetime) {
+OC__IDWriteFontFileStream_GetLastWriteTime(IDWriteFontFileStream* This, UINT64* last_writetime) {
     (void)This;
     if (last_writetime == NULL) {
         return E_POINTER;
@@ -54,8 +53,8 @@ IOCFontFileStream_GetLastWriteTime(IDWriteFontFileStream* This, UINT64* last_wri
 }
 
 static HRESULT STDMETHODCALLTYPE
-IOCFontFileStream_GetFileSize(IDWriteFontFileStream* This, UINT64* size) {
-    IOCFontFileStream* this = (IOCFontFileStream*)This;
+OC__IDWriteFontFileStream_GetFileSize(IDWriteFontFileStream* This, UINT64* size) {
+    OC__IDWriteFontFileStream* this = (OC__IDWriteFontFileStream*)This;
 
     if (size == NULL) {
         return E_POINTER;
@@ -66,20 +65,20 @@ IOCFontFileStream_GetFileSize(IDWriteFontFileStream* This, UINT64* size) {
 }
 
 static void STDMETHODCALLTYPE
-IOCFontFileStream_ReleaseFileFragment(IDWriteFontFileStream* This, void* fragment_context) {
+OC__IDWriteFontFileStream_ReleaseFileFragment(IDWriteFontFileStream* This, void* fragment_context) {
     (void)This;
     (void)fragment_context;
 }
 
 static HRESULT STDMETHODCALLTYPE
-IOCFontFileStream_ReadFileFragment(
+OC__IDWriteFontFileStream_ReadFileFragment(
     IDWriteFontFileStream* This,
     const void** fragment_start,
     UINT64 offset,
     UINT64 fragment_size,
     void** fragment_context) {
 
-    IOCFontFileStream* this = (IOCFontFileStream*)This;
+    OC__IDWriteFontFileStream* this = (OC__IDWriteFontFileStream*)This;
 
     if (fragment_start == NULL) {
         return E_POINTER;
@@ -100,8 +99,8 @@ IOCFontFileStream_ReadFileFragment(
 }
 
 static ULONG STDMETHODCALLTYPE
-IOCFontFileStream_Release(IDWriteFontFileStream* This) {
-    IOCFontFileStream* this = (IOCFontFileStream*)This;
+OC__IDWriteFontFileStream_Release(IDWriteFontFileStream* This) {
+    OC__IDWriteFontFileStream* this = (OC__IDWriteFontFileStream*)This;
 
     LONG refs = InterlockedDecrement(&this->ref_count);
     if (refs == 0) {
@@ -113,20 +112,20 @@ IOCFontFileStream_Release(IDWriteFontFileStream* This) {
 }
 
 static ULONG STDMETHODCALLTYPE
-IOCFontFileStream_AddRef(IDWriteFontFileStream* This) {
-    IOCFontFileStream* this = (IOCFontFileStream*)This;
+OC__IDWriteFontFileStream_AddRef(IDWriteFontFileStream* This) {
+    OC__IDWriteFontFileStream* this = (OC__IDWriteFontFileStream*)This;
     return InterlockedIncrement(&this->ref_count);
 }
 
 static HRESULT STDMETHODCALLTYPE
-IOCFontFileStream_QueryInterface(IDWriteFontFileStream* This, REFIID riid, void** ppvObject) {
+OC__IDWriteFontFileStream_QueryInterface(IDWriteFontFileStream* This, REFIID riid, void** ppvObject) {
     if (ppvObject == NULL) {
         return E_POINTER;
     }
     *ppvObject = NULL;
 
     if (IsEqualIID(riid, &IID_IUnknown) || IsEqualIID(riid, &IID_IDWriteFontFileStream)) {
-        IOCFontFileStream_AddRef(This);
+        OC__IDWriteFontFileStream_AddRef(This);
         *ppvObject = This;
         return S_OK;
     }
@@ -134,18 +133,18 @@ IOCFontFileStream_QueryInterface(IDWriteFontFileStream* This, REFIID riid, void*
     return E_NOINTERFACE;
 }
 
-static const IDWriteFontFileStreamVtbl IOCFontFileStreamVtbl = {
-    IOCFontFileStream_QueryInterface,
-    IOCFontFileStream_AddRef,
-    IOCFontFileStream_Release,
-    IOCFontFileStream_ReadFileFragment,
-    IOCFontFileStream_ReleaseFileFragment,
-    IOCFontFileStream_GetFileSize,
-    IOCFontFileStream_GetLastWriteTime,
+static const IDWriteFontFileStreamVtbl OC__IDWriteFontFileStreamVtbl = {
+    OC__IDWriteFontFileStream_QueryInterface,
+    OC__IDWriteFontFileStream_AddRef,
+    OC__IDWriteFontFileStream_Release,
+    OC__IDWriteFontFileStream_ReadFileFragment,
+    OC__IDWriteFontFileStream_ReleaseFileFragment,
+    OC__IDWriteFontFileStream_GetFileSize,
+    OC__IDWriteFontFileStream_GetLastWriteTime,
 };
 
 static HRESULT STDMETHODCALLTYPE
-IOCFontFileLoader_CreateStreamFromKey(IDWriteFontFileLoader* This, const void* key, UINT32 key_size, IDWriteFontFileStream** stream) {
+OC__IDWriteFontFileLoader_CreateStreamFromKey(IDWriteFontFileLoader* This, const void* key, UINT32 key_size, IDWriteFontFileStream** stream) {
     (void)This;
 
     if (stream == NULL) {
@@ -157,31 +156,31 @@ IOCFontFileLoader_CreateStreamFromKey(IDWriteFontFileLoader* This, const void* k
         return E_POINTER;
     }
 
-    if (key_size != sizeof(memory_view)) {
+    if (key_size != sizeof(oc__memory_view)) {
         return E_INVALIDARG;
     }
 
-    memory_view view = *(const memory_view*)key;
+    oc__memory_view view = *(const oc__memory_view*)key;
     if (view.data == NULL) {
         return E_INVALIDARG;
     }
 
-    IOCFontFileStream* ioc_font_file_stream = malloc(sizeof(IOCFontFileStream));
-    if (ioc_font_file_stream == NULL) {
+    OC__IDWriteFontFileStream* file_stream = malloc(sizeof(OC__IDWriteFontFileStream));
+    if (file_stream == NULL) {
         return E_OUTOFMEMORY;
     }
 
-    ioc_font_file_stream->lpVtbl = &IOCFontFileStreamVtbl;
-    ioc_font_file_stream->ref_count = 1;
-    ioc_font_file_stream->memory_view = view;
+    file_stream->lpVtbl = &OC__IDWriteFontFileStreamVtbl;
+    file_stream->ref_count = 1;
+    file_stream->memory_view = view;
 
-    *stream = (IDWriteFontFileStream*)ioc_font_file_stream;
+    *stream = (IDWriteFontFileStream*)file_stream;
     return S_OK;
 }
 
 static ULONG STDMETHODCALLTYPE
-IOCFontFileLoader_Release(IDWriteFontFileLoader* This) {
-    IOCFontFileLoader* this = (IOCFontFileLoader*)This;
+OC__IDWriteFontFileLoader_Release(IDWriteFontFileLoader* This) {
+    OC__IDWriteFontFileLoader* this = (OC__IDWriteFontFileLoader*)This;
 
     LONG refs = InterlockedDecrement(&this->ref_count);
     assert(refs != -1);
@@ -189,20 +188,20 @@ IOCFontFileLoader_Release(IDWriteFontFileLoader* This) {
 }
 
 static ULONG STDMETHODCALLTYPE
-IOCFontFileLoader_AddRef(IDWriteFontFileLoader* This) {
-    IOCFontFileStream* this = (IOCFontFileStream*)This;
+OC__IDWriteFontFileLoader_AddRef(IDWriteFontFileLoader* This) {
+    OC__IDWriteFontFileLoader* this = (OC__IDWriteFontFileLoader*)This;
     return InterlockedIncrement(&this->ref_count);
 }
 
 static HRESULT STDMETHODCALLTYPE
-IOCFontFileLoader_QueryInterface(IDWriteFontFileLoader* This, REFIID riid, void** ppvObject) {
+OC__IDWriteFontFileLoader_QueryInterface(IDWriteFontFileLoader* This, REFIID riid, void** ppvObject) {
     if (ppvObject == NULL) {
         return E_POINTER;
     }
     *ppvObject = NULL;
 
     if (IsEqualIID(riid, &IID_IUnknown) || IsEqualIID(riid, &IID_IDWriteFontFileLoader)) {
-        IOCFontFileLoader_AddRef(This);
+        OC__IDWriteFontFileLoader_AddRef(This);
         *ppvObject = This;
         return S_OK;
     }
@@ -210,23 +209,23 @@ IOCFontFileLoader_QueryInterface(IDWriteFontFileLoader* This, REFIID riid, void*
     return E_NOINTERFACE;
 }
 
-static const IDWriteFontFileLoaderVtbl IOCFontFileLoaderVtbl = {
-    IOCFontFileLoader_QueryInterface,
-    IOCFontFileLoader_AddRef,
-    IOCFontFileLoader_Release,
-    IOCFontFileLoader_CreateStreamFromKey
+static const IDWriteFontFileLoaderVtbl OC__IDWriteFontFileLoaderVtbl  = {
+    OC__IDWriteFontFileLoader_QueryInterface,
+    OC__IDWriteFontFileLoader_AddRef,
+    OC__IDWriteFontFileLoader_Release,
+    OC__IDWriteFontFileLoader_CreateStreamFromKey
 };
 
 static HRESULT STDMETHODCALLTYPE
-IOCSimplifiedGeometrySink_Close(ID2D1SimplifiedGeometrySink* This) {
+OC__ID2D1SimplifiedGeometrySink_Close(ID2D1SimplifiedGeometrySink* This) {
     (void)This;
     return S_OK;
 }
 
 static void STDMETHODCALLTYPE
-IOCSimplifiedGeometrySink_EndFigure(ID2D1SimplifiedGeometrySink* This, D2D1_FIGURE_END figureEnd) {
+OC__ID2D1SimplifiedGeometrySink_EndFigure(ID2D1SimplifiedGeometrySink* This, D2D1_FIGURE_END figureEnd) {
     (void)figureEnd;
-    IOCSimplifiedGeometrySink* this = (IOCSimplifiedGeometrySink*)This;
+    OC__ID2D1SimplifiedGeometrySink* this = (OC__ID2D1SimplifiedGeometrySink*)This;
 
     if (this->origin.x != this->start.x || this->origin.y != this->start.y) {
         oc_point point = { this->start.x, -this->start.y };
@@ -237,8 +236,8 @@ IOCSimplifiedGeometrySink_EndFigure(ID2D1SimplifiedGeometrySink* This, D2D1_FIGU
 }
 
 static void STDMETHODCALLTYPE
-IOCSimplifiedGeometrySink_AddBeziers(ID2D1SimplifiedGeometrySink* This, const D2D1_BEZIER_SEGMENT* beziers, UINT beziersCount) {
-    IOCSimplifiedGeometrySink* this = (IOCSimplifiedGeometrySink*)This;
+OC__ID2D1SimplifiedGeometrySink_AddBeziers(ID2D1SimplifiedGeometrySink* This, const D2D1_BEZIER_SEGMENT* beziers, UINT beziersCount) {
+    OC__ID2D1SimplifiedGeometrySink* this = (OC__ID2D1SimplifiedGeometrySink*)This;
 
     oc_point points[3];
     for (UINT32 i = 0; i < beziersCount; i++) {
@@ -259,8 +258,8 @@ IOCSimplifiedGeometrySink_AddBeziers(ID2D1SimplifiedGeometrySink* This, const D2
 }
 
 static void STDMETHODCALLTYPE
-IOCSimplifiedGeometrySink_AddLines(ID2D1SimplifiedGeometrySink* This, const D2D1_POINT_2F* points, UINT pointsCount) {
-    IOCSimplifiedGeometrySink* this = (IOCSimplifiedGeometrySink*)This;
+OC__ID2D1SimplifiedGeometrySink_AddLines(ID2D1SimplifiedGeometrySink* This, const D2D1_POINT_2F* points, UINT pointsCount) {
+    OC__ID2D1SimplifiedGeometrySink* this = (OC__ID2D1SimplifiedGeometrySink*)This;
 
     oc_point point;
     for (UINT32 i = 0; i < pointsCount; i++) {
@@ -274,9 +273,9 @@ IOCSimplifiedGeometrySink_AddLines(ID2D1SimplifiedGeometrySink* This, const D2D1
 }
 
 static void STDMETHODCALLTYPE
-IOCSimplifiedGeometrySink_BeginFigure(ID2D1SimplifiedGeometrySink* This, D2D1_POINT_2F startPoint, D2D1_FIGURE_BEGIN figureBegin) {
+OC__ID2D1SimplifiedGeometrySink_BeginFigure(ID2D1SimplifiedGeometrySink* This, D2D1_POINT_2F startPoint, D2D1_FIGURE_BEGIN figureBegin) {
     (void)figureBegin;
-    IOCSimplifiedGeometrySink* this = (IOCSimplifiedGeometrySink*)This;
+    OC__ID2D1SimplifiedGeometrySink* this = (OC__ID2D1SimplifiedGeometrySink*)This;
 
     oc_point point = { startPoint.x, -startPoint.y };
     this->funcs->start_figure(point, this->ctx);
@@ -285,20 +284,20 @@ IOCSimplifiedGeometrySink_BeginFigure(ID2D1SimplifiedGeometrySink* This, D2D1_PO
 }
 
 static void STDMETHODCALLTYPE
-IOCSimplifiedGeometrySink_SetSegmentFlags(ID2D1SimplifiedGeometrySink* This, D2D1_PATH_SEGMENT vertexFlags) {
+OC__ID2D1SimplifiedGeometrySink_SetSegmentFlags(ID2D1SimplifiedGeometrySink* This, D2D1_PATH_SEGMENT vertexFlags) {
     (void)This;
     (void)vertexFlags;
 }
 
 static void STDMETHODCALLTYPE
-IOCSimplifiedGeometrySink_SetFillMode(ID2D1SimplifiedGeometrySink* This, D2D1_FILL_MODE fillMode) {
+OC__ID2D1SimplifiedGeometrySink_SetFillMode(ID2D1SimplifiedGeometrySink* This, D2D1_FILL_MODE fillMode) {
     (void)This;
     (void)fillMode;
 };
 
 static ULONG STDMETHODCALLTYPE
-IOCSimplifiedGeometrySink_Release(IUnknown* This) {
-    IOCSimplifiedGeometrySink* this = (IOCSimplifiedGeometrySink*)This;
+OC__ID2D1SimplifiedGeometrySink_Release(IUnknown* This) {
+    OC__ID2D1SimplifiedGeometrySink* this = (OC__ID2D1SimplifiedGeometrySink*)This;
 
     LONG refs = InterlockedDecrement(&this->ref_count);
     assert(refs != -1);
@@ -306,20 +305,20 @@ IOCSimplifiedGeometrySink_Release(IUnknown* This) {
 }
 
 static ULONG STDMETHODCALLTYPE
-IOCSimplifiedGeometrySink_AddRef(IUnknown* This) {
-    IOCSimplifiedGeometrySink* this = (IOCSimplifiedGeometrySink*)This;
+OC__ID2D1SimplifiedGeometrySink_AddRef(IUnknown* This) {
+    OC__ID2D1SimplifiedGeometrySink* this = (OC__ID2D1SimplifiedGeometrySink*)This;
     return InterlockedIncrement(&this->ref_count);
 }
 
 static HRESULT STDMETHODCALLTYPE
-IOCSimplifiedGeometrySink_QueryInterface(IUnknown* This, REFIID riid, void** ppvObject) {
+OC__ID2D1SimplifiedGeometrySink_QueryInterface(IUnknown* This, REFIID riid, void** ppvObject) {
     if (ppvObject == NULL) {
         return E_POINTER;
     }
     *ppvObject = NULL;
 
     if (IsEqualIID(riid, &IID_IUnknown) || IsEqualIID(riid, &IID_IDWriteFontFileLoader)) {
-        IOCSimplifiedGeometrySink_AddRef(This);
+        OC__ID2D1SimplifiedGeometrySink_AddRef(This);
         *ppvObject = This;
         return S_OK;
     }
@@ -327,21 +326,21 @@ IOCSimplifiedGeometrySink_QueryInterface(IUnknown* This, REFIID riid, void** ppv
     return E_NOINTERFACE;
 }
 
-static const ID2D1SimplifiedGeometrySinkVtbl IOCSimplifiedGeometrySinkVtbl = {
-    { IOCSimplifiedGeometrySink_QueryInterface,
-        IOCSimplifiedGeometrySink_AddRef,
-        IOCSimplifiedGeometrySink_Release },
-    IOCSimplifiedGeometrySink_SetFillMode,
-    IOCSimplifiedGeometrySink_SetSegmentFlags,
-    IOCSimplifiedGeometrySink_BeginFigure,
-    IOCSimplifiedGeometrySink_AddLines,
-    IOCSimplifiedGeometrySink_AddBeziers,
-    IOCSimplifiedGeometrySink_EndFigure,
-    IOCSimplifiedGeometrySink_Close,
+static const ID2D1SimplifiedGeometrySinkVtbl OC__ID2D1SimplifiedGeometrySinkVtbl = {
+    { OC__ID2D1SimplifiedGeometrySink_QueryInterface,
+        OC__ID2D1SimplifiedGeometrySink_AddRef,
+        OC__ID2D1SimplifiedGeometrySink_Release },
+    OC__ID2D1SimplifiedGeometrySink_SetFillMode,
+    OC__ID2D1SimplifiedGeometrySink_SetSegmentFlags,
+    OC__ID2D1SimplifiedGeometrySink_BeginFigure,
+    OC__ID2D1SimplifiedGeometrySink_AddLines,
+    OC__ID2D1SimplifiedGeometrySink_AddBeziers,
+    OC__ID2D1SimplifiedGeometrySink_EndFigure,
+    OC__ID2D1SimplifiedGeometrySink_Close,
 };
 
-IOCFontFileLoader ioc_font_file_loader = { &IOCFontFileLoaderVtbl, 0 };
-IDWriteFontFileLoader* font_file_loader = (IDWriteFontFileLoader*)&ioc_font_file_loader;
+OC__IDWriteFontFileLoader oc__file_loader = { &OC__IDWriteFontFileLoaderVtbl, 0 };
+IDWriteFontFileLoader* oc__dw_file_loader = (IDWriteFontFileLoader*)&oc__file_loader;
 
 oc_error oc_init_library(oc_library* plibrary) {
     if (plibrary == NULL) {
@@ -362,28 +361,31 @@ oc_error oc_init_library(oc_library* plibrary) {
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return unexpected(err);
+        return oc_unexpected(err);
     }
 
-    err = dw_factory->lpVtbl->RegisterFontFileLoader(dw_factory, font_file_loader);
+    err = dw_factory->lpVtbl->RegisterFontFileLoader(dw_factory, oc__dw_file_loader);
     if (err != S_OK) {
         // DWRITE_E_ALREADYREGISTERED;
         dw_factory->lpVtbl->Release(dw_factory);
-        return unexpected(err);
+        return oc_unexpected(err);
     }
 
     plibrary->internals = dw_factory;
     return oc_error_ok;
 }
 
-inline void oc_free_library(oc_library library) {
-    DW(library)->lpVtbl->UnregisterFontFileLoader(DW(library), font_file_loader);
-    DW(library)->lpVtbl->Release(DW(library));
+void oc_free_library(oc_library library) {
+    IDWriteFactory* dw_factory = (IDWriteFactory*)library.internals;
+
+    dw_factory->lpVtbl->UnregisterFontFileLoader(dw_factory, oc__dw_file_loader);
+    dw_factory->lpVtbl->Release(dw_factory);
 }
 
-static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* font_file, const oc_open_params* pparams, oc_face* pface) {
+static oc_error oc__open_face_from_font_file(oc_library library, IDWriteFontFile* font_file, const oc_open_params* pparams, oc_face* pface) {
     HRESULT err;
     WINBOOL is_supported_fonttype;
+    IDWriteFactory* dw_factory;
 
     DWRITE_FONT_FILE_TYPE file_type;
     DWRITE_FONT_FACE_TYPE face_type;
@@ -403,7 +405,7 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return unexpected(err);
+        return oc_unexpected(err);
     }
 
     if (!is_supported_fonttype) {
@@ -411,11 +413,13 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
     }
 
     IDWriteFontFace* dw_font_face;
-    oc_open_params params = fill_face_params(pparams);
+    oc_open_params params = oc_open_params_defaults(pparams);
+
+    dw_factory = (IDWriteFactory*)library.internals;
 
     // todo: we should handle simulations
-    err = DW(library)->lpVtbl->CreateFontFace(
-        DW(library),
+    err = dw_factory->lpVtbl->CreateFontFace(
+        dw_factory,
         face_type,
         1,
         &font_file,
@@ -431,20 +435,17 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return unexpected(err);
+        return oc_unexpected(err);
     }
 
-    // dw_font_face needs to have ref to dw_library
-    // alloc struct { dw_font_face, dw_library }
-
-    struct face_internals* internals = malloc(sizeof(struct face_internals));
-    if (internals == NULL) {
+    oc_face_impl* impl = malloc(sizeof(oc_face_impl));
+    if (impl == NULL) {
         dw_font_face->lpVtbl->Release(dw_font_face);
         return oc_error_out_of_memory;
     }
 
-    internals->face = dw_font_face;
-    internals->library = DW(library);
+    impl->dw_face = dw_font_face;
+    impl->dw_factory = dw_factory;
 
     DWRITE_FONT_METRICS metrics;
     dw_font_face->lpVtbl->GetMetrics(dw_font_face, &metrics);
@@ -462,7 +463,7 @@ static oc_error open_face_from_font_file(oc_library library, IDWriteFontFile* fo
         return oc_error_invalid_param;
     }
 
-    pface->internals = internals;
+    pface->impl = impl;
     pface->metrics.upem = metrics.designUnitsPerEm;
     pface->metrics.ppem = (uint16_t)ppem;
     pface->metrics.scale = scale;
@@ -505,8 +506,10 @@ oc_error oc_open_face(oc_library library, const char* path, const oc_open_params
     assert(ok != 0);
 
     IDWriteFontFile* font_file;
-    err = DW(library)->lpVtbl->CreateFontFileReference(
-        DW(library),
+    IDWriteFactory* dw_factory = library.internals;
+
+    err = dw_factory->lpVtbl->CreateFontFileReference(
+        dw_factory,
         wpath,
         NULL,
         &font_file);
@@ -520,10 +523,10 @@ oc_error oc_open_face(oc_library library, const char* path, const oc_open_params
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return unexpected(err);
+        return oc_unexpected(err);
     }
 
-    oc_error result = open_face_from_font_file(library, font_file, pparams, pface);
+    oc_error result = oc__open_face_from_font_file(library, font_file, pparams, pface);
     font_file->lpVtbl->Release(font_file);
 
     return result;
@@ -540,14 +543,15 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
 
     HRESULT err;
     IDWriteFontFile* font_file;
+    IDWriteFactory* dw_factory = library.internals;
 
-    memory_view key = { data, size };
+    oc__memory_view key = { data, size };
 
-    err = DW(library)->lpVtbl->CreateCustomFontFileReference(
-        DW(library),
+    err = dw_factory->lpVtbl->CreateCustomFontFileReference(
+        dw_factory,
         &key,
-        sizeof(memory_view),
-        font_file_loader,
+        sizeof(key),
+        oc__dw_file_loader,
         &font_file);
 
     switch (err) {
@@ -556,32 +560,32 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return unexpected(err);
+        return oc_unexpected(err);
     }
 
-    oc_error result = open_face_from_font_file(library, font_file, pparams, pface);
+    oc_error result = oc__open_face_from_font_file(library, font_file, pparams, pface);
     font_file->lpVtbl->Release(font_file);
 
     return result;
 }
 
 void oc_free_face(oc_face face) {
-    DW(face)->lpVtbl->Release(DW(face));
-    free(face.internals);
+    face.impl->dw_face->lpVtbl->Release(face.impl->dw_face);
+    free(face.impl);
 }
 
 uint16_t oc_get_char_index(oc_face face, uint32_t charcode) {
     UINT16 index;
+    IDWriteFontFace* dw_face = face.impl->dw_face;
 
-    HRESULT err = DW(face)->lpVtbl->GetGlyphIndices(
-        DW(face),
+    HRESULT err = dw_face->lpVtbl->GetGlyphIndices(
+        dw_face,
         &charcode,
         1,
         &index);
-
     (void)err;
-    assert(err == S_OK);
 
+    assert(err == S_OK);
     return index;
 }
 
@@ -596,8 +600,8 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pc
     void* context;
     WINBOOL exists;
 
-    HRESULT err = DW(face)->lpVtbl->TryGetFontTable(
-        DW(face),
+    HRESULT err = face.impl->dw_face->lpVtbl->TryGetFontTable(
+        face.impl->dw_face,
         _byteswap_ulong(tag), // swapping bytes because windows table tags are little-endian
         &table_data,
         &table_size,
@@ -610,7 +614,7 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pc
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return unexpected(err);
+        return oc_unexpected(err);
     }
 
     if (exists == FALSE) {
@@ -628,7 +632,7 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pc
 }
 
 inline void oc_free_table(oc_face face, void* context) {
-    DW(face)->lpVtbl->ReleaseFontTable(DW(face), context);
+    face.impl->dw_face->lpVtbl->ReleaseFontTable(face.impl->dw_face, context);
 }
 
 // static void fit_metrics(oc_glyph_metrics* pmetrics) {
@@ -651,16 +655,17 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
 
     oc_glyph_metrics metrics;
     DWRITE_GLYPH_METRICS dw_metrics;
+    IDWriteFontFace* dw_face = face.impl->dw_face;
 
     // for some reason GetDesignGlyphMetrics does not catch invalid glyph index
-    UINT16 glyph_count = DW(face)->lpVtbl->GetGlyphCount(DW(face));
+    UINT16 glyph_count = dw_face->lpVtbl->GetGlyphCount(dw_face);
     if (glyph_index >= glyph_count) {
         memset(pmetrics, 0, sizeof(oc_glyph_metrics));
         return;
     }
 
-    HRESULT err = DW(face)->lpVtbl->GetDesignGlyphMetrics(
-        DW(face),
+    HRESULT err = dw_face->lpVtbl->GetDesignGlyphMetrics(
+        dw_face,
         &glyph_index,
         1,
         &dw_metrics,
@@ -701,15 +706,16 @@ void oc_get_glyph_bbox(oc_face face, uint16_t glyph_index, oc_load_flags flags, 
 
     oc_bbox bbox;
     DWRITE_GLYPH_METRICS metrics;
+    IDWriteFontFace* dw_face = face.impl->dw_face;
 
-    UINT16 glyph_count = DW(face)->lpVtbl->GetGlyphCount(DW(face));
+    UINT16 glyph_count = dw_face->lpVtbl->GetGlyphCount(dw_face);
     if (glyph_index >= glyph_count) {
         memset(pbbox, 0, sizeof(oc_bbox));
         return;
     }
 
-    HRESULT err = DW(face)->lpVtbl->GetDesignGlyphMetrics(
-        DW(face),
+    HRESULT err = dw_face->lpVtbl->GetDesignGlyphMetrics(
+        dw_face,
         &glyph_index,
         1,
         &metrics,
@@ -740,17 +746,14 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
         return false;
     }
 
-    IOCSimplifiedGeometrySink ioc_simplified_geometry_sink = { 0 };
-    ioc_simplified_geometry_sink.lpVtbl = &IOCSimplifiedGeometrySinkVtbl;
-    ioc_simplified_geometry_sink.funcs = outline_funcs;
-    ioc_simplified_geometry_sink.ref_count = 1;
-    ioc_simplified_geometry_sink.ctx = context;
+    OC__ID2D1SimplifiedGeometrySink geometry_sink = { 0 };
+    geometry_sink.lpVtbl = &OC__ID2D1SimplifiedGeometrySinkVtbl;
+    geometry_sink.funcs = outline_funcs;
+    geometry_sink.ref_count = 1;
+    geometry_sink.ctx = context;
 
-    IDWriteGeometrySink* geometry_sink = (IDWriteGeometrySink*)&ioc_simplified_geometry_sink;
-
-    // dwrite does not call line_to at the end to the beg
-    HRESULT err = DW(face)->lpVtbl->GetGlyphRunOutline(
-        DW(face),
+    HRESULT err = face.impl->dw_face->lpVtbl->GetGlyphRunOutline(
+        face.impl->dw_face,
         face.metrics.upem,
         &glyph_index,
         NULL,
@@ -758,13 +761,13 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
         1,
         FALSE,
         FALSE,
-        geometry_sink);
+        (IDWriteGeometrySink*)&geometry_sink);
 
     if (err != S_OK) {
         return false;
     }
 
-    ULONG refs = geometry_sink->lpVtbl->Base.Release((IUnknown*)geometry_sink);
+    ULONG refs = geometry_sink.lpVtbl->Base.Release((IUnknown*)&geometry_sink);
 
     (void)refs;
     assert(refs == 0);
@@ -775,15 +778,16 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
 // todo: check this rendering thingy as smth is a bit off with dwrite
 //       it seems dwrite does hard edges, idk if we can change that
 oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, unsigned char* buffer, size_t buffer_size) {
-    IDWriteFactory* library = ((struct face_internals*)face.internals)->library;
     HRESULT err;
+    IDWriteFontFace* dw_face = face.impl->dw_face;
+    IDWriteFactory* dw_factory = face.impl->dw_factory;
 
     if (psize == NULL) {
         return oc_error_invalid_param;
     }
 
     // for some reason GetDesignGlyphMetrics does not catch invalid glyph index
-    UINT16 glyph_count = DW(face)->lpVtbl->GetGlyphCount(DW(face));
+    UINT16 glyph_count = dw_face->lpVtbl->GetGlyphCount(dw_face);
     if (glyph_index >= glyph_count) {
         return oc_error_invalid_param;
     }
@@ -819,14 +823,14 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
     oc_26p6 em_size = oc_mul_16p16(face.metrics.upem, face.metrics.scale);
 
     DWRITE_GLYPH_RUN glyph_run = { 0 };
-    glyph_run.fontFace = DW(face);
+    glyph_run.fontFace = dw_face;
     glyph_run.fontEmSize = em_size / 64.0f;
     glyph_run.glyphCount = 1;
     glyph_run.glyphIndices = &glyph_index;
 
     IDWriteGlyphRunAnalysis* analysis;
-    err = library->lpVtbl->CreateGlyphRunAnalysis(
-        library,
+    err = dw_factory->lpVtbl->CreateGlyphRunAnalysis(
+        dw_factory,
         &glyph_run,
         1.0f,
         &transform,
@@ -841,7 +845,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
     case E_OUTOFMEMORY:
         return oc_error_out_of_memory;
     default:
-        return unexpected(err);
+        return oc_unexpected(err);
     }
 
     psize->rows = rows;
@@ -882,7 +886,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
 
     if (err != S_OK) {
         free(buffer_3x);
-        return unexpected(err);
+        return oc_unexpected(err);
     }
 
     for (uint32_t i = 0; i < rows * cols; i++) {
@@ -896,5 +900,3 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
     free(buffer_3x);
     return oc_error_ok;
 }
-
-#endif // ONECORE_DWRITE

@@ -250,15 +250,12 @@ oc_mul_16p16(oc_16p16 a, oc_16p16 b);
 /*                                                                                                    */
 /******************************************************************************************************/
 
-// todo: add a builder as this is kinda hard to navigate
-
-#if defined(ONECORE_FREETYPE_IMPLEMENTATION) && !defined(ONECORE_IMPLEMENTATION)
-#define ONECORE_IMPLEMENTATION
+#ifdef ONECORE_NATIVE_IMPLEMENTATION
 #endif
 
-#ifdef ONECORE_IMPLEMENTATION
-
-#endif /* ONECORE_IMPLEMENTATION */
+#if (defined(ONECORE_FREETYPE_IMPLEMENTATION) || defined(ONECORE_DIRECTWRITE_IMPLEMENTATION)) && !defined(ONECORE_IMPLEMENTATION)
+#define ONECORE_IMPLEMENTATION
+#endif
 
 // ONECORE_???_FREETYPE_IMPLEMENTATION
 // ONECORE_???_CORETEXT_IMPLEMENTATION
@@ -268,5 +265,11 @@ oc_mul_16p16(oc_16p16 a, oc_16p16 b);
 // ONECORE_???_CORETEXT_IMPLEMENTATION
 // ONECORE_???_DIRECTWRITE_IMPLEMENTATION
 
+#ifdef ONECORE_IMPLEMENTATION
+#endif /* ONECORE_IMPLEMENTATION */
+
 #ifdef ONECORE_FREETYPE_IMPLEMENTATION
 #endif /* ONECORE_FREETYPE_IMPLEMENTATION */
+
+#ifdef ONECORE_DIRECTWRITE_IMPLEMENTATION
+#endif /* ONECORE_DIRECTWRITE_IMPLEMENTATION */

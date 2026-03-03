@@ -36,6 +36,7 @@ pub fn build(b: *std.Build) void {
     // lib_tests.root_module.linkLibrary(onecore);
     lib_tests.root_module.linkLibrary(unity);
     lib_tests.root_module.linkSystemLibrary("freetype2", .{});
+    // lib_tests.root_module.linkSystemLibrary("dwrite", .{});
 
     lib_tests.root_module.addIncludePath(b.path("test/src"));
     lib_tests.root_module.addIncludePath(b.path(""));
@@ -49,6 +50,7 @@ pub fn build(b: *std.Build) void {
             "-Wall",
             "-Wextra",
             "-Werror",
+            "-std=c99",
         },
     });
 
@@ -66,9 +68,12 @@ pub fn build(b: *std.Build) void {
     });
 
     example.root_module.link_libc = true;
+    example.root_module.linkSystemLibrary("freetype2", .{});
     // example.root_module.linkLibrary(onecore);
 
     example.root_module.addIncludePath(b.path("examples"));
+    example.root_module.addIncludePath(b.path(""));
+
     example.root_module.addCSourceFile(.{ .file = b.path("examples/render_to_image.c") });
 
     const install_example = b.addInstallArtifact(example, .{});

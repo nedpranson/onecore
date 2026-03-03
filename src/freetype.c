@@ -1,5 +1,5 @@
 #define ONECORE_IMPLEMENTATION
-#include "onecore.h"
+#include <onecore.h>
 
 /* ONECORE_FREETYPE_IMPLEMENTATION */
 #include <ft2build.h>
@@ -261,7 +261,7 @@ static int oc_line_to(const FT_Vector* x2to, void* user) {
     return 0;
 }
 
-typedef struct point_2f {
+typedef struct point_2f { // todo: rename to oc__point_2f
     float x;
     float y;
 } point_2f;

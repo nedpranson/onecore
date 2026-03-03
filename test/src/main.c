@@ -2,7 +2,12 @@
 #include <string.h>
 #include <unity.h>
 
+#if defined(_MSC_VER) || defined(__MINGW32__)
+#define ONECORE_DIRECTWRITE_IMPLEMENTATION
+#else
 #define ONECORE_FREETYPE_IMPLEMENTATION
+#endif
+
 #include <onecore.h>
 
 oc_library g_library;

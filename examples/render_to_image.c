@@ -1,5 +1,7 @@
+
+// #define ONECORE_NATIVE_IMPLEMENTATION
+#define ONECORE_FREETYPE_IMPLEMENTATION
 #include <onecore.h>
-#include <stdio.h>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
