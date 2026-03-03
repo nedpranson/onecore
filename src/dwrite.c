@@ -2,6 +2,7 @@
 #include <onecore.h>
 
 /* ONECORE_DIRECTWRITE_IMPLEMENTATION */
+#include <assert.h>
 #include <initguid.h>
 
 #include <d2d1.h>
@@ -413,7 +414,7 @@ static oc_error oc__open_face_from_font_file(oc_library library, IDWriteFontFile
     }
 
     IDWriteFontFace* dw_font_face;
-    oc_open_params params = oc_open_params_defaults(pparams);
+    oc_open_params params = oc__open_params_defaults(pparams);
 
     dw_factory = (IDWriteFactory*)library.internals;
 

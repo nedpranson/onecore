@@ -1,9 +1,8 @@
-#include "onecore.h"
-#include "shared.h"
-#ifdef ONECORE_CORETEXT
+#define ONECORE_IMPLEMENTATION
+#include <onecore.h>
 
+/* ONECORE_CORETEXT_IMPLEMENTATION */
 #include <CoreText/CoreText.h>
-#include <math.h>
 
 inline oc_error oc_init_library(oc_library* plibrary) {
     return plibrary == NULL ? oc_error_invalid_param : oc_error_ok;
@@ -13,13 +12,13 @@ inline void oc_free_library(oc_library library) {
     (void)library;
 }
 
-static oc_error open_face_from_descriptors(CFArrayRef cf_descriptors_ref, const oc_open_params* pparams, oc_face* pface) {
+static oc_error oc__open_face_from_descriptors(CFArrayRef cf_descriptors_ref, const oc_open_params* pparams, oc_face* pface) {
     CFIndex count = CFArrayGetCount(cf_descriptors_ref);
     if (count == 0) {
         return oc_error_failed_to_open;
     }
 
-    oc_open_params params = fill_face_params(pparams);
+    oc_open_params params = oc__open_params_defaults(pparams);
     if (params.face_index >= count) {
         return oc_error_invalid_param;
     }
@@ -30,30 +29,30 @@ static oc_error open_face_from_descriptors(CFArrayRef cf_descriptors_ref, const 
     }
 
     oc_16p16 scaled = (params.desired_size * params.dpi + 36) / 72;
-    CTFontRef ctf_font_ref = CTFontCreateWithFontDescriptor(ctf_descriptor_ref, scaled / 64.0, NULL);
-    if (ctf_font_ref == NULL) {
+    CTFontRef ct_font_ref = CTFontCreateWithFontDescriptor(ctf_descriptor_ref, scaled / 64.0, NULL);
+    if (ct_font_ref == NULL) {
         return oc_error_out_of_memory;
     }
 
-    oc_16p16 scale = oc_div_16p16(scaled, CTFontGetUnitsPerEm(ctf_font_ref));
+    oc_16p16 scale = oc_div_16p16(scaled, CTFontGetUnitsPerEm(ct_font_ref));
     int32_t ppem = (scaled + 32) >> 6;
     if (ppem > UINT16_MAX) {
         // todo: add this test case
         return oc_error_invalid_param;
     }
 
-    CGFloat size = CTFontGetSize(ctf_font_ref);
-    uint16_t upem = CTFontGetUnitsPerEm(ctf_font_ref);
+    CGFloat size = CTFontGetSize(ct_font_ref);
+    uint16_t upem = CTFontGetUnitsPerEm(ct_font_ref);
 
-    pface->internals = (void*)ctf_font_ref;
+    pface->impl = (oc_face_impl*)ct_font_ref;
     pface->metrics.upem = upem;
     pface->metrics.ppem = ppem;
     pface->metrics.scale = scale;
-    pface->metrics.ascent = (CTFontGetAscent(ctf_font_ref) * upem / size);
-    pface->metrics.descent = (CTFontGetDescent(ctf_font_ref) * upem / size);
-    pface->metrics.leading = (CTFontGetLeading(ctf_font_ref) * upem / size);
-    pface->metrics.underline_position = (CTFontGetUnderlinePosition(ctf_font_ref) * upem / size);
-    pface->metrics.underline_thickness = (CTFontGetUnderlineThickness(ctf_font_ref) * upem / size);
+    pface->metrics.ascent = (CTFontGetAscent(ct_font_ref) * upem / size);
+    pface->metrics.descent = (CTFontGetDescent(ct_font_ref) * upem / size);
+    pface->metrics.leading = (CTFontGetLeading(ct_font_ref) * upem / size);
+    pface->metrics.underline_position = (CTFontGetUnderlinePosition(ct_font_ref) * upem / size);
+    pface->metrics.underline_thickness = (CTFontGetUnderlineThickness(ct_font_ref) * upem / size);
 
     return oc_error_ok;
 }
@@ -89,7 +88,7 @@ oc_error oc_open_face(oc_library library, const char* path, const oc_open_params
         return oc_error_failed_to_open;
     }
 
-    oc_error err = open_face_from_descriptors(cf_descriptors_ref, pparams, pface);
+    oc_error err = oc__open_face_from_descriptors(cf_descriptors_ref, pparams, pface);
     CFRelease(cf_descriptors_ref);
 
     return err;
@@ -118,17 +117,19 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
         return oc_error_failed_to_open;
     }
 
-    oc_error err = open_face_from_descriptors(cf_descriptors_ref, pparams, pface);
+    oc_error err = oc__open_face_from_descriptors(cf_descriptors_ref, pparams, pface);
     CFRelease(cf_descriptors_ref);
 
     return err;
 }
 
 void oc_free_face(oc_face face) {
-    CFRelease(face.internals);
+    CFRelease(face.impl);
 }
 
 uint16_t oc_get_char_index(oc_face face, uint32_t charcode) {
+    CTFontRef ct_font = (CTFontRef)face.impl;
+
     if (charcode > 0x10FFFF) {
         return 0;
     }
@@ -154,7 +155,7 @@ uint16_t oc_get_char_index(oc_face face, uint32_t charcode) {
     // cg_glyph[0] will always be set by Core Text no matter the status
     // thus we can ignore returned value
     CTFontGetGlyphsForCharacters(
-        face.internals,
+        ct_font,
         uni_char,
         cg_glyph,
         cg_glyph[1]);
@@ -167,7 +168,9 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pc
         return oc_error_invalid_param;
     }
 
-    CFDataRef cf_data_ref = CTFontCopyTable(face.internals, tag, kCTFontTableOptionNoOptions);
+
+    CTFontRef ct_font = (CTFontRef)face.impl;
+    CFDataRef cf_data_ref = CTFontCopyTable(ct_font, tag, kCTFontTableOptionNoOptions);
     if (cf_data_ref == NULL) {
         // todo: fix this it can be oom error
         return oc_error_table_missing;
@@ -194,19 +197,20 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
     }
 
     oc_glyph_metrics metrics;
+    CTFontRef ct_font = (CTFontRef)face.impl;
 
-    CFIndex glyph_count = CTFontGetGlyphCount(face.internals);
+    CFIndex glyph_count = CTFontGetGlyphCount(ct_font);
     if (glyph_index >= glyph_count) {
         memset(pmetrics, 0, sizeof(oc_glyph_metrics));
         return;
     }
 
     CGSize advance;
-    CTFontGetAdvancesForGlyphs(face.internals, kCTFontOrientationHorizontal, &glyph_index, &advance, 1);
+    CTFontGetAdvancesForGlyphs(ct_font, kCTFontOrientationHorizontal, &glyph_index, &advance, 1);
 
-    CGRect bbox = CTFontGetBoundingRectsForGlyphs(face.internals, kCTFontOrientationHorizontal, &glyph_index, NULL, 1);
+    CGRect bbox = CTFontGetBoundingRectsForGlyphs(ct_font, kCTFontOrientationHorizontal, &glyph_index, NULL, 1);
 
-    CGFloat size = CTFontGetSize(face.internals);
+    CGFloat size = CTFontGetSize(ct_font);
     uint16_t upem = face.metrics.upem;
 
     metrics.width = bbox.size.width * upem / size;
@@ -237,15 +241,16 @@ void oc_get_glyph_bbox(oc_face face, uint16_t glyph_index, oc_load_flags flags, 
 
     oc_bbox bbox;
     CGRect rect;
+    CTFontRef ct_font = (CTFontRef)face.impl;
 
     CTFontGetBoundingRectsForGlyphs(
-        face.internals,
+        ct_font,
         kCTFontOrientationHorizontal,
         &glyph_index,
         &rect,
         1);
 
-    CGFloat size = CTFontGetSize(face.internals);
+    CGFloat size = CTFontGetSize(ct_font);
     uint16_t upem = face.metrics.upem;
 
     bbox.min_x = CGRectGetMinX(rect) * upem / size;
@@ -267,22 +272,22 @@ done:
     *pbbox = bbox;
 }
 
-typedef struct point_2f {
+typedef struct {
     float x;
     float y;
-} point_2f;
+} oc__point_2f;
 
-typedef struct outline_context {
+typedef struct {
     const oc_outline_funcs* funcs;
     void* ctx;
     CGPoint start;
     CGPoint origin;
     CGFloat fsize;
     CGFloat funits_per_em;
-} outline_context;
+} oc__outline_context;
 
-static void oc_path_applier(void* info, const CGPathElement* element) {
-    outline_context* ctx = (outline_context*)info;
+static void oc__path_applier(void* info, const CGPathElement* element) {
+    oc__outline_context* ctx = (oc__outline_context*)info;
     CGFloat fppem = ctx->fsize;
     CGFloat fupem = ctx->funits_per_em;
 
@@ -307,11 +312,11 @@ static void oc_path_applier(void* info, const CGPathElement* element) {
         ctx->origin = element->points[0];
     } break;
     case kCGPathElementAddQuadCurveToPoint: {
-        point_2f forigin = { ctx->origin.x * fupem / fppem, ctx->origin.y * fupem / fppem };
-        point_2f fcontrol = { element->points[0].x * fupem / fppem, element->points[0].y * fupem / fppem };
-        point_2f fto = { element->points[1].x * fupem / fppem, element->points[1].y * fupem / fppem };
+        oc__point_2f forigin = { ctx->origin.x * fupem / fppem, ctx->origin.y * fupem / fppem };
+        oc__point_2f fcontrol = { element->points[0].x * fupem / fppem, element->points[0].y * fupem / fppem };
+        oc__point_2f fto = { element->points[1].x * fupem / fppem, element->points[1].y * fupem / fppem };
 
-        point_2f cubic[2];
+        oc__point_2f cubic[2];
         cubic[0].x = forigin.x + 2.0f * (fcontrol.x - forigin.x) / 3.0f;
         cubic[0].y = forigin.y + 2.0f * (fcontrol.y - forigin.y) / 3.0f;
         cubic[1].x = fto.x + 2.0f * (fcontrol.x - fto.x) / 3.0f;
@@ -352,18 +357,19 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
         return false;
     }
 
-    CGPathRef path = CTFontCreatePathForGlyph(face.internals, glyph_index, NULL);
+    CTFontRef ct_font = (CTFontRef)face.impl;
+    CGPathRef path = CTFontCreatePathForGlyph(ct_font, glyph_index, NULL);
     if (path == NULL) {
         return false;
     }
 
-    outline_context ctx = { 0 };
+    oc__outline_context ctx = { 0 };
     ctx.funcs = outline_funcs;
     ctx.ctx = context;
-    ctx.fsize = CTFontGetSize(face.internals);
-    ctx.funits_per_em = CTFontGetUnitsPerEm(face.internals);
+    ctx.fsize = CTFontGetSize(ct_font);
+    ctx.funits_per_em = CTFontGetUnitsPerEm(ct_font);
 
-    CGPathApply(path, &ctx, oc_path_applier);
+    CGPathApply(path, &ctx, oc__path_applier);
     CGPathRelease(path);
 
     return true;
@@ -375,7 +381,8 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
         return oc_error_invalid_param;
     }
 
-    CFIndex glyph_count = CTFontGetGlyphCount(face.internals);
+    CTFontRef ct_font = (CTFontRef)face.impl;
+    CFIndex glyph_count = CTFontGetGlyphCount(ct_font);
     if (glyph_index >= glyph_count) {
         return oc_error_invalid_param;
     }
@@ -466,7 +473,7 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
     };
 
     CTFontDrawGlyphs(
-        face.internals,
+        ct_font,
         &glyph_index,
         &pos,
         1,
@@ -475,5 +482,3 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
 
     return oc_error_ok;
 }
-
-#endif // ONECORE_CORETEXT

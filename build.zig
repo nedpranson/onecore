@@ -33,10 +33,21 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    // lib_tests.root_module.linkLibrary(onecore);
+    switch (target.result.os.tag) {
+        .windows => lib_tests.root_module.linkSystemLibrary("dwrite", .{}),
+        .ios,
+        .macos,
+        .tvos,
+        .visionos,
+        .watchos => {
+            lib_tests.root_module.linkFramework("CoreFoundation", .{});
+            lib_tests.root_module.linkFramework("CoreGraphics", .{});
+            lib_tests.root_module.linkFramework("CoreText", .{});
+        },
+        else => lib_tests.root_module.linkSystemLibrary("freetype2", .{}),
+    }
+
     lib_tests.root_module.linkLibrary(unity);
-    lib_tests.root_module.linkSystemLibrary("freetype2", .{});
-    // lib_tests.root_module.linkSystemLibrary("dwrite", .{});
 
     lib_tests.root_module.addIncludePath(b.path("test/src"));
     lib_tests.root_module.addIncludePath(b.path(""));

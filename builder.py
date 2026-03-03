@@ -9,6 +9,7 @@ onecore_h = source_dir / "onecore.h"
 sources = [
     (source_dir / "shared.c", "ONECORE_IMPLEMENTATION"),
     (source_dir / "freetype.c", "ONECORE_FREETYPE_IMPLEMENTATION"),
+    (source_dir / "coretext.c", "ONECORE_CORETEXT_IMPLEMENTATION"),
     (source_dir / "dwrite.c", "ONECORE_DIRECTWRITE_IMPLEMENTATION"),
 ]
 

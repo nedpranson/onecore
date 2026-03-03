@@ -4,6 +4,8 @@
 
 #if defined(_MSC_VER) || defined(__MINGW32__)
 #define ONECORE_DIRECTWRITE_IMPLEMENTATION
+#elif defined(__APPLE__)
+#define ONECORE_CORETEXT_IMPLEMENTATION
 #else
 #define ONECORE_FREETYPE_IMPLEMENTATION
 #endif
