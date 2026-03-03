@@ -250,6 +250,7 @@ oc_mul_16p16(oc_16p16 a, oc_16p16 b);
 /*                                                                                                    */
 /******************************************************************************************************/
 
+// how to dorce like freetype with dwrite
 // ONECORE_FORCE_FREETYPE
 // ONECORE_FORCE_CORETEXT
 // ONECORE_FORCE_DIRECTWRITE

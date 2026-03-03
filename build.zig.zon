@@ -18,12 +18,6 @@
         },
     },
     .minimum_zig_version = "0.15.2",
-    .paths = .{
-        "build.zig",
-        "build.zig.zon",
-        "build",
-        "include",
-        "src",
-    },
+    .paths = .{"onecore.h"},
     .fingerprint = 0xc9772f36a7d8b35b,
 }

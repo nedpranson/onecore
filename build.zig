@@ -1,29 +1,36 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const libonecore = @import("build/libonecore.zig");
-const libunity = @import("build/libunity.zig");
+
+pub const FontBackend = enum {
+    FreeType,
+    CoreText,
+    DirectWrite,
+
+    pub fn default(target: std.Target) FontBackend {
+        return switch (target.os.tag) {
+            .windows => .DirectWrite,
+            // .driverkit, does not have ct
+            .ios,
+            .macos,
+            .tvos,
+            .visionos,
+            .watchos => .CoreText,
+            else => .FreeType,
+        };
+    }
+};
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // const font_backend = b.option(
-    //     libonecore.FontBackend,
-    //     "font-backend",
-    //     "The font backend to use for parsing and rasterization.",
-    // );
+    const font_backend = b.option(
+        FontBackend,
+        "font-backend",
+        "The font backend to use for parsing and rasterization.",
+    ) orelse FontBackend.default(target.result);
 
-    // const onecore = libonecore.buildLibrary(b, .{
-    //     .target = target,
-    //     .optimize = optimize,
-    //     .font_backend = font_backend,
-    // });
-    // b.installArtifact(onecore);
-
-    const unity = libunity.buildLibrary(b, .{
-        .target = target,
-        .optimize = optimize,
-    });
+    const unity = b.dependency("unity", .{});
 
     const lib_tests = b.addExecutable(.{
         .name = "test",
@@ -33,30 +40,26 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    switch (target.result.os.tag) {
-        .windows => lib_tests.root_module.linkSystemLibrary("dwrite", .{}),
-        .ios,
-        .macos,
-        .tvos,
-        .visionos,
-        .watchos => {
+    lib_tests.root_module.link_libc = true;
+
+    switch (font_backend) {
+        .FreeType => lib_tests.root_module.linkSystemLibrary("freetype2", .{}),
+        .DirectWrite => lib_tests.root_module.linkSystemLibrary("dwrite", .{}),
+        .CoreText => {
             lib_tests.root_module.linkFramework("CoreFoundation", .{});
             lib_tests.root_module.linkFramework("CoreGraphics", .{});
             lib_tests.root_module.linkFramework("CoreText", .{});
         },
-        else => lib_tests.root_module.linkSystemLibrary("freetype2", .{}),
     }
 
-    lib_tests.root_module.linkLibrary(unity);
+    lib_tests.root_module.addIncludePath(unity.path("src"));
+    lib_tests.root_module.addCSourceFile(.{ .file = unity.path("src/unity.c") });
 
     lib_tests.root_module.addIncludePath(b.path("test/src"));
     lib_tests.root_module.addIncludePath(b.path(""));
 
-    lib_tests.root_module.addCSourceFiles(.{
-        .root = b.path("test/src"),
-        .files = &.{
-            "main.c",
-        },
+    lib_tests.root_module.addCSourceFile(.{
+        .file = b.path("test/src/main.c"),
         .flags = &.{
             "-Wall",
             "-Wextra",
@@ -79,8 +82,16 @@ pub fn build(b: *std.Build) void {
     });
 
     example.root_module.link_libc = true;
-    example.root_module.linkSystemLibrary("freetype2", .{});
-    // example.root_module.linkLibrary(onecore);
+
+    switch (font_backend) {
+        .FreeType => example.root_module.linkSystemLibrary("freetype2", .{}),
+        .DirectWrite => example.root_module.linkSystemLibrary("dwrite", .{}),
+        .CoreText => {
+            example.root_module.linkFramework("CoreFoundation", .{});
+            example.root_module.linkFramework("CoreGraphics", .{});
+            example.root_module.linkFramework("CoreText", .{});
+        },
+    }
 
     example.root_module.addIncludePath(b.path("examples"));
     example.root_module.addIncludePath(b.path(""));
