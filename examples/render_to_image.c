@@ -15,12 +15,8 @@ int main() {
         return 1;
     }
 
-    oc_open_params open_params = { 0 };
-    open_params.desired_size = 12 << 6;
-    open_params.dpi = 96;
-
     oc_face face;
-    if ((err = oc_open_face(&library, "test/files/arial.ttf", &open_params, &face))) {
+    if ((err = oc_open_face(&library, "test/files/arial.ttf", NULL, &face))) {
         oc_free_library(&library);
         printf("oc_open_face: %s\n", oc_strerror(err));
         return 1;

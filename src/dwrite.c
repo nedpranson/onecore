@@ -1,3 +1,4 @@
+#include "winerror.h"
 #define ONECORE_IMPLEMENTATION
 #include "onecore.h"
 
@@ -7,6 +8,12 @@
 
 #include <d2d1.h>
 #include <dwrite.h>
+
+#define oc__exit(e) \
+    do {            \
+        err = (e);  \
+        goto exit;  \
+    } while (0)
 
 struct oc_face_impl {
     IDWriteFontFace* dw_face;
@@ -339,19 +346,15 @@ static const ID2D1SimplifiedGeometrySinkVtbl OC__ID2D1SimplifiedGeometrySinkVtbl
 OC__IDWriteFontFileLoader oc__file_loader = { &OC__IDWriteFontFileLoaderVtbl, 0 };
 IDWriteFontFileLoader* oc__dw_file_loader = (IDWriteFontFileLoader*)&oc__file_loader;
 
-oc_error oc_init_library(oc_library* plibrary) {
-    if (plibrary == NULL) {
+oc_error oc_init_library(oc_library* olibrary) {
+    HRESULT err;
+    IDWriteFactory* dw_factory;
+
+    if (olibrary == NULL) {
         return oc_error_invalid_param;
     }
 
-    IDWriteFactory* dw_factory;
-    HRESULT err;
-
-    err = DWriteCreateFactory(
-        DWRITE_FACTORY_TYPE_ISOLATED,
-        &IID_IDWriteFactory,
-        (IUnknown**)&dw_factory);
-
+    err = DWriteCreateFactory(DWRITE_FACTORY_TYPE_ISOLATED, &IID_IDWriteFactory, (IUnknown**)&dw_factory);
     switch (err) {
     case S_OK:
         break;
@@ -368,26 +371,32 @@ oc_error oc_init_library(oc_library* plibrary) {
         return oc__unexpected(err);
     }
 
-    plibrary->internals = dw_factory;
+    olibrary->internals = dw_factory;
     return oc_error_ok;
 }
 
-void oc_free_library(oc_library library) {
-    IDWriteFactory* dw_factory = (IDWriteFactory*)library.internals;
+void oc_free_library(oc_library* library) {
+    IDWriteFactory* dw_factory = library->internals;
 
     dw_factory->lpVtbl->UnregisterFontFileLoader(dw_factory, oc__dw_file_loader);
     dw_factory->lpVtbl->Release(dw_factory);
+
+    memset(library, 0, sizeof(oc_library));
 }
 
-static oc_error oc__open_face_from_font_file(oc_library library, IDWriteFontFile* font_file, const oc_open_params* pparams, oc_face* pface) {
+static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWriteFontFile* font_file, const oc_open_params* uparams, oc_face* oface) {
     HRESULT err;
     WINBOOL is_supported_fonttype;
-    IDWriteFactory* dw_factory;
-
     DWRITE_FONT_FILE_TYPE file_type;
     DWRITE_FONT_FACE_TYPE face_type;
-
+    IDWriteFontFace* dw_face;
     UINT32 face_num;
+    oc_face face;
+    DWRITE_FONT_METRICS metrics;
+    oc_16p16 scaled;
+    oc_16p16 scale;
+    int32_t ppem;
+    oc_open_params params = oc__open_params_defaults(uparams);
 
     err = font_file->lpVtbl->Analyze(
         font_file,
@@ -409,11 +418,6 @@ static oc_error oc__open_face_from_font_file(oc_library library, IDWriteFontFile
         return oc_error_failed_to_open;
     }
 
-    IDWriteFontFace* dw_font_face;
-    oc_open_params params = oc__open_params_defaults(pparams);
-
-    dw_factory = (IDWriteFactory*)library.internals;
-
     // todo: we should handle simulations
     err = dw_factory->lpVtbl->CreateFontFace(
         dw_factory,
@@ -422,7 +426,7 @@ static oc_error oc__open_face_from_font_file(oc_library library, IDWriteFontFile
         &font_file,
         params.face_index,
         DWRITE_FONT_SIMULATIONS_NONE,
-        &dw_font_face);
+        &dw_face);
 
     switch (err) {
     case S_OK:
@@ -435,82 +439,73 @@ static oc_error oc__open_face_from_font_file(oc_library library, IDWriteFontFile
         return oc__unexpected(err);
     }
 
-    oc_face_impl* impl = malloc(sizeof(oc_face_impl));
-    if (impl == NULL) {
-        dw_font_face->lpVtbl->Release(dw_font_face);
+    face.impl = malloc(sizeof(face));
+    if (face.impl == NULL) {
+        dw_face->lpVtbl->Release(dw_face);
         return oc_error_out_of_memory;
     }
 
-    impl->dw_face = dw_font_face;
-    impl->dw_factory = dw_factory;
+    dw_face->lpVtbl->GetMetrics(dw_face, &metrics);
 
-    DWRITE_FONT_METRICS metrics;
-    dw_font_face->lpVtbl->GetMetrics(dw_font_face, &metrics);
-
-    // todo: and make that point has to atleast 1.0
+    // todo: and make that point has to be atleast 1.0
 
     // https://github.com/freetype/freetype/blob/85c8efe0afa5ad0df35114e317a065f544943c52/include/freetype/internal/ftobjs.h#L665
-    oc_16p16 scaled = (params.desired_size * params.dpi + 36) / 72;
-    oc_16p16 scale = oc_div_16p16(scaled, metrics.designUnitsPerEm);
+    scaled = (params.desired_size * params.dpi + 36) / 72;
+    scale = oc_div_16p16(scaled, metrics.designUnitsPerEm);
 
     // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L3368
-    int32_t ppem = (scaled + 32) >> 6;
+    ppem = (scaled + 32) >> 6;
     if (ppem > UINT16_MAX) {
         // todo: add this test case
         return oc_error_invalid_param;
     }
 
-    pface->impl = impl;
-    pface->metrics.upem = metrics.designUnitsPerEm;
-    pface->metrics.ppem = (uint16_t)ppem;
-    pface->metrics.scale = scale;
-    pface->metrics.ascent = metrics.ascent;
-    pface->metrics.descent = metrics.descent;
-    pface->metrics.leading = metrics.lineGap;
-    pface->metrics.underline_position = metrics.underlinePosition;
-    pface->metrics.underline_thickness = metrics.underlineThickness;
+    face.impl->dw_face = dw_face;
+    face.impl->dw_factory = dw_factory;
+    face.metrics.upem = metrics.designUnitsPerEm;
+    face.metrics.ppem = (uint16_t)ppem;
+    face.metrics.scale = scale;
+    face.metrics.ascent = metrics.ascent;
+    face.metrics.descent = metrics.descent;
+    face.metrics.leading = metrics.lineGap;
+    face.metrics.underline_position = metrics.underlinePosition;
+    face.metrics.underline_thickness = metrics.underlineThickness;
 
+    *oface = face;
     return oc_error_ok;
 }
 
-oc_error oc_open_face(oc_library library, const char* path, const oc_open_params* pparams, oc_face* pface) {
-    if (pface == NULL) {
+oc_error oc_open_face(const oc_library* library, const char* path, const oc_open_params* uparams, oc_face* oface) {
+    int32_t err;
+    int size;
+    wchar_t* dw_path;
+    IDWriteFactory* dw_factory;
+    IDWriteFontFile* dw_font_file;
+
+    if (!(library && path && oface)) {
         return oc_error_invalid_param;
     }
 
-    if (path == NULL) {
-        return oc_error_invalid_param;
-    }
-
-    HRESULT err;
-    int wlen = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0) - 1;
-    if (wlen == -1) {
+    size = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);
+    if (size <= 1) {
         return oc_error_failed_to_open;
     }
 
-    if (wlen == 0) {
-        return oc_error_failed_to_open;
-    }
-
-    wchar_t* wpath = (wchar_t*)malloc((wlen + 1) * sizeof(wchar_t));
-    if (wpath == NULL) {
+    dw_path = malloc(size * sizeof(wchar_t));
+    if (dw_path == NULL) {
         return oc_error_out_of_memory;
     }
 
-    int ok = MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, wlen + 1);
+    size = MultiByteToWideChar(CP_UTF8, 0, path, -1, dw_path, size);
+    assert(size > 0);
 
-    (void)ok;
-    assert(ok != 0);
-
-    IDWriteFontFile* font_file;
-    IDWriteFactory* dw_factory = library.internals;
-
+    dw_factory = library->internals;
     err = dw_factory->lpVtbl->CreateFontFileReference(
         dw_factory,
-        wpath,
+        dw_path,
         NULL,
-        &font_file);
-    free(wpath);
+        &dw_font_file);
+    free(dw_path);
 
     switch (err) {
     case S_OK:
@@ -523,14 +518,19 @@ oc_error oc_open_face(oc_library library, const char* path, const oc_open_params
         return oc__unexpected(err);
     }
 
-    oc_error result = oc__open_face_from_font_file(library, font_file, pparams, pface);
-    font_file->lpVtbl->Release(font_file);
+    err = oc__open_face_from_font_file(dw_factory, dw_font_file, uparams, oface);
+    dw_font_file->lpVtbl->Release(dw_font_file);
 
-    return result;
+    return err;
 }
 
-oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, const oc_open_params* pparams, oc_face* pface) {
-    if (pface == NULL) {
+oc_error oc_open_memory_face(const oc_library* library, const void* data, size_t size, const oc_open_params* uparams, oc_face* oface) {
+    int32_t err;
+    IDWriteFontFile* font_file;
+    IDWriteFactory* dw_factory;
+    oc__memory_view key;
+
+    if (!(library && data && oface)) {
         return oc_error_invalid_param;
     }
 
@@ -538,11 +538,10 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
         return oc_error_invalid_param;
     }
 
-    HRESULT err;
-    IDWriteFontFile* font_file;
-    IDWriteFactory* dw_factory = library.internals;
+    dw_factory = library->internals;
 
-    oc__memory_view key = { data, size };
+    key.data = data;
+    key.size = size;
 
     err = dw_factory->lpVtbl->CreateCustomFontFileReference(
         dw_factory,
@@ -560,76 +559,90 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
         return oc__unexpected(err);
     }
 
-    oc_error result = oc__open_face_from_font_file(library, font_file, pparams, pface);
+    err = oc__open_face_from_font_file(dw_factory, font_file, uparams, oface);
     font_file->lpVtbl->Release(font_file);
 
-    return result;
+    return err;
 }
 
-void oc_free_face(oc_face face) {
-    face.impl->dw_face->lpVtbl->Release(face.impl->dw_face);
-    free(face.impl);
+void oc_free_face(oc_face* face) {
+    face->impl->dw_face->lpVtbl->Release(face->impl->dw_face);
+    free(face->impl);
+    memset(face, 0, sizeof(*face));
 }
 
-uint16_t oc_get_char_index(oc_face face, uint32_t charcode) {
+uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
+    HRESULT err;
+    IDWriteFontFace* dw_face;
     UINT16 index;
-    IDWriteFontFace* dw_face = face.impl->dw_face;
 
-    HRESULT err = dw_face->lpVtbl->GetGlyphIndices(
+    if (face == NULL) {
+        return 0;
+    }
+
+    dw_face = face->impl->dw_face;
+    err = dw_face->lpVtbl->GetGlyphIndices(
         dw_face,
         &charcode,
         1,
         &index);
-    (void)err;
 
+    (void)err;
     assert(err == S_OK);
+
     return index;
 }
 
-oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pcontext) {
-    if (ptable == NULL || pcontext == NULL) {
-        return oc_error_invalid_param;
-    }
-
+oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, oc_table* otable, void** ocontext) {
+    HRESULT dw_err;
     const void* table_data;
     UINT32 table_size;
-
     void* context;
     WINBOOL exists;
+    oc_table table = { 0 };
+    oc_error err = oc_error_ok;
 
-    HRESULT err = face.impl->dw_face->lpVtbl->TryGetFontTable(
-        face.impl->dw_face,
+    if (!(face && otable && ocontext)) {
+        oc__exit(err);
+    }
+
+    dw_err = face->impl->dw_face->lpVtbl->TryGetFontTable(
+        face->impl->dw_face,
         _byteswap_ulong(tag), // swapping bytes because windows table tags are little-endian
         &table_data,
         &table_size,
         &context,
         &exists);
 
-    switch (err) {
+    switch (dw_err) {
     case S_OK:
         break;
     case E_OUTOFMEMORY:
-        return oc_error_out_of_memory;
+        oc__exit(oc_error_out_of_memory);
     default:
-        return oc__unexpected(err);
+        oc__exit(oc__unexpected(err));
     }
 
-    if (exists == FALSE) {
-        return oc_error_table_missing;
+    if (!exists) {
+        oc__exit(oc_error_table_missing);
     }
 
-    oc_table table;
     table.data = table_data;
     table.size = table_size;
 
-    *ptable = table;
-    *pcontext = context;
-
-    return oc_error_ok;
+    *ocontext = context;
+exit:
+    if (otable) *otable = table;
+    return err;
 }
 
-inline void oc_free_table(oc_face face, void* context) {
-    face.impl->dw_face->lpVtbl->ReleaseFontTable(face.impl->dw_face, context);
+void oc_free_table(const oc_face* face, void* context) {
+    IDWriteFontFace* dw_face;
+
+    if (!face) return;
+
+    dw_face = face->impl->dw_face;
+    dw_face->lpVtbl->ReleaseFontTable(dw_face, context);
 }
 
 // static void fit_metrics(oc_glyph_metrics* pmetrics) {
@@ -645,28 +658,33 @@ inline void oc_free_table(oc_face face, void* context) {
 //     pmetrics->advance = OC_26P6_ROUND(pmetrics->advance);
 // }
 
-void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_glyph_metrics* pmetrics) {
-    if (pmetrics == NULL) {
-        return;
+void oc_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
+    HRESULT err;
+    DWRITE_GLYPH_METRICS dw_metrics;
+    IDWriteFontFace* dw_face;
+    oc_16p16 scale;
+    UINT16 count;
+    oc_glyph_metrics metrics = { 0 };
+
+    if (!(face && ometrics)) {
+        goto exit;
     }
 
-    oc_glyph_metrics metrics;
-    DWRITE_GLYPH_METRICS dw_metrics;
-    IDWriteFontFace* dw_face = face.impl->dw_face;
+    dw_face = face->impl->dw_face;
+    count = dw_face->lpVtbl->GetGlyphCount(dw_face);
 
     // for some reason GetDesignGlyphMetrics does not catch invalid glyph index
-    UINT16 glyph_count = dw_face->lpVtbl->GetGlyphCount(dw_face);
-    if (glyph_index >= glyph_count) {
-        memset(pmetrics, 0, sizeof(oc_glyph_metrics));
-        return;
+    if (index >= count) {
+        goto exit;
     }
 
-    HRESULT err = dw_face->lpVtbl->GetDesignGlyphMetrics(
+    err = dw_face->lpVtbl->GetDesignGlyphMetrics(
         dw_face,
-        &glyph_index,
+        &index,
         1,
         &dw_metrics,
         FALSE);
+
     (void)err;
     assert(err == S_OK);
 
@@ -677,14 +695,16 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
     metrics.advance = dw_metrics.advanceWidth;
 
     if (flags & OC_LOAD_NO_SCALE) {
-        goto done;
+        goto exit;
     }
 
-    metrics.width = oc_mul_16p16(metrics.width, face.metrics.scale);
-    metrics.height = oc_mul_16p16(metrics.height, face.metrics.scale);
-    metrics.bearing_x = oc_mul_16p16(metrics.bearing_x, face.metrics.scale);
-    metrics.bearing_y = oc_mul_16p16(metrics.bearing_y, face.metrics.scale);
-    metrics.advance = oc_mul_16p16(metrics.advance, face.metrics.scale);
+    scale = face->metrics.scale;
+
+    metrics.width = oc_mul_16p16(metrics.width, scale);
+    metrics.height = oc_mul_16p16(metrics.height, scale);
+    metrics.bearing_x = oc_mul_16p16(metrics.bearing_x, scale);
+    metrics.bearing_y = oc_mul_16p16(metrics.bearing_y, scale);
+    metrics.advance = oc_mul_16p16(metrics.advance, scale);
 
     // if (flags & OC_LOAD_NO_HINTING) {
     // goto done;
@@ -692,67 +712,77 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
 
     // fit_metrics(&metrics);
 
-done:
-    *pmetrics = metrics;
+exit:
+    if (ometrics) *ometrics = metrics;
 }
 
-void oc_get_glyph_bbox(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_bbox* pbbox) {
-    if (pbbox == NULL) {
-        return;
-    }
-
-    oc_bbox bbox;
+void oc_get_glyph_bbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
+    HRESULT err;
     DWRITE_GLYPH_METRICS metrics;
-    IDWriteFontFace* dw_face = face.impl->dw_face;
+    IDWriteFontFace* dw_face;
+    UINT16 count;
+    oc_16p16 scale;
+    oc_bbox cbox = { 0 };
 
-    UINT16 glyph_count = dw_face->lpVtbl->GetGlyphCount(dw_face);
-    if (glyph_index >= glyph_count) {
-        memset(pbbox, 0, sizeof(oc_bbox));
-        return;
+    if (!(face && ocbox)) {
+        goto exit;
     }
 
-    HRESULT err = dw_face->lpVtbl->GetDesignGlyphMetrics(
+    dw_face = face->impl->dw_face;
+    count = dw_face->lpVtbl->GetGlyphCount(dw_face);
+
+    if (index >= count) {
+        goto exit;
+    }
+
+    err = dw_face->lpVtbl->GetDesignGlyphMetrics(
         dw_face,
-        &glyph_index,
+        &index,
         1,
         &metrics,
         FALSE);
+
     (void)err;
     assert(err == S_OK);
 
-    bbox.min_x = metrics.leftSideBearing;
-    bbox.min_y = metrics.verticalOriginY + metrics.bottomSideBearing - (INT32)metrics.advanceHeight;
-    bbox.max_x = metrics.advanceWidth - metrics.rightSideBearing;
-    bbox.max_y = metrics.verticalOriginY - metrics.topSideBearing;
+    cbox.min_x = metrics.leftSideBearing;
+    cbox.min_y = metrics.verticalOriginY + metrics.bottomSideBearing - (INT32)metrics.advanceHeight;
+    cbox.max_x = metrics.advanceWidth - metrics.rightSideBearing;
+    cbox.max_y = metrics.verticalOriginY - metrics.topSideBearing;
 
     if (flags & OC_LOAD_NO_SCALE) {
-        goto done;
+        goto exit;
     }
 
-    bbox.min_x = oc_mul_16p16(bbox.min_x, face.metrics.scale);
-    bbox.min_y = oc_mul_16p16(bbox.min_y, face.metrics.scale);
-    bbox.max_x = oc_mul_16p16(bbox.max_x, face.metrics.scale);
-    bbox.max_y = oc_mul_16p16(bbox.max_y, face.metrics.scale);
+    scale = face->metrics.scale;
 
-done:
-    *pbbox = bbox;
+    cbox.min_x = oc_mul_16p16(cbox.min_x, scale);
+    cbox.min_y = oc_mul_16p16(cbox.min_y, scale);
+    cbox.max_x = oc_mul_16p16(cbox.max_x, scale);
+    cbox.max_y = oc_mul_16p16(cbox.max_y, scale);
+
+exit:
+    if (ocbox) *ocbox = cbox;
 }
 
-bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context) {
-    if (outline_funcs == NULL) {
+bool oc_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
+    HRESULT err;
+    ULONG refs;
+    OC__ID2D1SimplifiedGeometrySink geometry_sink = { 0 };
+
+    if (!(face && funcs)) {
         return false;
     }
 
-    OC__ID2D1SimplifiedGeometrySink geometry_sink = { 0 };
     geometry_sink.lpVtbl = &OC__ID2D1SimplifiedGeometrySinkVtbl;
-    geometry_sink.funcs = outline_funcs;
+    geometry_sink.funcs = funcs;
     geometry_sink.ref_count = 1;
-    geometry_sink.ctx = context;
+    geometry_sink.ctx = user;
 
-    HRESULT err = face.impl->dw_face->lpVtbl->GetGlyphRunOutline(
-        face.impl->dw_face,
-        face.metrics.upem,
-        &glyph_index,
+    err = face->impl->dw_face->lpVtbl->GetGlyphRunOutline(
+        face->impl->dw_face,
+        face->metrics.upem,
+        &index,
         NULL,
         NULL,
         1,
@@ -764,7 +794,7 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
         return false;
     }
 
-    ULONG refs = geometry_sink.lpVtbl->Base.Release((IUnknown*)&geometry_sink);
+    refs = geometry_sink.lpVtbl->Base.Release((IUnknown*)&geometry_sink);
 
     (void)refs;
     assert(refs == 0);
@@ -774,25 +804,41 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
 
 // todo: check this rendering thingy as smth is a bit off with dwrite
 //       it seems dwrite does hard edges, idk if we can change that
-oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, unsigned char* buffer, size_t buffer_size) {
-    HRESULT err;
-    IDWriteFontFace* dw_face = face.impl->dw_face;
-    IDWriteFactory* dw_factory = face.impl->dw_factory;
+oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
+    oc_error err = oc_error_ok;
+    HRESULT dw_err = S_OK;
 
-    if (psize == NULL) {
-        return oc_error_invalid_param;
+    IDWriteFontFace* dw_face;
+    IDWriteFactory* dw_factory;
+
+    oc_bbox cbox;
+    oc_bbox pbox;
+
+    DWRITE_MATRIX transform;
+    UINT16 count;
+    RECT bounds;
+
+    IDWriteGlyphRunAnalysis* analysis = NULL;
+    DWRITE_GLYPH_RUN glyph_run = { 0 };
+
+    uint8_t* bitmap = NULL;
+    oc_extent extent = { 0 };
+
+    if (!(face && oextent)) {
+        oc__exit(oc_error_invalid_param);
     }
 
+    dw_face = face->impl->dw_face;
+    dw_factory = face->impl->dw_factory;
+    count = dw_face->lpVtbl->GetGlyphCount(dw_face);
+
     // for some reason GetDesignGlyphMetrics does not catch invalid glyph index
-    UINT16 glyph_count = dw_face->lpVtbl->GetGlyphCount(dw_face);
-    if (glyph_index >= glyph_count) {
-        return oc_error_invalid_param;
+    if (index >= count) {
+        oc__exit(oc_error_invalid_param);
     }
 
     // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L414
-    oc_bbox cbox;
-    oc_bbox pbox;
-    oc_get_glyph_bbox(face, glyph_index, OC_LOAD_DEFAULT, &cbox);
+    oc_get_glyph_bbox(face, index, OC_LOAD_DEFAULT, &cbox);
 
     pbox.min_x = cbox.min_x >> 6;
     pbox.min_y = cbox.min_y >> 6;
@@ -803,30 +849,34 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
     pbox.max_x += ((cbox.max_x & 63) + 63) >> 6;
     pbox.max_y += ((cbox.max_y & 63) + 63) >> 6;
 
-    uint32_t rows = pbox.max_y - pbox.min_y;
-    uint32_t cols = pbox.max_x - pbox.min_x;
+    extent.rows = pbox.max_y - pbox.min_y;
+    extent.cols = pbox.max_x - pbox.min_x;
 
-    // todo: add smth like this to our oc_render_glyph
-    DWRITE_MATRIX transform = {
-        1.0f,
-        0.0f,
-        0.0f,
-        1.0f,
-        (cbox.min_x & 63) / 64.0f,
-        -(cbox.min_y & 63) / 64.0f,
-    };
+    if (buffer == NULL) {
+        goto exit;
+    }
 
-    // is this correct?
-    oc_26p6 em_size = oc_mul_16p16(face.metrics.upem, face.metrics.scale);
+    if (extent.rows == 0 || extent.cols == 0) {
+        goto exit;
+    }
 
-    DWRITE_GLYPH_RUN glyph_run = { 0 };
+    if (buffer_size < extent.rows * extent.cols) {
+        oc__exit(oc_error_insufficient_buffer);
+    }
+
+    transform.m11 = 1.0f;
+    transform.m12 = 0.0f;
+    transform.m21 = 0.0f;
+    transform.m22 = 1.0f;
+    transform.dx = (cbox.min_x & 63) / 64.0f;
+    transform.dy = -(cbox.min_y & 63) / 64.0f;
+
     glyph_run.fontFace = dw_face;
-    glyph_run.fontEmSize = em_size / 64.0f;
+    glyph_run.fontEmSize = oc_mul_16p16(face->metrics.upem, face->metrics.scale) / 64.0f;
     glyph_run.glyphCount = 1;
-    glyph_run.glyphIndices = &glyph_index;
+    glyph_run.glyphIndices = &index;
 
-    IDWriteGlyphRunAnalysis* analysis;
-    err = dw_factory->lpVtbl->CreateGlyphRunAnalysis(
+    dw_err = dw_factory->lpVtbl->CreateGlyphRunAnalysis(
         dw_factory,
         &glyph_run,
         1.0f,
@@ -836,64 +886,47 @@ oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, uns
         -cbox.min_x / 64.0f,
         cbox.min_y / 64.0f,
         &analysis);
-    switch (err) {
+    switch (dw_err) {
     case S_OK:
         break;
     case E_OUTOFMEMORY:
-        return oc_error_out_of_memory;
+        oc__exit(oc_error_out_of_memory);
     default:
-        return oc__unexpected(err);
+        oc__exit(oc__unexpected(err));
     }
 
-    psize->rows = rows;
-    psize->cols = cols;
-
-    if (buffer == NULL) {
-        analysis->lpVtbl->Release(analysis);
-        return oc_error_ok;
+    bitmap = malloc(extent.rows * extent.cols * 3);
+    if (bitmap == NULL) {
+        oc__exit(oc_error_out_of_memory);
     }
 
-    if (rows == 0 || cols == 0) {
-        analysis->lpVtbl->Release(analysis);
-        return oc_error_ok;
-    }
+    bounds.left = 0;
+    bounds.bottom = 0;
 
-    if (buffer_size < rows * cols) {
-        analysis->lpVtbl->Release(analysis);
-        return oc_error_insufficient_buffer;
-    }
-
-    unsigned char* buffer_3x = malloc(rows * cols * 3);
-    if (buffer_3x == NULL) {
-        analysis->lpVtbl->Release(analysis);
-        return oc_error_out_of_memory;
-    }
-
-    RECT bounds = { 0 };
-    bounds.top = -(int32_t)rows;
-    bounds.right = cols;
+    bounds.top = -(int32_t)extent.rows;
+    bounds.right = extent.cols;
 
     err = analysis->lpVtbl->CreateAlphaTexture(
         analysis,
         DWRITE_TEXTURE_CLEARTYPE_3x1,
         &bounds,
-        buffer_3x,
-        rows * cols * 3);
-    analysis->lpVtbl->Release(analysis);
+        bitmap,
+        extent.rows * extent.cols * 3);
 
     if (err != S_OK) {
-        free(buffer_3x);
-        return oc__unexpected(err);
+        oc__exit(oc__unexpected(err));
     }
 
-    for (uint32_t i = 0; i < rows * cols; i++) {
-        uint8_t r = buffer_3x[i * 3 + 0];
-        uint8_t g = buffer_3x[i * 3 + 1];
-        uint8_t b = buffer_3x[i * 3 + 2];
+    for (uint32_t i = 0; i < extent.rows * extent.cols; i++) {
+        uint8_t r = bitmap[i * 3 + 0];
+        uint8_t g = bitmap[i * 3 + 1];
+        uint8_t b = bitmap[i * 3 + 2];
 
         buffer[i] = (r + b + g) / 3.0f;
     }
-
-    free(buffer_3x);
-    return oc_error_ok;
+exit:
+    if (bitmap) free(bitmap);
+    if (analysis) analysis->lpVtbl->Release(analysis);
+    if (oextent) *oextent = extent;
+    return err;
 }
