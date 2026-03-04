@@ -97,7 +97,7 @@ typedef struct {
 typedef struct {
     uint32_t rows; // uint16_t??
     uint32_t cols; // uint16_t??
-} oc_size;
+} oc_extent;
 
 typedef struct {
     oc_26p6 min_x;
@@ -150,10 +150,10 @@ typedef struct {
 // } oc_discovery_params;
 
 OC_PUBLIC oc_error
-oc_init_library(oc_library* plibrary);
+oc_init_library(oc_library* library);
 
 OC_PUBLIC void
-oc_free_library(oc_library library);
+oc_free_library(oc_library* library);
 
 // OC_PUBLIC oc_error
 // oc_discover_fonts(
@@ -162,10 +162,10 @@ oc_free_library(oc_library library);
 
 OC_PUBLIC oc_error
 oc_open_face(
-    oc_library library,
+    const oc_library* library,
     const char* path,
-    const oc_open_params* pparams, // can be nil
-    oc_face* pface);
+    const oc_open_params* params,
+    oc_face* face);
 
 /*
  * @note:
@@ -173,34 +173,34 @@ oc_open_face(
  */
 OC_PUBLIC oc_error
 oc_open_memory_face(
-    oc_library library,
+    const oc_library* library,
     const void* data,
     size_t data_size,
-    const oc_open_params* pparams, // can be nil
-    oc_face* pface);
+    const oc_open_params* params,
+    oc_face* face);
 
 OC_PUBLIC void
-oc_free_face(oc_face face);
+oc_free_face(oc_face* face);
 
 // OC_PUBLIC oc_error
 // oc_set_size(oc_face face, oc_26p6 desired_size, short dpi);
 
 OC_PUBLIC uint16_t
-oc_get_char_index(oc_face face, uint32_t charcode);
+oc_get_char_index(const oc_face* face, uint32_t charcode);
 
 OC_PUBLIC void
 oc_get_glyph_metrics(
-    oc_face face,
-    uint16_t glyph_index,
+    const oc_face* face,
+    uint16_t index,
     oc_load_flags flags,
-    oc_glyph_metrics* pmetrics);
+    oc_glyph_metrics* metrics);
 
 OC_PUBLIC void
 oc_get_glyph_bbox(
-    oc_face face,
-    uint16_t glyph_index,
+    const oc_face* face,
+    uint16_t index,
     oc_load_flags flags,
-    oc_bbox* pbbox);
+    oc_bbox* bbox);
 
 // todo: add comments here explaining that every backend will generate diffrent glyph textures
 //       so if u want it modified by every backend it would be recomended to raster it using glyph outlines
@@ -209,25 +209,29 @@ oc_get_glyph_bbox(
 // todo: it is needed to make this method more complicated, now we cannot pass origin where to draw or matricies, nothing
 OC_PUBLIC oc_error
 oc_render_glyph(
-    oc_face face,
-    uint16_t glyph_index,
-    oc_size* psize,
-    unsigned char* buffer,
+    const oc_face* face,
+    uint16_t index,
+    oc_extent* extent,
+    uint8_t* buffer,
     size_t buffer_size);
 
 OC_PUBLIC bool
 oc_get_outline(
-    oc_face face,
-    uint16_t glyph_index,
+    const oc_face* face,
+    uint16_t index,
     const oc_outline_funcs* outline_funcs,
     void* context);
 
 // todo: copy variant would be nice which we would not need to free
 OC_PUBLIC oc_error
-oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pcontext);
+oc_get_sfnt_table(
+    const oc_face* face,
+    oc_tag tag,
+    oc_table* table,
+    void** context);
 
 OC_PUBLIC void
-oc_free_table(oc_face face, void* context);
+oc_free_table(const oc_face* face, void* context);
 
 OC_PUBLIC
 const char* oc_strerror(oc_error err);
@@ -322,11 +326,11 @@ oc_16p16 oc_mul_16p16(oc_16p16 a, oc_16p16 b) {
     return (int32_t)((ab + 0x8000L + (ab >> 63)) >> 16);
 }
 
-static inline oc_open_params oc__open_params_defaults(const oc_open_params* pparams) {
+static inline oc_open_params oc__open_params_defaults(const oc_open_params* uparams) {
     oc_open_params params = { 0 };
 
-    if (pparams != NULL) {
-        params = *pparams;
+    if (uparams != NULL) {
+        params = *uparams;
     }
 
     if (params.desired_size <= 0) {

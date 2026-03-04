@@ -13,10 +13,6 @@ struct oc_face_impl {
     IDWriteFactory* dw_factory;
 };
 
-// #define DW(x) _Generic((x),                       \
-//     oc_library: ((IDWriteFactory*)(x).internals), \
-//     oc_face: ((struct face_internals*)(x).internals)->face)
-
 typedef struct {
     const void* data;
     size_t size;

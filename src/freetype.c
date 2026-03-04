@@ -33,12 +33,14 @@ struct oc_face_impl {
 };
 
 oc_error oc_init_library(oc_library* plibrary) {
+    FT_Library library;
+    FT_Error err;
+
     if (plibrary == NULL) {
         return oc_error_invalid_param;
     }
 
-    FT_Library library;
-    FT_Error err = FT_Init_FreeType(&library);
+    err = FT_Init_FreeType(&library);
     switch (err) {
     case FT_Err_Ok:
         break;
@@ -52,58 +54,63 @@ oc_error oc_init_library(oc_library* plibrary) {
     return oc_error_ok;
 }
 
-inline void oc_free_library(oc_library library) {
-    FT_Done_FreeType(((FT_Library)(library).internals));
+void oc_free_library(oc_library* library) {
+    FT_Library ft_library = library->internals;
+    FT_Done_FreeType(ft_library);
+    memset(library, 0, sizeof(oc_library));
 }
 
-static oc_error oc__init_face(FT_Face ft_face, const oc_open_params* pparams, oc_face* pface) {
-    FT_Error err = FT_Set_Char_Size(ft_face, 0, pparams->desired_size, pparams->dpi, pparams->dpi);
+static oc_error oc__init_face(FT_Face ft_face, const oc_open_params* params, oc_face* oface) {
+    FT_Error err;
+    oc_face face;
+
+    err = FT_Set_Char_Size(ft_face, 0, params->desired_size, params->dpi, params->dpi);
     if (err != FT_Err_Ok) {
         return oc__unexpected(err);
     }
 
-    oc_face_impl* impl = (oc_face_impl*)malloc(sizeof(oc_face_impl));
-    if (impl == NULL) {
+    face.impl = malloc(sizeof(oc_face_impl));
+    if (face.impl == NULL) {
         return oc_error_out_of_memory;
     }
 
-    impl->ft_face = ft_face;
-    oc__mutex_impl_init(&impl->lock);
+    face.impl->ft_face = ft_face;
+    oc__mutex_impl_init(&face.impl->lock);
 
-    pface->impl = impl;
-    pface->metrics.upem = ft_face->units_per_EM;
-    pface->metrics.ppem = ft_face->size->metrics.y_ppem;
-    pface->metrics.scale = ft_face->size->metrics.y_scale;
-    pface->metrics.ascent = ft_face->ascender;
-    pface->metrics.descent = -ft_face->descender;
-    pface->metrics.leading = ft_face->height - ft_face->ascender + ft_face->descender;
+    face.metrics.upem = ft_face->units_per_EM;
+    face.metrics.ppem = ft_face->size->metrics.y_ppem;
+    face.metrics.scale = ft_face->size->metrics.y_scale;
+    face.metrics.ascent = ft_face->ascender;
+    face.metrics.descent = -ft_face->descender;
+    face.metrics.leading = ft_face->height - ft_face->ascender + ft_face->descender;
     // reverting ajusted underline position by freetype
-    pface->metrics.underline_position = ft_face->underline_position + (ft_face->underline_thickness >> 1);
-    pface->metrics.underline_thickness = ft_face->underline_thickness;
+    face.metrics.underline_position = ft_face->underline_position + (ft_face->underline_thickness >> 1);
+    face.metrics.underline_thickness = ft_face->underline_thickness;
 
+    *oface = face;
     return oc_error_ok;
 }
 
-oc_error oc_open_face(oc_library library, const char* path, const oc_open_params* pparams, oc_face* pface) {
-    if (pface == NULL) {
+oc_error oc_open_face(const oc_library* library, const char* path, const oc_open_params* uparams, oc_face* oface) {
+    int32_t err;
+    FT_Face ft_face;
+    FT_Library ft_library;
+    oc_open_params params;
+    FT_Open_Args ft_open_args = { 0 };
+
+    if (!(library && path && oface)) {
         return oc_error_invalid_param;
     }
 
-    if (path == NULL) {
-        return oc_error_invalid_param;
-    }
+    ft_library = library->internals;
 
-    FT_Error err;
-    FT_Face face;
+    ft_open_args.flags = FT_OPEN_PATHNAME;
+    ft_open_args.pathname = (FT_String*)path;
 
-    FT_Open_Args open_args = { 0 };
-    open_args.flags = FT_OPEN_PATHNAME;
-    open_args.pathname = (char*)path;
-
-    oc_open_params params = oc__open_params_defaults(pparams);
+    params = oc__open_params_defaults(uparams);
 
     // using FT_Open_Face as FT_New_Face fails if file extention does not match file type
-    err = FT_Open_Face(((FT_Library)(library).internals), &open_args, params.face_index, &face);
+    err = FT_Open_Face(ft_library, &ft_open_args, params.face_index, &ft_face);
     switch (err) {
     case FT_Err_Ok:
         break;
@@ -119,24 +126,28 @@ oc_error oc_open_face(oc_library library, const char* path, const oc_open_params
         return oc__unexpected(err);
     }
 
-    oc_error oc_err = oc__init_face(face, &params, pface);
-    if (oc_err != oc_error_ok) {
-        FT_Done_Face(face);
+    err = oc__init_face(ft_face, &params, oface);
+    if (err != oc_error_ok) {
+        FT_Done_Face(ft_face);
     }
 
-    return oc_err;
+    return err;
 }
 
-oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, const oc_open_params* pparams, oc_face* pface) {
-    if (pface == NULL) {
+oc_error oc_open_memory_face(const oc_library* library, const void* data, size_t size, const oc_open_params* uparams, oc_face* oface) {
+    int32_t err;
+    FT_Face ft_face;
+    FT_Library ft_library;
+    oc_open_params params;
+
+    if (!(library && oface)) {
         return oc_error_invalid_param;
     }
 
-    FT_Face face;
-    FT_Error err;
+    ft_library = library->internals;
+    params = oc__open_params_defaults(uparams);
 
-    oc_open_params params = oc__open_params_defaults(pparams);
-    err = FT_New_Memory_Face(((FT_Library)(library).internals), (const FT_Byte*)data, size, params.face_index, &face);
+    err = FT_New_Memory_Face(ft_library, data, size, params.face_index, &ft_face);
     switch (err) {
     case FT_Err_Ok:
         break;
@@ -152,35 +163,41 @@ oc_error oc_open_memory_face(oc_library library, const void* data, size_t size, 
         return oc__unexpected(err);
     }
 
-    oc_error oc_err = oc__init_face(face, &params, pface);
-    if (oc_err != oc_error_ok) {
-        FT_Done_Face(face);
+    err = oc__init_face(ft_face, &params, oface);
+    if (err != oc_error_ok) {
+        FT_Done_Face(ft_face);
     }
 
-    return oc_err;
+    return err;
 }
 
-void oc_free_face(oc_face face) {
-    FT_Done_Face(face.impl->ft_face);
-    oc__mutex_impl_destroy(&face.impl->lock);
+void oc_free_face(oc_face* face) {
+    FT_Done_Face(face->impl->ft_face);
+    oc__mutex_impl_destroy(&face->impl->lock);
 
-    free(face.impl);
+    free(face->impl);
+    memset(face, 0, sizeof(oc_face));
 }
 
-inline uint16_t oc_get_char_index(oc_face face, uint32_t charcode) {
-    return FT_Get_Char_Index(face.impl->ft_face, charcode);
+uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
+    return face ? FT_Get_Char_Index(face->impl->ft_face, charcode) : 0;
 }
 
-oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pcontext) {
+oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, oc_table* otable, void** ocontext) {
     FT_Error err;
+    FT_Face ft_face;
+    oc_table table;
+    uint8_t* buffer;
+    FT_ULong size = 0;
 
-    if (ptable == NULL || pcontext == NULL) {
+    if (!(face && otable && ocontext)) {
         return oc_error_invalid_param;
     }
 
+    ft_face = face->impl->ft_face;
+
     // todo: add offset option
-    FT_ULong size = 0;
-    err = FT_Load_Sfnt_Table(face.impl->ft_face, tag, 0, NULL, &size);
+    err = FT_Load_Sfnt_Table(ft_face, tag, 0, NULL, &size);
     switch (err) {
     case FT_Err_Ok:
         break;
@@ -190,36 +207,44 @@ oc_error oc_get_sfnt_table(oc_face face, oc_tag tag, oc_table* ptable, void** pc
         return oc__unexpected(err);
     }
 
-    uint8_t* buffer = (uint8_t*)malloc(size);
+    buffer = malloc(size);
     if (buffer == NULL) {
         return oc_error_out_of_memory;
     }
 
-    err = FT_Load_Sfnt_Table(face.impl->ft_face, tag, 0, buffer, &size);
+    err = FT_Load_Sfnt_Table(ft_face, tag, 0, buffer, &size);
     assert(err == oc_error_ok);
 
-    oc_table table;
     table.data = buffer;
     table.size = size;
 
-    *ptable = table;
-    *pcontext = buffer;
+    *otable = table;
+    *ocontext = buffer;
 
     return oc_error_ok;
 }
 
-inline void oc_free_table(oc_face face, void* context) {
+void oc_free_table(const oc_face* face, void* context) {
     (void)face;
     free(context);
 }
 
 // todo: add option for verticals and maybe load both hori and vert bearings, advances
-void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_glyph_metrics* pmetrics) {
-    if (pmetrics == NULL) {
-        return;
+void oc_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
+    FT_Error err;
+    FT_Face ft_face;
+    oc__mutex_impl_t* lock;
+    FT_Glyph_Metrics ft_metrics;
+    oc_glyph_metrics metrics = { 0 };
+    FT_Int32 ft_load_flags = FT_LOAD_NO_AUTOHINT | FT_LOAD_BITMAP_METRICS_ONLY | FT_LOAD_NO_HINTING;
+
+    if (!(face && ometrics)) {
+        goto exit;
     }
 
-    FT_Int32 ft_load_flags = FT_LOAD_NO_AUTOHINT | FT_LOAD_BITMAP_METRICS_ONLY | FT_LOAD_NO_HINTING;
+    ft_face = face->impl->ft_face;
+    lock = &face->impl->lock;
+
     if (flags & OC_LOAD_NO_SCALE) {
         ft_load_flags |= FT_LOAD_NO_SCALE;
     }
@@ -228,23 +253,23 @@ void oc_get_glyph_metrics(oc_face face, uint16_t glyph_index, oc_load_flags flag
     // ft_load_flags |= FT_LOAD_NO_HINTING;
     //}
 
-    oc__mutex_impl_lock(&face.impl->lock);
-    FT_Error err = FT_Load_Glyph(face.impl->ft_face, glyph_index, ft_load_flags);
+    oc__mutex_impl_lock(lock);
+    err = FT_Load_Glyph(ft_face, index, ft_load_flags);
     if (err != FT_Err_Ok) {
-        oc__mutex_impl_unlock(&face.impl->lock);
-        memset(pmetrics, 0, sizeof(oc_glyph_metrics));
-        return;
+        oc__mutex_impl_unlock(lock);
+        goto exit;
     }
 
-    FT_GlyphSlot slot = face.impl->ft_face->glyph;
-    FT_Glyph_Metrics glyph_metrics = slot->metrics;
-    oc__mutex_impl_unlock(&face.impl->lock);
+    ft_metrics = ft_face->glyph->metrics;
+    oc__mutex_impl_unlock(lock);
 
-    pmetrics->width = glyph_metrics.width;
-    pmetrics->height = glyph_metrics.height;
-    pmetrics->bearing_x = glyph_metrics.horiBearingX;
-    pmetrics->bearing_y = glyph_metrics.horiBearingY;
-    pmetrics->advance = glyph_metrics.horiAdvance;
+    metrics.width = ft_metrics.width;
+    metrics.height = ft_metrics.height;
+    metrics.bearing_x = ft_metrics.horiBearingX;
+    metrics.bearing_y = ft_metrics.horiBearingY;
+    metrics.advance = ft_metrics.horiAdvance;
+exit:
+    if (ometrics) *ometrics = metrics;
 }
 
 typedef struct {
@@ -326,15 +351,21 @@ static int oc__cubic_to(const FT_Vector* x2c1, const FT_Vector* x2c2, const FT_V
     return 0;
 }
 
-void oc_get_glyph_bbox(oc_face face, uint16_t glyph_index, oc_load_flags flags, oc_bbox* pbbox) {
-    if (pbbox == NULL) {
-        return;
-    }
-
+void oc_get_glyph_bbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
     FT_Error err;
-    FT_BBox bbox;
-
+    FT_Face ft_face;
+    oc__mutex_impl_t* lock;
+    FT_BBox ft_cbox;
+    oc_bbox cbox = { 0 };
     FT_Int32 ft_load_flags = FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING;
+
+    if (!(face && ocbox)) {
+        goto exit;
+    }
+    
+    ft_face = face->impl->ft_face;
+    lock = &face->impl->lock;
+
     if (flags & OC_LOAD_NO_SCALE) {
         ft_load_flags |= FT_LOAD_NO_SCALE;
     }
@@ -343,51 +374,59 @@ void oc_get_glyph_bbox(oc_face face, uint16_t glyph_index, oc_load_flags flags, 
     // ft_load_flags |= FT_LOAD_NO_HINTING;
     //}
 
-    oc__mutex_impl_lock(&face.impl->lock);
-    err = FT_Load_Glyph(face.impl->ft_face, glyph_index, ft_load_flags);
+    oc__mutex_impl_lock(lock);
+    err = FT_Load_Glyph(ft_face, index, ft_load_flags);
     if (err != FT_Err_Ok) {
-        memset(pbbox, 0, sizeof(oc_bbox));
-        oc__mutex_impl_unlock(&face.impl->lock);
+        oc__mutex_impl_unlock(lock);
+        goto exit;
     }
 
-    FT_Outline_Get_CBox(&face.impl->ft_face->glyph->outline, &bbox);
-    oc__mutex_impl_unlock(&face.impl->lock);
+    FT_Outline_Get_CBox(&ft_face->glyph->outline, &ft_cbox);
+    oc__mutex_impl_unlock(lock);
 
-    pbbox->min_x = bbox.xMin;
-    pbbox->min_y = bbox.yMin;
-    pbbox->max_x = bbox.xMax;
-    pbbox->max_y = bbox.yMax;
+    cbox.min_x = ft_cbox.xMin;
+    cbox.min_y = ft_cbox.yMin;
+    cbox.max_x = ft_cbox.xMax;
+    cbox.max_y = ft_cbox.yMax;
+exit:
+    if (ocbox) *ocbox = cbox;
 }
 
-bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* outline_funcs, void* context) {
+bool oc_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
     FT_Error err;
-    if (outline_funcs == NULL) {
-        return false;
+    FT_Face ft_face;
+    oc__mutex_impl_t* lock;
+    FT_GlyphSlot glyph;
+    FT_Outline outline;
+    oc__outline_context context = { 0 };
+
+    if (!(face && funcs)) {
+        goto exit;
     }
 
-    oc__mutex_impl_lock(&face.impl->lock);
-    err = FT_Load_Glyph(face.impl->ft_face, glyph_index, FT_LOAD_NO_SCALE | FT_LOAD_NO_BITMAP);
+    ft_face = face->impl->ft_face;
+    lock = &face->impl->lock;
+
+    oc__mutex_impl_lock(lock);
+    err = FT_Load_Glyph(ft_face, index, FT_LOAD_NO_SCALE | FT_LOAD_NO_BITMAP);
     if (err != FT_Err_Ok) {
-        oc__mutex_impl_unlock(&face.impl->lock);
-        return false;
+        goto exit_critical;
     }
 
-    FT_GlyphSlot slot = face.impl->ft_face->glyph;
-    FT_Outline glyph_outline = slot->outline;
+    glyph = ft_face->glyph;
+    outline = glyph->outline;
 
-    if (slot->format != FT_GLYPH_FORMAT_OUTLINE && slot->format != FT_GLYPH_FORMAT_COMPOSITE) {
-        oc__mutex_impl_unlock(&face.impl->lock);
-        return false;
+    if (glyph->format != FT_GLYPH_FORMAT_OUTLINE && glyph->format != FT_GLYPH_FORMAT_COMPOSITE) {
+        goto exit_critical;
     }
-    oc__mutex_impl_unlock(&face.impl->lock);
+    oc__mutex_impl_unlock(lock);
 
-    oc__outline_context ctx = { 0 };
-    ctx.funcs = outline_funcs;
-    ctx.ctx = context;
+    context.funcs = funcs;
+    context.ctx = user;
 
     // shift is set to one as we want all point to be multiplied by 2
     // to restore conic 'to' position to its original floating point value
-    static const FT_Outline_Funcs decompose_funcs = {
+    static const FT_Outline_Funcs ft_funcs = {
         oc__move_to,
         oc__line_to,
         oc__conic_to,
@@ -396,97 +435,105 @@ bool oc_get_outline(oc_face face, uint16_t glyph_index, const oc_outline_funcs* 
         0,
     };
 
-    err = FT_Outline_Decompose(&glyph_outline, &decompose_funcs, &ctx);
+    err = FT_Outline_Decompose(&outline, &ft_funcs, &context);
     if (err != FT_Err_Ok) {
         return false;
     }
 
-    if (ctx.figure_started) {
-        ctx.funcs->end_figure(ctx.ctx);
+    if (context.figure_started) {
+        context.funcs->end_figure(context.ctx);
     }
 
     return true;
+exit_critical:
+    oc__mutex_impl_unlock(lock);
+exit:
+    return false;
 }
 
-oc_error oc_render_glyph(oc_face face, uint16_t glyph_index, oc_size* psize, unsigned char* buffer, size_t buffer_size) {
-    FT_Error err;
-    if (psize == NULL) {
-        return oc_error_invalid_param;
+oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
+    FT_Face ft_face;
+    oc__mutex_impl_t* lock;
+    FT_Bitmap ft_bitmap;
+    FT_Error ft_err = FT_Err_Ok;
+    FT_Glyph ft_glyph = NULL;
+    oc_error err = oc_error_ok;
+    oc_extent extent = { 0 };
+
+    if (!(face && oextent)) {
+        err = oc_error_invalid_param;
+        goto exit;
     }
 
-    oc__mutex_impl_lock(&face.impl->lock);
-    err = FT_Load_Glyph(face.impl->ft_face, glyph_index, FT_LOAD_BITMAP_METRICS_ONLY | FT_LOAD_NO_HINTING | FT_LOAD_NO_AUTOHINT);
-    if (err != FT_Err_Ok) {
-        oc__mutex_impl_unlock(&face.impl->lock);
-        switch (err) {
+    ft_face = face->impl->ft_face;
+    lock = &face->impl->lock;
+
+    oc__mutex_impl_lock(lock);
+    ft_err = FT_Load_Glyph(ft_face, index, FT_LOAD_BITMAP_METRICS_ONLY | FT_LOAD_NO_HINTING | FT_LOAD_NO_AUTOHINT);
+    if (ft_err != FT_Err_Ok) {
+        oc__mutex_impl_unlock(lock);
+        goto exit;
+    }
+
+    ft_bitmap = ft_face->glyph->bitmap;
+    if (ft_bitmap.width != (FT_UInt)ft_bitmap.pitch) {
+        // // todo: implement diffrent types
+        err = oc_error_unexpected;
+        goto exit_critical;
+    }
+
+    extent.rows = ft_bitmap.rows;
+    extent.cols = ft_bitmap.width;
+
+    if (buffer == NULL) {
+        goto exit_critical;
+    }
+
+    if (extent.rows == 0 || extent.cols == 0) {
+        goto exit_critical;
+    }
+
+    if (buffer_size < extent.rows * extent.cols) {
+        err = oc_error_insufficient_buffer;
+        goto exit_critical;
+    }
+
+    ft_err = FT_Get_Glyph(ft_face->glyph, &ft_glyph);
+    oc__mutex_impl_unlock(lock);
+
+    if (ft_err != FT_Err_Ok) {
+        goto exit;
+    }
+
+    ft_err = FT_Glyph_To_Bitmap(&ft_glyph, FT_RENDER_MODE_NORMAL, NULL, 1);
+    if (ft_err != FT_Err_Ok) {
+        goto exit;
+    }
+
+    assert(((FT_BitmapGlyph)ft_glyph)->bitmap.rows == extent.rows);
+    assert(((FT_BitmapGlyph)ft_glyph)->bitmap.width == extent.cols);
+    assert((FT_UInt)((FT_BitmapGlyph)ft_glyph)->bitmap.pitch == extent.cols);
+
+    memcpy(buffer, ((FT_BitmapGlyph)ft_glyph)->bitmap.buffer, extent.rows * extent.cols);
+
+exit:
+    if (ft_glyph) FT_Done_Glyph(ft_glyph);
+    if (oextent) *oextent = extent;
+
+    if (ft_err != FT_Err_Ok) {
+        switch (ft_err) {
         case FT_Err_Out_Of_Memory:
             return oc_error_out_of_memory;
         case FT_Err_Invalid_Argument:
             return oc_error_invalid_param;
         default:
-            return oc__unexpected(err);
+            return oc__unexpected(ft_err);
         }
     }
 
-    FT_Bitmap bitmap = face.impl->ft_face->glyph->bitmap;
-    if ((int)bitmap.width != bitmap.pitch) {
-        oc__mutex_impl_unlock(&face.impl->lock);
-        // todo: implement diffrent types
-        return oc_error_unexpected;
-    }
-
-    psize->rows = bitmap.rows;
-    psize->cols = bitmap.width;
-
-    if (buffer == NULL) {
-        oc__mutex_impl_unlock(&face.impl->lock);
-        return oc_error_ok;
-    }
-
-    if (bitmap.rows == 0 || bitmap.width == 0) {
-        oc__mutex_impl_unlock(&face.impl->lock);
-        return oc_error_ok;
-    }
-
-    if (buffer_size < bitmap.rows * bitmap.width) {
-        oc__mutex_impl_unlock(&face.impl->lock);
-        return oc_error_insufficient_buffer;
-    }
-
-    FT_Glyph glyph;
-    FT_BitmapGlyph glyph_bitmap;
-
-    err = FT_Get_Glyph(face.impl->ft_face->glyph, &glyph);
-    oc__mutex_impl_unlock(&face.impl->lock);
-
-    switch (err) {
-    case FT_Err_Ok:
-        break;
-    case FT_Err_Out_Of_Memory:
-        return oc_error_out_of_memory;
-    default:
-        return oc__unexpected(err);
-    }
-
-    err = FT_Glyph_To_Bitmap(&glyph, FT_RENDER_MODE_NORMAL, NULL, 1);
-    glyph_bitmap = (FT_BitmapGlyph)glyph;
-
-    if (err != FT_Err_Ok) {
-        FT_Done_Glyph(glyph);
-        switch (err) {
-        case FT_Err_Out_Of_Memory:
-            return oc_error_out_of_memory;
-        default:
-            return oc__unexpected(err);
-        }
-    }
-
-    assert(glyph_bitmap->bitmap.rows == bitmap.rows);
-    assert(glyph_bitmap->bitmap.width == bitmap.width);
-    assert(glyph_bitmap->bitmap.pitch == bitmap.pitch);
-
-    memcpy(buffer, glyph_bitmap->bitmap.buffer, bitmap.rows * bitmap.width);
-
-    FT_Done_Glyph(glyph);
-    return oc_error_ok;
+    return err;
+// fragile section!!!
+exit_critical:
+    oc__mutex_impl_unlock(lock);
+    goto exit;
 }
