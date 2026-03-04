@@ -603,7 +603,7 @@ oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, oc_table* otable, vo
     oc_error err = oc_error_ok;
 
     if (!(face && otable && ocontext)) {
-        oc__exit(err);
+        oc__exit(oc_error_invalid_param);
     }
 
     dw_err = face->impl->dw_face->lpVtbl->TryGetFontTable(
