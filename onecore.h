@@ -1065,6 +1065,7 @@ oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, oc_table* otable, vo
     oc_table table = { 0 };
 
     if (!(face && otable && ocontext)) {
+        err = oc_error_invalid_param;
         goto exit;
     }
 
@@ -1312,7 +1313,7 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
 
     oc_extent extent = { 0 };
 
-    if (!(face && oextent && buffer)) {
+    if (!(face && oextent)) {
         err = oc_error_invalid_param;
         goto exit;
     }
