@@ -1317,13 +1317,13 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
         goto exit;
     }
 
+    ct_font = (CTFontRef)face->impl;
+    count = CTFontGetGlyphCount(ct_font);
+
     if (index >= count) {
         err = oc_error_invalid_param;
         goto exit;
     }
-
-    ct_font = (CTFontRef)face->impl;
-    count = CTFontGetGlyphCount(ct_font);
 
     // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L414
     oc_get_glyph_bbox(face, index, OC_LOAD_DEFAULT, &cbox);
