@@ -1099,6 +1099,9 @@ oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
     oc_16p16 scale;
     int32_t ppem;
 
+    CTFontRef ct_font;
+    CTFontRef ct_font_copy;
+
     if (!face) {
         return oc_error_invalid_param;
     }
@@ -1114,16 +1117,26 @@ oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
 
     scaled = (desired_size * dpi + 36) / 72;
     scale = oc_div_16p16(scaled, face->metrics.upem);
-    ppem = (scaled + 32) >> 6;
 
+    ct_font = (CTFontRef)face->impl;
+    ct_font_copy = CTFontCreateCopyWithAttributes(ct_font, scaled / 64.0, NULL, NULL);
+
+    if (ct_font_copy == NULL) {
+        return oc_error_out_of_memory;
+    }
+
+    ppem = (scaled + 32) >> 6;
     if (ppem > UINT16_MAX) {
         // todo: add this test case
+        CFRelease(ct_font_copy);
         return oc_error_invalid_param;
     }
 
     face->metrics.ppem = (uint16_t)ppem;
     face->metrics.scale = scale;
+    face->impl = (oc_face_impl*)ct_font_copy;
 
+    CFRelease(ct_font);
     return oc_error_ok;
 }
 
@@ -1366,7 +1379,6 @@ bool oc_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs*
     return true;
 }
 
-// smth is off with mac!!!!
 oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
     oc_error err = oc_error_ok;
 
