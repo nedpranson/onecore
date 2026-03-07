@@ -140,29 +140,6 @@ void oc_free_face(oc_face* face) {
     memset(face, 0, sizeof(*face));
 }
 
-
-oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
-    CTFontRef ct_font;
-    oc_face new_face;
-
-    if (!face) {
-        return oc_error_invalid_param;
-    }
-
-    ct_font = (CTFontRef)face->impl;
-    new_face.impl = (oc_face_impl*)CTFontCreateCopyWithAttributes(ct_font, 0.0, NULL, NULL);
-
-    if (new_face.impl == NULL) {
-        return oc_error_out_of_memory;
-    }
-
-    // new_face.metrics.
-
-    *face = new_face;
-    CFRelease(ct_font);
-    return oc_error_ok;
-}
-
 uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
     CTFontRef ct_font;
 
