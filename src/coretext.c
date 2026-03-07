@@ -1,3 +1,4 @@
+#include <CoreText/CTFont.h>
 #include <stdint.h>
 #define ONECORE_IMPLEMENTATION
 #include "onecore.h"
@@ -139,6 +140,29 @@ void oc_free_face(oc_face* face) {
     memset(face, 0, sizeof(*face));
 }
 
+
+oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
+    CTFontRef ct_font;
+    oc_face new_face;
+
+    if (!face) {
+        return oc_error_invalid_param;
+    }
+
+    ct_font = (CTFontRef)face->impl;
+    new_face.impl = (oc_face_impl*)CTFontCreateCopyWithAttributes(ct_font, 0.0, NULL, NULL);
+
+    if (new_face.impl == NULL) {
+        return oc_error_out_of_memory;
+    }
+
+    // new_face.metrics.
+
+    *face = new_face;
+    CFRelease(ct_font);
+    return oc_error_ok;
+}
+
 uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
     CTFontRef ct_font;
 
@@ -175,6 +199,39 @@ uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
         glyphs[1]);
 
     return glyphs[0];
+}
+
+oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
+    oc_16p16 scaled;
+    oc_16p16 scale;
+    int32_t ppem;
+
+    if (!face) {
+        return oc_error_invalid_param;
+    }
+
+    // todo: think if oc_error_invl_pix_size should be returned
+    if (desired_size < 1 << 6 || dpi < 0) {
+        return oc_error_invalid_param;
+    }
+
+    if (dpi == 0) {
+        dpi = 72;
+    }
+
+    scaled = (desired_size * dpi + 36) / 72;
+    scale = oc_div_16p16(scaled, face->metrics.upem);
+    ppem = (scaled + 32) >> 6;
+
+    if (ppem > UINT16_MAX) {
+        // todo: add this test case
+        return oc_error_invalid_param;
+    }
+
+    face->metrics.ppem = (uint16_t)ppem;
+    face->metrics.scale = scale;
+
+    return oc_error_ok;
 }
 
 oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, oc_table* otable, void** ocontext) {
@@ -263,7 +320,7 @@ exit:
     if (ometrics) *ometrics = metrics;
 }
 
-void oc_get_glyph_bbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
+void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
     CTFontRef ct_font;
     CGRect rect;
 
@@ -447,7 +504,7 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
     }
 
     // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L414
-    oc_get_glyph_bbox(face, index, OC_LOAD_DEFAULT, &cbox);
+    oc_get_glyph_cbox(face, index, OC_LOAD_DEFAULT, &cbox);
 
     pbox.min_x = cbox.min_x >> 6;
     pbox.min_y = cbox.min_y >> 6;

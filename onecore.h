@@ -77,8 +77,8 @@ typedef struct {
 // todo: rename to oc_face_metrics
 typedef struct {
     uint16_t upem;
-    uint16_t ppem;
-    oc_16p16 scale;
+    uint16_t ppem; // todo: put this into some oc_scale struct
+    oc_16p16 scale; // todo: put this into some oc_scale struct
     uint16_t ascent;
     uint16_t descent;
     int16_t leading;
@@ -150,7 +150,7 @@ typedef struct {
 // } oc_discovery_params;
 
 OC_PUBLIC oc_error
-oc_init_library(oc_library* library);
+oc_init_library(oc_library* olibrary);
 
 OC_PUBLIC void
 oc_free_library(oc_library* library);
@@ -176,14 +176,15 @@ oc_open_memory_face(
     const oc_library* library,
     const void* data,
     size_t data_size,
-    const oc_open_params* params,
-    oc_face* face);
+    const oc_open_params* uparams,
+    oc_face* oface);
 
 OC_PUBLIC void
 oc_free_face(oc_face* face);
 
-// OC_PUBLIC oc_error
-// oc_set_size(oc_face face, oc_26p6 desired_size, short dpi);
+// todo: give a warning that this function is not thread safe
+OC_PUBLIC oc_error
+oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi);
 
 OC_PUBLIC uint16_t
 oc_get_char_index(const oc_face* face, uint32_t charcode);
@@ -193,14 +194,15 @@ oc_get_glyph_metrics(
     const oc_face* face,
     uint16_t index,
     oc_load_flags flags,
-    oc_glyph_metrics* metrics);
+    oc_glyph_metrics* ometrics);
 
+// todo: rename to oc_get_glyph_cbox
 OC_PUBLIC void
-oc_get_glyph_bbox(
+oc_get_glyph_cbox(
     const oc_face* face,
     uint16_t index,
     oc_load_flags flags,
-    oc_bbox* bbox);
+    oc_bbox* ocbox);
 
 // todo: add comments here explaining that every backend will generate diffrent glyph textures
 //       so if u want it modified by every backend it would be recomended to raster it using glyph outlines
@@ -211,7 +213,7 @@ OC_PUBLIC oc_error
 oc_render_glyph(
     const oc_face* face,
     uint16_t index,
-    oc_extent* extent,
+    oc_extent* oextent,
     uint8_t* buffer,
     size_t buffer_size);
 
@@ -219,16 +221,16 @@ OC_PUBLIC bool
 oc_get_outline(
     const oc_face* face,
     uint16_t index,
-    const oc_outline_funcs* outline_funcs,
-    void* context);
+    const oc_outline_funcs* funcs,
+    void* user);
 
 // todo: copy variant would be nice which we would not need to free
 OC_PUBLIC oc_error
 oc_get_sfnt_table(
     const oc_face* face,
     oc_tag tag,
-    oc_table* table,
-    void** context);
+    oc_table* otable,
+    void** ocontext);
 
 OC_PUBLIC void
 oc_free_table(const oc_face* face, void* context);
@@ -326,6 +328,7 @@ oc_16p16 oc_mul_16p16(oc_16p16 a, oc_16p16 b) {
     return (int32_t)((ab + 0x8000L + (ab >> 63)) >> 16);
 }
 
+// todo: make default dpi to 72
 static inline oc_open_params oc__open_params_defaults(const oc_open_params* uparams) {
     oc_open_params params = { 0 };
 
@@ -333,8 +336,10 @@ static inline oc_open_params oc__open_params_defaults(const oc_open_params* upar
         params = *uparams;
     }
 
-    if (params.desired_size <= 0) {
+    if (params.desired_size == 0) {
         params.desired_size = 12 << 6;
+    } else if (params.desired_size < 1 << 6) {
+        params.desired_size = 1 << 6;
     }
 
     if (params.dpi <= 0) {
@@ -522,6 +527,38 @@ void oc_free_face(oc_face* face) {
     memset(face, 0, sizeof(oc_face));
 }
 
+
+oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
+    FT_Error err;
+    FT_Face ft_face;
+
+    if (!face) {
+        return oc_error_invalid_param;
+    }
+
+    // todo: think if oc_error_invl_pix_size should be returned
+    if (desired_size < 1 << 6) {
+        return oc_error_invalid_param;
+    }
+
+    ft_face = face->impl->ft_face;
+    err = FT_Set_Char_Size(ft_face, 0, desired_size, dpi, dpi);
+
+    switch (err) {
+    case FT_Err_Ok:
+        break;
+    case FT_Err_Invalid_Pixel_Size:
+        return oc_error_invalid_param;
+    default:
+        return oc__unexpected(err);
+    }
+
+    face->metrics.ppem = ft_face->size->metrics.y_ppem;
+    face->metrics.scale = ft_face->size->metrics.y_scale;
+
+    return oc_error_ok;
+}
+
 uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
     return face ? FT_Get_Char_Index(face->impl->ft_face, charcode) : 0;
 }
@@ -694,7 +731,7 @@ static int oc__cubic_to(const FT_Vector* x2c1, const FT_Vector* x2c2, const FT_V
     return 0;
 }
 
-void oc_get_glyph_bbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
+void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
     FT_Error err;
     FT_Face ft_face;
     oc__mutex_impl_t* lock;
@@ -1019,6 +1056,29 @@ void oc_free_face(oc_face* face) {
     memset(face, 0, sizeof(*face));
 }
 
+
+oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
+    CTFontRef ct_font;
+    oc_face new_face;
+
+    if (!face) {
+        return oc_error_invalid_param;
+    }
+
+    ct_font = (CTFontRef)face->impl;
+    new_face.impl = (oc_face_impl*)CTFontCreateCopyWithAttributes(ct_font, 0.0, NULL, NULL);
+
+    if (new_face.impl == NULL) {
+        return oc_error_out_of_memory;
+    }
+
+    // new_face.metrics.
+
+    *face = new_face;
+    CFRelease(ct_font);
+    return oc_error_ok;
+}
+
 uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
     CTFontRef ct_font;
 
@@ -1055,6 +1115,39 @@ uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
         glyphs[1]);
 
     return glyphs[0];
+}
+
+oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
+    oc_16p16 scaled;
+    oc_16p16 scale;
+    int32_t ppem;
+
+    if (!face) {
+        return oc_error_invalid_param;
+    }
+
+    // todo: think if oc_error_invl_pix_size should be returned
+    if (desired_size < 1 << 6 || dpi < 0) {
+        return oc_error_invalid_param;
+    }
+
+    if (dpi == 0) {
+        dpi = 72;
+    }
+
+    scaled = (desired_size * dpi + 36) / 72;
+    scale = oc_div_16p16(scaled, face->metrics.upem);
+    ppem = (scaled + 32) >> 6;
+
+    if (ppem > UINT16_MAX) {
+        // todo: add this test case
+        return oc_error_invalid_param;
+    }
+
+    face->metrics.ppem = (uint16_t)ppem;
+    face->metrics.scale = scale;
+
+    return oc_error_ok;
 }
 
 oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, oc_table* otable, void** ocontext) {
@@ -1143,7 +1236,7 @@ exit:
     if (ometrics) *ometrics = metrics;
 }
 
-void oc_get_glyph_bbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
+void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
     CTFontRef ct_font;
     CGRect rect;
 
@@ -1327,7 +1420,7 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
     }
 
     // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L414
-    oc_get_glyph_bbox(face, index, OC_LOAD_DEFAULT, &cbox);
+    oc_get_glyph_cbox(face, index, OC_LOAD_DEFAULT, &cbox);
 
     pbox.min_x = cbox.min_x >> 6;
     pbox.min_y = cbox.min_y >> 6;
@@ -2006,6 +2099,40 @@ uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
     return index;
 }
 
+// race!!!!!! to face.metrics->ppem and face->metrics.scale should we allow it?
+oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
+    oc_16p16 scaled;
+    oc_16p16 scale;
+    int32_t ppem;
+
+    if (!face) {
+        return oc_error_invalid_param;
+    }
+
+    // todo: think if oc_error_invl_pix_size should be returned
+    if (desired_size < 1 << 6 || dpi < 0) {
+        return oc_error_invalid_param;
+    }
+
+    if (dpi == 0) {
+        dpi = 72;
+    }
+
+    scaled = (desired_size * dpi + 36) / 72;
+    scale = oc_div_16p16(scaled, face->metrics.upem);
+    ppem = (scaled + 32) >> 6;
+
+    if (ppem > UINT16_MAX) {
+        // todo: add this test case
+        return oc_error_invalid_param;
+    }
+
+    face->metrics.ppem = (uint16_t)ppem;
+    face->metrics.scale = scale;
+
+    return oc_error_ok;
+}
+
 oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, oc_table* otable, void** ocontext) {
     HRESULT dw_err;
     const void* table_data;
@@ -2129,7 +2256,7 @@ exit:
     if (ometrics) *ometrics = metrics;
 }
 
-void oc_get_glyph_bbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
+void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
     HRESULT err;
     DWRITE_GLYPH_METRICS metrics;
     IDWriteFontFace* dw_face;
@@ -2251,7 +2378,7 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
     }
 
     // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L414
-    oc_get_glyph_bbox(face, index, OC_LOAD_DEFAULT, &cbox);
+    oc_get_glyph_cbox(face, index, OC_LOAD_DEFAULT, &cbox);
 
     pbox.min_x = cbox.min_x >> 6;
     pbox.min_y = cbox.min_y >> 6;

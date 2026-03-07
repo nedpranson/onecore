@@ -77,8 +77,8 @@ typedef struct {
 // todo: rename to oc_face_metrics
 typedef struct {
     uint16_t upem;
-    uint16_t ppem;
-    oc_16p16 scale;
+    uint16_t ppem; // todo: put this into some oc_scale struct
+    oc_16p16 scale; // todo: put this into some oc_scale struct
     uint16_t ascent;
     uint16_t descent;
     int16_t leading;
@@ -150,7 +150,7 @@ typedef struct {
 // } oc_discovery_params;
 
 OC_PUBLIC oc_error
-oc_init_library(oc_library* library);
+oc_init_library(oc_library* olibrary);
 
 OC_PUBLIC void
 oc_free_library(oc_library* library);
@@ -176,14 +176,15 @@ oc_open_memory_face(
     const oc_library* library,
     const void* data,
     size_t data_size,
-    const oc_open_params* params,
-    oc_face* face);
+    const oc_open_params* uparams,
+    oc_face* oface);
 
 OC_PUBLIC void
 oc_free_face(oc_face* face);
 
-// OC_PUBLIC oc_error
-// oc_set_size(oc_face face, oc_26p6 desired_size, short dpi);
+// todo: give a warning that this function is not thread safe
+OC_PUBLIC oc_error
+oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi);
 
 OC_PUBLIC uint16_t
 oc_get_char_index(const oc_face* face, uint32_t charcode);
@@ -193,14 +194,15 @@ oc_get_glyph_metrics(
     const oc_face* face,
     uint16_t index,
     oc_load_flags flags,
-    oc_glyph_metrics* metrics);
+    oc_glyph_metrics* ometrics);
 
+// todo: rename to oc_get_glyph_cbox
 OC_PUBLIC void
-oc_get_glyph_bbox(
+oc_get_glyph_cbox(
     const oc_face* face,
     uint16_t index,
     oc_load_flags flags,
-    oc_bbox* bbox);
+    oc_bbox* ocbox);
 
 // todo: add comments here explaining that every backend will generate diffrent glyph textures
 //       so if u want it modified by every backend it would be recomended to raster it using glyph outlines
@@ -211,7 +213,7 @@ OC_PUBLIC oc_error
 oc_render_glyph(
     const oc_face* face,
     uint16_t index,
-    oc_extent* extent,
+    oc_extent* oextent,
     uint8_t* buffer,
     size_t buffer_size);
 
@@ -219,16 +221,16 @@ OC_PUBLIC bool
 oc_get_outline(
     const oc_face* face,
     uint16_t index,
-    const oc_outline_funcs* outline_funcs,
-    void* context);
+    const oc_outline_funcs* funcs,
+    void* user);
 
 // todo: copy variant would be nice which we would not need to free
 OC_PUBLIC oc_error
 oc_get_sfnt_table(
     const oc_face* face,
     oc_tag tag,
-    oc_table* table,
-    void** context);
+    oc_table* otable,
+    void** ocontext);
 
 OC_PUBLIC void
 oc_free_table(const oc_face* face, void* context);
@@ -326,6 +328,7 @@ oc_16p16 oc_mul_16p16(oc_16p16 a, oc_16p16 b) {
     return (int32_t)((ab + 0x8000L + (ab >> 63)) >> 16);
 }
 
+// todo: make default dpi to 72
 static inline oc_open_params oc__open_params_defaults(const oc_open_params* uparams) {
     oc_open_params params = { 0 };
 
@@ -333,8 +336,10 @@ static inline oc_open_params oc__open_params_defaults(const oc_open_params* upar
         params = *uparams;
     }
 
-    if (params.desired_size <= 0) {
+    if (params.desired_size == 0) {
         params.desired_size = 12 << 6;
+    } else if (params.desired_size < 1 << 6) {
+        params.desired_size = 1 << 6;
     }
 
     if (params.dpi <= 0) {

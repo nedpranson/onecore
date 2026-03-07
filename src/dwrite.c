@@ -593,6 +593,40 @@ uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
     return index;
 }
 
+// race!!!!!! to face.metrics->ppem and face->metrics.scale should we allow it?
+oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
+    oc_16p16 scaled;
+    oc_16p16 scale;
+    int32_t ppem;
+
+    if (!face) {
+        return oc_error_invalid_param;
+    }
+
+    // todo: think if oc_error_invl_pix_size should be returned
+    if (desired_size < 1 << 6 || dpi < 0) {
+        return oc_error_invalid_param;
+    }
+
+    if (dpi == 0) {
+        dpi = 72;
+    }
+
+    scaled = (desired_size * dpi + 36) / 72;
+    scale = oc_div_16p16(scaled, face->metrics.upem);
+    ppem = (scaled + 32) >> 6;
+
+    if (ppem > UINT16_MAX) {
+        // todo: add this test case
+        return oc_error_invalid_param;
+    }
+
+    face->metrics.ppem = (uint16_t)ppem;
+    face->metrics.scale = scale;
+
+    return oc_error_ok;
+}
+
 oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, oc_table* otable, void** ocontext) {
     HRESULT dw_err;
     const void* table_data;
@@ -716,7 +750,7 @@ exit:
     if (ometrics) *ometrics = metrics;
 }
 
-void oc_get_glyph_bbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
+void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
     HRESULT err;
     DWRITE_GLYPH_METRICS metrics;
     IDWriteFontFace* dw_face;
@@ -838,7 +872,7 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
     }
 
     // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L414
-    oc_get_glyph_bbox(face, index, OC_LOAD_DEFAULT, &cbox);
+    oc_get_glyph_cbox(face, index, OC_LOAD_DEFAULT, &cbox);
 
     pbox.min_x = cbox.min_x >> 6;
     pbox.min_y = cbox.min_y >> 6;

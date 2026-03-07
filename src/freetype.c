@@ -179,6 +179,38 @@ void oc_free_face(oc_face* face) {
     memset(face, 0, sizeof(oc_face));
 }
 
+
+oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
+    FT_Error err;
+    FT_Face ft_face;
+
+    if (!face) {
+        return oc_error_invalid_param;
+    }
+
+    // todo: think if oc_error_invl_pix_size should be returned
+    if (desired_size < 1 << 6) {
+        return oc_error_invalid_param;
+    }
+
+    ft_face = face->impl->ft_face;
+    err = FT_Set_Char_Size(ft_face, 0, desired_size, dpi, dpi);
+
+    switch (err) {
+    case FT_Err_Ok:
+        break;
+    case FT_Err_Invalid_Pixel_Size:
+        return oc_error_invalid_param;
+    default:
+        return oc__unexpected(err);
+    }
+
+    face->metrics.ppem = ft_face->size->metrics.y_ppem;
+    face->metrics.scale = ft_face->size->metrics.y_scale;
+
+    return oc_error_ok;
+}
+
 uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
     return face ? FT_Get_Char_Index(face->impl->ft_face, charcode) : 0;
 }
@@ -351,7 +383,7 @@ static int oc__cubic_to(const FT_Vector* x2c1, const FT_Vector* x2c2, const FT_V
     return 0;
 }
 
-void oc_get_glyph_bbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
+void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
     FT_Error err;
     FT_Face ft_face;
     oc__mutex_impl_t* lock;
