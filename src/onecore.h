@@ -343,7 +343,7 @@ static inline oc_open_params oc__open_params_defaults(const oc_open_params* upar
     }
 
     if (params.dpi <= 0) {
-        params.dpi = 96;
+        params.dpi = 72;
     }
 
     return params;

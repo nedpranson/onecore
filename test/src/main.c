@@ -148,24 +148,28 @@ void test_oc_open_memory_face(void) {
     free(data);
 }
 
-void test_oc_test_dpi_scales(void) {
+void test_oc_test_sizes(void) {
     oc_error err;
     oc_face face;
+    uint16_t idx;
+    oc_extent extent;
+    uint8_t bitmap_a[13 * 12];
+    uint8_t bitmap_b[13 * 12];
 
     err = oc_open_face(&g_library, "test/files/arial.otf", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    TEST_ASSERT_EQUAL_UINT16(16, face.metrics.ppem);
-    TEST_ASSERT_EQUAL_INT32(32768, face.metrics.scale);
+    TEST_ASSERT_EQUAL_UINT16(12, face.metrics.ppem);
+    TEST_ASSERT_EQUAL_INT32(24576, face.metrics.scale);
 
     err = oc_set_size(&face, 16 << 6, 128);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     TEST_ASSERT_EQUAL_UINT16(28, face.metrics.ppem);
     TEST_ASSERT_EQUAL_INT32(58240, face.metrics.scale);
 
-    err = oc_set_size(&face, 10.5f * 64, 72);
+    err = oc_set_size(&face, 10.5f * 64, 96);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    TEST_ASSERT_EQUAL_UINT16(11, face.metrics.ppem);
-    TEST_ASSERT_EQUAL_INT32(21504, face.metrics.scale);
+    TEST_ASSERT_EQUAL_UINT16(14, face.metrics.ppem);
+    TEST_ASSERT_EQUAL_INT32(28672, face.metrics.scale);
 
     err = oc_set_size(&face, 12 << 6, -1);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
@@ -195,6 +199,35 @@ void test_oc_test_dpi_scales(void) {
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     TEST_ASSERT_EQUAL_UINT16(2, face.metrics.ppem);
     TEST_ASSERT_EQUAL_INT32(4096, face.metrics.scale);
+
+    err = oc_set_size(&face, 65535 << 6, 0);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+    TEST_ASSERT_EQUAL_UINT16(65535 , face.metrics.ppem);
+    TEST_ASSERT_EQUAL_INT32(134215680, face.metrics.scale);
+
+    err = oc_set_size(&face, 65536 << 6, 0);
+    TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
+
+    err = oc_set_size(&face, 12 << 6, 96);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+    TEST_ASSERT_EQUAL_UINT16(16, face.metrics.ppem);
+    TEST_ASSERT_EQUAL_INT32(32768, face.metrics.scale);
+
+    idx = oc_get_char_index(&g_arial_ttf, 'G');
+    TEST_ASSERT_EQUAL_INT16(42, idx);
+
+    oc_render_glyph(&g_arial_ttf, idx, &extent, bitmap_a, sizeof(bitmap_a));
+    TEST_ASSERT_EQUAL_UINT32(13, extent.rows);
+    TEST_ASSERT_EQUAL_UINT32(12, extent.cols);
+
+    idx = oc_get_char_index(&face, 'G');
+    TEST_ASSERT_EQUAL_INT16(42, idx);
+
+    oc_render_glyph(&face, idx, &extent, bitmap_b, sizeof(bitmap_b));
+    TEST_ASSERT_EQUAL_UINT32(13, extent.rows);
+    TEST_ASSERT_EQUAL_UINT32(12, extent.cols);
+
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(bitmap_a, bitmap_b, extent.rows * extent.cols);
 
     oc_free_face(&face);
 }
@@ -744,7 +777,7 @@ int main(void) {
     RUN_TEST(test_oc_init_library);
     RUN_TEST(test_oc_open_face);
     RUN_TEST(test_oc_open_memory_face);
-    RUN_TEST(test_oc_test_dpi_scales);
+    RUN_TEST(test_oc_test_sizes);
     RUN_TEST(test_oc_get_char_index);
     RUN_TEST(test_oc_get_sfnt_table);
     RUN_TEST(test_oc_font_metrics);

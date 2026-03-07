@@ -548,6 +548,7 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
 
     memcpy(buffer, ((FT_BitmapGlyph)ft_glyph)->bitmap.buffer, extent.rows * extent.cols);
 
+    // todo: clean this up
 exit:
     if (ft_glyph) FT_Done_Glyph(ft_glyph);
     if (oextent) *oextent = extent;

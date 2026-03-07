@@ -343,7 +343,7 @@ static inline oc_open_params oc__open_params_defaults(const oc_open_params* upar
     }
 
     if (params.dpi <= 0) {
-        params.dpi = 96;
+        params.dpi = 72;
     }
 
     return params;
@@ -896,6 +896,7 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
 
     memcpy(buffer, ((FT_BitmapGlyph)ft_glyph)->bitmap.buffer, extent.rows * extent.cols);
 
+    // todo: clean this up
 exit:
     if (ft_glyph) FT_Done_Glyph(ft_glyph);
     if (oextent) *oextent = extent;
