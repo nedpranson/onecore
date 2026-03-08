@@ -1,5 +1,3 @@
-#include <CoreText/CTFont.h>
-#include <stdint.h>
 #define ONECORE_IMPLEMENTATION
 #include "onecore.h"
 

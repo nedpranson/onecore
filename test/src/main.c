@@ -34,6 +34,58 @@ void test_oc_init_library(void) {
 
     err = oc_init_library(NULL);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
+    oc_free_library(NULL);
+}
+
+void test_oc_init_collection(void) {
+    oc_collection col;
+    oc_error err;
+
+    oc_collection nil_col = { 0 };
+
+    err = oc_init_collection(NULL, &col);
+    TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
+    TEST_ASSERT_EQUAL_MEMORY(&nil_col, &col, sizeof(oc_collection));
+
+    err = oc_init_collection(&g_library, &col);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    oc_free_collection(&col);
+    TEST_ASSERT_EQUAL_MEMORY(&nil_col, &col, sizeof(oc_collection));
+
+    err = oc_init_collection(&g_library, NULL);
+    TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
+
+    oc_free_collection(NULL);
+}
+
+void test_oc_load_fonts(void) {
+    oc_collection col;
+    oc_error err;
+
+    err = oc_init_collection(&g_library, &col);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    err = oc_load_fonts(&col);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    printf("nfonts: %zu\n", col.font_count);
+
+    err = oc_load_fonts(&col);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    printf("nfonts: %zu\n", col.font_count);
+
+    for (size_t i = 0; i < col.font_count; i++) {
+        oc_font* font = col.fonts[i];
+
+        const char* family = oc_get_family(font);
+        const char* path = oc_get_path(font);
+
+        printf("%s: %s\n", path, family);
+    }
+
+    oc_free_collection(&col);
 }
 
 void test_oc_open_face(void) {
@@ -207,6 +259,8 @@ void test_oc_test_sizes(void) {
 
     err = oc_set_size(&face, 65536 << 6, 0);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
+    TEST_ASSERT_EQUAL_UINT16(65535 , face.metrics.ppem);
+    TEST_ASSERT_EQUAL_INT32(134215680, face.metrics.scale);
 
     err = oc_set_size(&face, 12 << 6, 96);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
@@ -775,6 +829,8 @@ int main(void) {
 
     RUN_TEST(test_math);
     RUN_TEST(test_oc_init_library);
+    RUN_TEST(test_oc_init_collection);
+    RUN_TEST(test_oc_load_fonts);
     RUN_TEST(test_oc_open_face);
     RUN_TEST(test_oc_open_memory_face);
     RUN_TEST(test_oc_test_sizes);

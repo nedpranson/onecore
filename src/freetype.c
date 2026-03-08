@@ -3,6 +3,8 @@
 
 /* ONECORE_FREETYPE_IMPLEMENTATION */
 #include <assert.h>
+// todo: make font config optional
+#include <fontconfig/fontconfig.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_TRUETYPE_TABLES_H
@@ -26,6 +28,12 @@ typedef pthread_mutex_t oc__mutex_impl_t;
 #define oc__mutex_impl_unlock(m) pthread_mutex_unlock(m)
 #define oc__mutex_impl_destroy(m) pthread_mutex_destroy(m)
 #endif /* defined(_MSC_VER) || defined(__MINGW32__) */
+
+
+struct oc_collection_impl {
+    FcConfig* fc_config;
+    FcFontSet* fc_font_set;
+};
 
 struct oc_face_impl {
     FT_Face ft_face;
@@ -55,10 +63,185 @@ oc_error oc_init_library(oc_library* plibrary) {
 }
 
 void oc_free_library(oc_library* library) {
-    FT_Library ft_library = library->internals;
+    FT_Library ft_library;
+    if (!library) {
+        return;
+    }
+
+    ft_library = library->internals;
     FT_Done_FreeType(ft_library);
-    memset(library, 0, sizeof(oc_library));
+    memset(library, 0, sizeof(*library));
 }
+
+
+oc_error oc_init_collection(const oc_library* library, oc_collection* ocollection) {
+    oc_error err = oc_error_ok;
+    oc_collection_impl* impl;
+    oc_collection collection = { 0 };
+
+    if (!(library && ocollection)) {
+        err = oc_error_invalid_param;
+        goto exit;
+    }
+
+    impl = malloc(sizeof(*impl));
+    if (impl == NULL) {
+        goto exit;
+    }
+
+    impl->fc_config = FcInitLoadConfig();
+    impl->fc_font_set = NULL;
+
+    if (impl->fc_config == NULL) {
+        err = oc_error_out_of_memory;
+        free(impl);
+        goto exit;
+    }
+
+    collection.impl = impl;
+    collection.fonts = NULL;
+    collection.font_count = 0;
+exit:
+    if (ocollection) *ocollection = collection;
+    return err;
+}
+
+void oc_free_collection(oc_collection* collection) {
+    oc_collection_impl* impl;
+    if (!collection) {
+        return;
+    }
+
+    impl = collection->impl;
+
+    FcConfigDestroy(impl->fc_config);
+    free(impl);
+    memset(collection, 0, sizeof(*collection));
+}
+
+
+oc_error oc_load_fonts(oc_collection* collection) {
+    FcConfig* fc_config;
+    FcFontSet* fc_font_set;
+
+    if (!collection) {
+        return oc_error_invalid_param;
+    }
+
+    fc_config = collection->impl->fc_config;
+    if (!FcConfigBuildFonts(fc_config)) {
+        return oc_error_out_of_memory;
+    }
+
+    // todo: check what it does if there is no system fonts
+    fc_font_set = FcConfigGetFonts(fc_config, FcSetSystem);
+    assert(fc_font_set != NULL);
+
+    collection->font_count = fc_font_set->nfont;
+    collection->fonts = (oc_font**)fc_font_set->fonts;
+
+    return oc_error_ok;
+}
+
+// todo: abstract oc_get_family and oc_get_path under one method
+
+static const char* oc__font_get_string(const oc_font* font, const char* object) {
+    const FcPattern* fc_pattern;
+
+    FcChar8* string;
+    FcResult result;
+
+    if (!font) {
+        return NULL;
+    }
+
+    fc_pattern = (const FcPattern*)font;
+    result = FcPatternGetString(fc_pattern, object, 0, &string);
+
+    if (result != FcResultMatch) {
+        return NULL;
+    }
+
+    return (const char*)string;
+}
+
+const char* oc_get_family(const oc_font* font) {
+    return oc__font_get_string(font, FC_FAMILY);
+}
+
+const char* oc_get_path(const oc_font* font) {
+    return oc__font_get_string(font, FC_FILE);
+}
+
+// todo: this is not the place to write fontconfig impls
+// oc_error oc_discover_fonts(const oc_library* library, const oc_discovery_params* uparams) {
+//     oc_error err = oc_error_ok;
+//
+//     FcConfig* config = NULL;
+//     FcPattern* pattern = NULL;
+//     FcFontSet* set = NULL;
+//
+//     FcResult result;
+//
+//     (void)uparams;
+//
+//     if (!library) {
+//         err = oc_error_invalid_param;
+//         goto exit;
+//     }
+//
+//     config = FcInitLoadConfig();
+//     if (config == NULL) {
+//         err = oc_error_out_of_memory;
+//         goto exit;
+//     }
+//
+//     if (!FcConfigBuildFonts(config)) {
+//         err = oc_error_unexpected;
+//         goto exit;
+//     }
+//
+//     pattern = FcPatternCreate();
+//     if (pattern == NULL) {
+//         err = oc_error_out_of_memory;
+//         goto exit;
+//     }
+//
+//     FcPatternAddInteger(pattern, FC_WEIGHT, FC_WEIGHT_REGULAR);
+//     FcPatternAddInteger(pattern, FC_SLANT, FC_SLANT_ROMAN);
+//
+//     FcConfigSubstitute(config, pattern, FcMatchPattern);
+//
+//     set = FcFontSort(config, pattern, false, NULL, &result);
+//     switch (result) {
+//     case FcResultMatch:
+//         break;
+//     case FcResultOutOfMemory:
+//         err = oc_error_out_of_memory;
+//         goto exit;
+//     default:
+//         err = oc_error_unexpected;
+//         goto exit;
+//     }
+//
+//     for (int i = 0; i < set->nfont; i++) {
+//         FcPattern* font = set->fonts[i];
+//         FcChar8* file;
+//         FcChar8* family;
+//         int dpi = 0;
+//
+//         FcPatternGetString(font, FC_FILE, 0, &file);
+//         FcPatternGetString(font, FC_FAMILY, 0, &family);
+//         FcPatternGetInteger(font, FC_DPI, 0, &dpi);
+//         printf("%s: %s, %d\n", file, family, dpi);
+//     }
+// exit:
+//     if (set) FcFontSetDestroy(set);
+//     if (pattern) FcPatternDestroy(pattern);
+//     if (config) FcConfigDestroy(config);
+//
+//     return err;
+// }
 
 static oc_error oc__init_face(FT_Face ft_face, const oc_open_params* params, oc_face* oface) {
     FT_Error err;
@@ -172,11 +355,18 @@ oc_error oc_open_memory_face(const oc_library* library, const void* data, size_t
 }
 
 void oc_free_face(oc_face* face) {
-    FT_Done_Face(face->impl->ft_face);
-    oc__mutex_impl_destroy(&face->impl->lock);
+    oc_face_impl* impl;
+    if (!face) {
+        return;
+    }
 
-    free(face->impl);
-    memset(face, 0, sizeof(oc_face));
+    impl = face->impl;
+
+    FT_Done_Face(impl->ft_face);
+    oc__mutex_impl_destroy(&impl->lock);
+
+    free(impl);
+    memset(face, 0, sizeof(*face));
 }
 
 

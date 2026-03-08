@@ -43,8 +43,11 @@ pub fn build(b: *std.Build) void {
     lib_tests.root_module.link_libc = true;
 
     switch (font_backend) {
-        .FreeType => lib_tests.root_module.linkSystemLibrary("freetype2", .{}),
         .DirectWrite => lib_tests.root_module.linkSystemLibrary("dwrite", .{}),
+        .FreeType => {
+            lib_tests.root_module.linkSystemLibrary("freetype2", .{});
+            lib_tests.root_module.linkSystemLibrary("fontconfig", .{});
+        },
         .CoreText => {
             lib_tests.root_module.linkFramework("CoreFoundation", .{});
             lib_tests.root_module.linkFramework("CoreGraphics", .{});
@@ -84,7 +87,10 @@ pub fn build(b: *std.Build) void {
     example.root_module.link_libc = true;
 
     switch (font_backend) {
-        .FreeType => example.root_module.linkSystemLibrary("freetype2", .{}),
+        .FreeType => {
+            example.root_module.linkSystemLibrary("freetype2", .{});
+            example.root_module.linkSystemLibrary("fontconfig", .{});
+        },
         .DirectWrite => example.root_module.linkSystemLibrary("dwrite", .{}),
         .CoreText => {
             example.root_module.linkFramework("CoreFoundation", .{});

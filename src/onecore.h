@@ -123,11 +123,15 @@ typedef struct {
     oc_outline_cubic_to cubic_to;
 } oc_outline_funcs;
 
+// typedef struct oc_library_impl oc_library_impl;
+typedef struct oc_face_impl oc_face_impl;
+typedef struct oc_collection_impl oc_collection_impl;
+typedef struct of_font oc_font;
+
 typedef struct {
     void* internals;
+    // oc_library_impl* impl;
 } oc_library;
-
-typedef struct oc_face_impl oc_face_impl;
 
 typedef struct {
     oc_face_impl* impl;
@@ -135,19 +139,21 @@ typedef struct {
 } oc_face;
 
 typedef struct {
-    void* internals;
-} oc_font;
+    oc_collection_impl* impl;
+    oc_font** fonts;
+    size_t font_count;
+} oc_collection;
 
 typedef struct {
     const void* data;
     size_t size;
 } oc_table;
 
-// typedef struct {
-//     const char* family;
-//     uint8_t weight;
-//     // flags for bold | italic
-// } oc_discovery_params;
+typedef struct {
+    const char* family;
+    uint8_t weight;
+    // flags for bold | italic
+} oc_discovery_params;
 
 OC_PUBLIC oc_error
 oc_init_library(oc_library* olibrary);
@@ -155,16 +161,29 @@ oc_init_library(oc_library* olibrary);
 OC_PUBLIC void
 oc_free_library(oc_library* library);
 
-// OC_PUBLIC oc_error
-// oc_discover_fonts(
-//     oc_library library,
-//     const oc_discovery_params* pparams);
+OC_PUBLIC oc_error
+oc_init_collection(const oc_library* library, oc_collection* ocollection);
+
+OC_PUBLIC void
+oc_free_collection(oc_collection* collection);
+
+OC_PUBLIC oc_error
+oc_load_fonts(oc_collection* collection);
+
+// todo: we need better naming as now we have two seperate project in one lib:
+// * discovery
+// * loader/parser
+OC_PUBLIC const char*
+oc_get_family(const oc_font* font);
+
+OC_PUBLIC const char*
+oc_get_path(const oc_font* font);
 
 OC_PUBLIC oc_error
 oc_open_face(
     const oc_library* library,
     const char* path,
-    const oc_open_params* params,
+    const oc_open_params* uparams,
     oc_face* face);
 
 /*
@@ -256,10 +275,10 @@ oc_mul_16p16(oc_16p16 a, oc_16p16 b);
 /*                                                                                                    */
 /******************************************************************************************************/
 
-// how to dorce like freetype with dwrite
+// these defines should work fine
+// but should we even allow this?
+// if someone would be using them it would just defeat the purpose of this lib
 // ONECORE_FORCE_FREETYPE
-// ONECORE_FORCE_CORETEXT
-// ONECORE_FORCE_DIRECTWRITE
 // ONECORE_FORCE_FONTCONFIG
 
 #ifdef ONECORE_IMPLEMENTATION
