@@ -126,7 +126,7 @@ typedef struct {
 // typedef struct oc_library_impl oc_library_impl;
 typedef struct oc_face_impl oc_face_impl;
 typedef struct oc_collection_impl oc_collection_impl;
-typedef struct of_font oc_font;
+typedef struct oc_font oc_font;
 
 typedef struct {
     void* internals;
@@ -141,7 +141,8 @@ typedef struct {
 typedef struct {
     oc_collection_impl* impl;
     oc_font** fonts;
-    size_t font_count;
+    size_t elements;
+    //size_t capacity;
 } oc_collection;
 
 typedef struct {

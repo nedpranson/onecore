@@ -126,7 +126,7 @@ typedef struct {
 // typedef struct oc_library_impl oc_library_impl;
 typedef struct oc_face_impl oc_face_impl;
 typedef struct oc_collection_impl oc_collection_impl;
-typedef struct of_font oc_font;
+typedef struct oc_font oc_font;
 
 typedef struct {
     void* internals;
@@ -141,7 +141,8 @@ typedef struct {
 typedef struct {
     oc_collection_impl* impl;
     oc_font** fonts;
-    size_t font_count;
+    size_t elements;
+    //size_t capacity;
 } oc_collection;
 
 typedef struct {
@@ -1726,6 +1727,16 @@ struct oc_face_impl {
 };
 
 typedef struct {
+    char* family;
+    char* path;
+} oc__font__cache;
+
+struct oc_font {
+    IDWriteFont* dw_font;
+    oc__font__cache cache;
+};
+
+typedef struct {
     const void* data;
     size_t size;
 } oc__memory_view;
@@ -2087,6 +2098,201 @@ void oc_free_library(oc_library* library) {
     dw_factory->lpVtbl->Release(dw_factory);
 
     memset(library, 0, sizeof(oc_library));
+}
+
+oc_error oc_init_collection(const oc_library* library, oc_collection* ocollection) {
+    oc_collection collection = { 0 };
+    oc_error err = oc_error_ok;
+
+    if (!(library && ocollection)) {
+        goto exit;
+    }
+
+    collection.impl = library->internals;
+    collection.fonts = NULL;
+    collection.elements = 0;
+exit:
+    if (ocollection) *ocollection = collection;
+    return err;
+}
+
+void oc_free_collection(oc_collection* collection) {
+    if (collection) {
+        memset(collection, 0, sizeof(*collection));
+    }
+}
+
+
+// const init_capacity = @as(comptime_int, @max(1, std.atomic.cache_line / @sizeOf(T)));
+//
+// /// Called when memory growth is necessary. Returns a capacity larger than
+// /// minimum that grows super-linearly.
+// fn growCapacity(current: usize, minimum: usize) usize {
+//     var new = current;
+//     while (true) {
+//         new +|= new / 2 + init_capacity;
+//         if (new >= minimum)
+//             return new;
+//     }
+// }
+
+// // 64 is size of cache line
+// static const size_t oc__init_size = 64 / sizeof(oc_font*);
+//
+// static size_t oc__grow_capacity(size_t current, size_t minimum) {
+//     while (current < minimum) {
+//         size_t increment = (current >> 1) + oc__init_size;
+//         size_t next = current + increment;
+//
+//         // on overflow every size_t bit will be set to 1
+//         size_t mask = -(next < current);
+//         current = next | mask;
+//     }
+//     return current;
+// }
+//
+// // todo: fix some overflow errors
+// static bool oc__collection_reserve(oc_collection* collection, size_t elements) {
+//     size_t new_capacity = collection->elements + elements;
+//     size_t capacity = collection->capacity;
+//
+//     if (capacity < new_capacity) {
+//         oc_font** new_memory;
+//         oc_font** old_memory = collection->fonts;
+//
+//         new_capacity = oc__grow_capacity(capacity, new_capacity);
+//         new_memory = malloc(new_capacity * sizeof(oc_font*));
+//
+//         if (new_memory == NULL) {
+//             return false;
+//         }
+//
+//         memcpy(new_memory, old_memory, collection->elements * sizeof(oc_font*));
+//
+//         collection->fonts = new_memory;
+//         collection->capacity = new_capacity;
+//
+//         free(old_memory);
+//     }
+//     return true;
+// }
+
+// impl needs to have dw_factory and dw_collection
+oc_error oc_load_fonts(oc_collection* collection) {
+    oc_error err = oc_error_ok;
+    HRESULT hr;
+
+    IDWriteFactory* dw_factory;
+    IDWriteFontCollection* dw_collection = NULL;
+
+    UINT32 family_count;
+    size_t font_count;
+
+    oc_font** fonts = NULL;
+    size_t idx = 0;
+
+    // on failure collection must stay the same
+    // this function should have no side effects on failure!
+
+    if (!collection) {
+        oc__exit(oc_error_invalid_param);
+    }
+
+    dw_factory = (IDWriteFactory*)collection->impl;
+    hr = dw_factory->lpVtbl->GetSystemFontCollection(
+        dw_factory,
+        &dw_collection,
+        TRUE);
+
+    switch (hr) {
+    case S_OK:
+        break;
+    case E_OUTOFMEMORY:
+        oc__exit(oc_error_out_of_memory);
+    default:
+        oc__exit(oc__unexpected(hr));
+    }
+
+    // i have a perfect perfect idea
+    // we will work with utf16
+    // and only be giving our users utf8 on those get_path get_family functions and how it will work!!!
+    // we will have a cache char* path = NULL; (by default) when requested for some string
+    // if we dont have it in the cache we will concerrt utf16 to utf8 and then reurn it!!!!!
+    // though
+
+    family_count = dw_collection->lpVtbl->GetFontFamilyCount(dw_collection);
+    font_count = 0;
+
+    for (size_t i = 0; i < family_count; i++) {
+        IDWriteFontFamily* family;
+
+        hr = dw_collection->lpVtbl->GetFontFamily(dw_collection, i, &family);
+        assert(hr == S_OK);
+
+        font_count += family->lpVtbl->GetFontCount(family);
+        family->lpVtbl->Release(family);
+    }
+
+    fonts = malloc(font_count * sizeof(*fonts));
+    if (fonts == NULL) {
+        oc__exit(oc_error_out_of_memory);
+    }
+
+    for (size_t i = 0; i < family_count; i++) {
+        IDWriteFontFamily* family;
+        UINT32 font_index;
+
+        hr = dw_collection->lpVtbl->GetFontFamily(dw_collection, i, &family);
+        assert(hr == S_OK);
+
+        font_index = family->lpVtbl->GetFontCount(family);
+        while (font_index--) {
+            IDWriteFont* dw_font;
+            oc_font* font;
+
+            font = malloc(sizeof(*font));
+            if (font == NULL) {
+                family->lpVtbl->Release(family);
+                oc__exit(oc_error_out_of_memory);
+            }
+
+            hr = family->lpVtbl->GetFont(family, font_index, &dw_font);
+            assert(hr == S_OK);
+
+            memset(font, 0, sizeof(*font));
+            font->dw_font = dw_font;
+
+            fonts[idx++] = font;
+        }
+        // do we need to store family??
+        family->lpVtbl->Release(family);
+    }
+
+    fonts = NULL;
+    idx = 0;
+
+exit:
+    while (idx--) {
+        oc_font* font = fonts[idx];
+        IDWriteFont* dw_font = font->dw_font;
+
+        dw_font->lpVtbl->Release(dw_font);
+        free(font);
+    }
+    free(fonts);
+    if (dw_collection) dw_collection->lpVtbl->Release(dw_collection);
+    return err;
+}
+
+
+const char* oc_get_family(const oc_font* font) {
+    // returns NULL for now
+    return font->cache.family;
+}
+
+const char* oc_get_path(const oc_font* font) {
+    // returns NULL for now
+    return font->cache.path;
 }
 
 static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWriteFontFile* font_file, const oc_open_params* uparams, oc_face* oface) {

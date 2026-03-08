@@ -69,14 +69,14 @@ void test_oc_load_fonts(void) {
     err = oc_load_fonts(&col);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
-    printf("nfonts: %zu\n", col.font_count);
+    printf("nfonts: %zu\n", col.elements);
 
     err = oc_load_fonts(&col);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
-    printf("nfonts: %zu\n", col.font_count);
+    printf("nfonts: %zu\n", col.elements);
 
-    for (size_t i = 0; i < col.font_count; i++) {
+    for (size_t i = 0; i < col.elements; i++) {
         oc_font* font = col.fonts[i];
 
         const char* family = oc_get_family(font);
