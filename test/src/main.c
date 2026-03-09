@@ -76,14 +76,14 @@ void test_oc_load_fonts(void) {
 
     printf("nfonts: %zu\n", col.elements);
 
-    for (size_t i = 0; i < col.elements; i++) {
-        oc_font* font = col.fonts[i];
-
-        const char* family = oc_get_family(font);
-        const char* path = oc_get_path(font);
-
-        printf("%s: %s\n", path, family);
-    }
+    // for (size_t i = 0; i < col.elements; i++) {
+    //     oc_font* font = col.fonts[i];
+    //
+    //     const char* family = oc_get_family(font);
+    //     const char* path = oc_get_path(font);
+    //
+    //     printf("%s: %s\n", path, family);
+    // }
 
     oc_free_collection(&col);
 }

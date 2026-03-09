@@ -513,33 +513,33 @@ oc_error oc_load_fonts(oc_collection* collection) {
 
 // todo: abstract oc_get_family and oc_get_path under one method
 
-static const char* oc__font_get_string(const oc_font* font, const char* object) {
-    const FcPattern* fc_pattern;
+// static const char* oc__font_get_string(const oc_font* font, const char* object) {
+//     const FcPattern* fc_pattern;
+//
+//     FcChar8* string;
+//     FcResult result;
+//
+//     if (!font) {
+//         return NULL;
+//     }
+//
+//     fc_pattern = (const FcPattern*)font;
+//     result = FcPatternGetString(fc_pattern, object, 0, &string);
+//
+//     if (result != FcResultMatch) {
+//         return NULL;
+//     }
+//
+//     return (const char*)string;
+// }
 
-    FcChar8* string;
-    FcResult result;
-
-    if (!font) {
-        return NULL;
-    }
-
-    fc_pattern = (const FcPattern*)font;
-    result = FcPatternGetString(fc_pattern, object, 0, &string);
-
-    if (result != FcResultMatch) {
-        return NULL;
-    }
-
-    return (const char*)string;
-}
-
-const char* oc_get_family(const oc_font* font) {
-    return oc__font_get_string(font, FC_FAMILY);
-}
-
-const char* oc_get_path(const oc_font* font) {
-    return oc__font_get_string(font, FC_FILE);
-}
+// const char* oc_get_family(const oc_font* font) {
+//     return oc__font_get_string(font, FC_FAMILY);
+// }
+//
+// const char* oc_get_path(const oc_font* font) {
+//     return oc__font_get_string(font, FC_FILE);
+// }
 
 // todo: this is not the place to write fontconfig impls
 // oc_error oc_discover_fonts(const oc_library* library, const oc_discovery_params* uparams) {
@@ -1731,10 +1731,10 @@ typedef struct {
     char* path;
 } oc__font__cache;
 
-struct oc_font {
-    IDWriteFont* dw_font;
-    oc__font__cache cache;
-};
+// struct oc_font {
+//     IDWriteFont* dw_font;
+//     oc__font__cache cache;
+// };
 
 typedef struct {
     const void* data;
@@ -2092,7 +2092,13 @@ oc_error oc_init_library(oc_library* olibrary) {
 }
 
 void oc_free_library(oc_library* library) {
-    IDWriteFactory* dw_factory = library->internals;
+    IDWriteFactory* dw_factory;
+
+    if (!library) {
+        return;
+    }
+
+    dw_factory = library->internals;
 
     dw_factory->lpVtbl->UnregisterFontFileLoader(dw_factory, oc__dw_file_loader);
     dw_factory->lpVtbl->Release(dw_factory);
@@ -2186,10 +2192,12 @@ oc_error oc_load_fonts(oc_collection* collection) {
     IDWriteFontCollection* dw_collection = NULL;
 
     UINT32 family_count;
-    size_t font_count;
+    UINT32 index;
 
     oc_font** fonts = NULL;
-    size_t idx = 0;
+    size_t font_count = 0;
+
+    oc_collection collection_copy;
 
     // on failure collection must stay the same
     // this function should have no side effects on failure!
@@ -2213,16 +2221,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
         oc__exit(oc__unexpected(hr));
     }
 
-    // i have a perfect perfect idea
-    // we will work with utf16
-    // and only be giving our users utf8 on those get_path get_family functions and how it will work!!!
-    // we will have a cache char* path = NULL; (by default) when requested for some string
-    // if we dont have it in the cache we will concerrt utf16 to utf8 and then reurn it!!!!!
-    // though
-
     family_count = dw_collection->lpVtbl->GetFontFamilyCount(dw_collection);
-    font_count = 0;
-
     for (size_t i = 0; i < family_count; i++) {
         IDWriteFontFamily* family;
 
@@ -2238,6 +2237,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
         oc__exit(oc_error_out_of_memory);
     }
 
+    index = 0;
     for (size_t i = 0; i < family_count; i++) {
         IDWriteFontFamily* family;
         UINT32 font_index;
@@ -2248,42 +2248,28 @@ oc_error oc_load_fonts(oc_collection* collection) {
         font_index = family->lpVtbl->GetFontCount(family);
         while (font_index--) {
             IDWriteFont* dw_font;
-            oc_font* font;
-
-            font = malloc(sizeof(*font));
-            if (font == NULL) {
-                family->lpVtbl->Release(family);
-                oc__exit(oc_error_out_of_memory);
-            }
 
             hr = family->lpVtbl->GetFont(family, font_index, &dw_font);
             assert(hr == S_OK);
 
-            memset(font, 0, sizeof(*font));
-            font->dw_font = dw_font;
-
-            fonts[idx++] = font;
+            fonts[index++] = (oc_font*)dw_font;
         }
         // do we need to store family??
         family->lpVtbl->Release(family);
     }
 
-    // bad!!!!!
-    free(collection->fonts);
+    collection_copy.impl = collection->impl;
+    collection_copy.elements = font_count;
+    collection_copy.fonts = fonts;
 
-    collection->elements = font_count;
-    collection->fonts = fonts;
+    fonts = collection->fonts;
+    font_count = collection->elements;
 
-    fonts = NULL;
-    idx = 0;
-
+    *collection = collection_copy;
 exit:
-    while (idx--) {
-        oc_font* font = fonts[idx];
-        IDWriteFont* dw_font = font->dw_font;
-
+    while (font_count--) {
+        IDWriteFont* dw_font = (IDWriteFont*)fonts[font_count];
         dw_font->lpVtbl->Release(dw_font);
-        free(font);
     }
     free(fonts);
     if (dw_collection) dw_collection->lpVtbl->Release(dw_collection);
@@ -2291,15 +2277,42 @@ exit:
 }
 
 
-const char* oc_get_family(const oc_font* font) {
-    // returns NULL for now
-    return font->cache.family;
-}
+// todo: family_name needs to be shared
+// const char* oc_get_family(const oc_font* font) {
+//     IDWriteFontFamily* dw_family;
+//     IDWriteLocalizedStrings* dw_family_names;
+//     HRESULT hr;
+//
+//     if (!font) {
+//         return NULL;
+//     }
+//
+//     if (font->cache.family) {
+//         return font->cache.family;
+//     }
+//
+//     hr = font->dw_font->lpVtbl->GetFontFamily(font->dw_font, &dw_family);
+//     assert(hr == S_OK);
+//
+//     hr = dw_family->lpVtbl->GetFamilyNames(dw_family, &dw_family_names);
+//
+//     assert(hr == S_OK);
+//     assert(dw_family_names->lpVtbl->GetCount(dw_family_names) > 0);
+//
+//
+//     UINT32 len;
+//     dw_family_names->lpVtbl->GetStringLength(dw_family_names, 0, &len);
+//
+//     dw_family_names->lpVtbl->Release(dw_family_names);
+//     dw_family->lpVtbl->Release(dw_family);
+//
+//     return NULL;
+// }
 
-const char* oc_get_path(const oc_font* font) {
-    // returns NULL for now
-    return font->cache.path;
-}
+// const char* oc_get_path(const oc_font* font) {
+//     // returns NULL for now
+//     return font->cache.path;
+// }
 
 static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWriteFontFile* font_file, const oc_open_params* uparams, oc_face* oface) {
     HRESULT err;
