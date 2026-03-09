@@ -33,7 +33,7 @@ exit:
 void oc_free_collection(oc_collection* collection) {
     if (collection) {
         free(collection->fonts);
-        CFRelease(collection->impl);
+        if (collection->impl) CFRelease(collection->impl);
         memset(collection, 0, sizeof(*collection));
     }
 }
@@ -63,7 +63,6 @@ oc_error oc_load_fonts(oc_collection* collection) {
         return oc_error_out_of_memory;
     }
 
-    ct_fonts = (CFArrayRef)collection->fonts;
     font_count = CFArrayGetCount(ct_fonts);
     fonts = malloc(font_count * sizeof(*fonts));
     
@@ -84,7 +83,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
     *collection = collection_copy;
 
     free(fonts);
-    CFRelease(ct_fonts);
+    if (ct_fonts) CFRelease(ct_fonts);
 
     return oc_error_ok;
 }
