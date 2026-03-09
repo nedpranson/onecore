@@ -406,6 +406,7 @@ oc_error oc_init_collection(const oc_library* library, oc_collection* ocollectio
     oc_error err = oc_error_ok;
 
     if (!(library && ocollection)) {
+        err = oc_error_invalid_param;
         goto exit;
     }
 
@@ -419,6 +420,11 @@ exit:
 
 void oc_free_collection(oc_collection* collection) {
     if (collection) {
+        for (size_t i = 0; i < collection->elements; i++) {
+            IDWriteFont* dw_font = (IDWriteFont*)collection->fonts[i];
+            dw_font->lpVtbl->Release(dw_font);
+        }
+        free(collection->fonts);
         memset(collection, 0, sizeof(*collection));
     }
 }
