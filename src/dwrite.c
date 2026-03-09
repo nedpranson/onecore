@@ -563,6 +563,12 @@ oc_error oc_load_fonts(oc_collection* collection) {
         family->lpVtbl->Release(family);
     }
 
+    // bad!!!!!
+    free(collection->fonts);
+
+    collection->elements = font_count;
+    collection->fonts = fonts;
+
     fonts = NULL;
     idx = 0;
 

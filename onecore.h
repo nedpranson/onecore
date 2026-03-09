@@ -468,7 +468,7 @@ oc_error oc_init_collection(const oc_library* library, oc_collection* ocollectio
 
     collection.impl = impl;
     collection.fonts = NULL;
-    collection.font_count = 0;
+    collection.elements = 0;
 exit:
     if (ocollection) *ocollection = collection;
     return err;
@@ -505,7 +505,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
     fc_font_set = FcConfigGetFonts(fc_config, FcSetSystem);
     assert(fc_font_set != NULL);
 
-    collection->font_count = fc_font_set->nfont;
+    collection->elements = fc_font_set->nfont;
     collection->fonts = (oc_font**)fc_font_set->fonts;
 
     return oc_error_ok;
@@ -2267,6 +2267,12 @@ oc_error oc_load_fonts(oc_collection* collection) {
         // do we need to store family??
         family->lpVtbl->Release(family);
     }
+
+    // bad!!!!!
+    free(collection->fonts);
+
+    collection->elements = font_count;
+    collection->fonts = fonts;
 
     fonts = NULL;
     idx = 0;
