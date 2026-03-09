@@ -1,3 +1,4 @@
+#include <CoreFoundation/CFArray.h>
 #define ONECORE_IMPLEMENTATION
 #include "onecore.h"
 
@@ -9,7 +10,83 @@ oc_error oc_init_library(oc_library* olibrary) {
 }
 
 void oc_free_library(oc_library* library) {
-    memset(library, 0, sizeof(*library));
+    if (library) memset(library, 0, sizeof(*library));
+}
+
+oc_error oc_init_collection(const oc_library* library, oc_collection* ocollection) {
+    oc_collection collection = { 0 };
+    oc_error err = oc_error_ok;
+
+    if (!(library && ocollection)) {
+        err = oc_error_invalid_param;
+        goto exit;
+    }
+
+    collection.impl = NULL;
+    collection.fonts = NULL;
+    collection.elements = 0;
+exit:
+    if (ocollection) *ocollection = collection;
+    return err;
+}
+
+void oc_free_collection(oc_collection* collection) {
+    if (collection) {
+        free(collection->fonts);
+        CFRelease(collection->impl);
+        memset(collection, 0, sizeof(*collection));
+    }
+}
+
+oc_error oc_load_fonts(oc_collection* collection) {
+    CTFontCollectionRef ct_collection;
+    CFArrayRef ct_fonts;
+
+    size_t font_count;
+    oc_font** fonts;
+
+    oc_collection collection_copy;
+
+    if (!collection) {
+        return oc_error_invalid_param;
+    }
+
+    ct_collection = CTFontCollectionCreateFromAvailableFonts(NULL);
+    if (ct_collection == NULL) {
+        return oc_error_out_of_memory;
+    }
+
+    ct_fonts = CTFontCollectionCreateMatchingFontDescriptors(ct_collection);
+    CFRelease(ct_collection);
+
+    if (ct_fonts == NULL) {
+        return oc_error_out_of_memory;
+    }
+
+    ct_fonts = (CFArrayRef)collection->fonts;
+    font_count = CFArrayGetCount(ct_fonts);
+    fonts = malloc(font_count * sizeof(*fonts));
+    
+    if (fonts == NULL) {
+        CFRelease(ct_fonts);
+        return oc_error_out_of_memory;
+    }
+
+    CFArrayGetValues(ct_fonts, CFRangeMake(0, font_count), (const void**)fonts);
+
+    collection_copy.impl = (oc_collection_impl*)ct_fonts;
+    collection_copy.fonts = fonts;
+    collection_copy.elements = font_count;
+
+    ct_fonts = (CFArrayRef)collection->impl;
+    fonts = collection->fonts;
+
+    *collection = collection_copy;
+
+    free(fonts);
+    CFRelease(ct_fonts);
+
+    return oc_error_ok;
 }
 
 static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_open_params* uparams, oc_face* oface) {
@@ -134,8 +211,10 @@ oc_error oc_open_memory_face(const oc_library* library, const void* data, size_t
 }
 
 void oc_free_face(oc_face* face) {
-    CFRelease(face->impl);
-    memset(face, 0, sizeof(*face));
+    if (face) {
+        CFRelease(face->impl);
+        memset(face, 0, sizeof(*face));
+    }
 }
 
 uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
