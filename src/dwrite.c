@@ -577,6 +577,16 @@ exit:
     return err;
 }
 
+int oc_get_weight(const oc_font* font) {
+    IDWriteFont* dw_font;
+
+    if (!font) {
+        return 0;
+    }
+
+    dw_font = (IDWriteFont*)font;
+    return dw_font->lpVtbl->GetWeight(dw_font);
+}
 
 // todo: family_name needs to be shared
 // const char* oc_get_family(const oc_font* font) {

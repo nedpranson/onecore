@@ -171,14 +171,22 @@ oc_free_collection(oc_collection* collection);
 OC_PUBLIC oc_error
 oc_load_fonts(oc_collection* collection);
 
+OC_PUBLIC int
+oc_get_weight(const oc_font* font);
+
+// weight!
+// charset first!
+
+// strings later
+
 // todo: we need better naming as now we have two seperate project in one lib:
 // * discovery
 // * loader/parser
-OC_PUBLIC const char*
-oc_get_family(const oc_font* font);
-
-OC_PUBLIC const char*
-oc_get_path(const oc_font* font);
+// OC_PUBLIC const char*
+// oc_get_family(const oc_font* font);
+//
+// OC_PUBLIC const char*
+// oc_get_path(const oc_font* font);
 
 OC_PUBLIC oc_error
 oc_open_face(

@@ -143,6 +143,20 @@ oc_error oc_load_fonts(oc_collection* collection) {
     return oc_error_ok;
 }
 
+int oc_get_weight(const oc_font* font) {
+    int fc_weight;
+    int weight;
+
+    if (!font) {
+        return 0;
+    }
+
+    FcPatternGetInteger((FcPattern*)font, FC_WEIGHT, 0, &fc_weight);
+    weight = FcWeightToOpenType(fc_weight);
+
+    return weight;
+}
+
 // todo: abstract oc_get_family and oc_get_path under one method
 
 // static const char* oc__font_get_string(const oc_font* font, const char* object) {

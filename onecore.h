@@ -171,14 +171,22 @@ oc_free_collection(oc_collection* collection);
 OC_PUBLIC oc_error
 oc_load_fonts(oc_collection* collection);
 
+OC_PUBLIC int
+oc_get_weight(const oc_font* font);
+
+// weight!
+// charset first!
+
+// strings later
+
 // todo: we need better naming as now we have two seperate project in one lib:
 // * discovery
 // * loader/parser
-OC_PUBLIC const char*
-oc_get_family(const oc_font* font);
-
-OC_PUBLIC const char*
-oc_get_path(const oc_font* font);
+// OC_PUBLIC const char*
+// oc_get_family(const oc_font* font);
+//
+// OC_PUBLIC const char*
+// oc_get_path(const oc_font* font);
 
 OC_PUBLIC oc_error
 oc_open_face(
@@ -509,6 +517,20 @@ oc_error oc_load_fonts(oc_collection* collection) {
     collection->fonts = (oc_font**)fc_font_set->fonts;
 
     return oc_error_ok;
+}
+
+int oc_get_weight(const oc_font* font) {
+    int fc_weight;
+    int weight;
+
+    if (!font) {
+        return 0;
+    }
+
+    FcPatternGetInteger((FcPattern*)font, FC_WEIGHT, 0, &fc_weight);
+    weight = FcWeightToOpenType(fc_weight);
+
+    return weight;
 }
 
 // todo: abstract oc_get_family and oc_get_path under one method
@@ -1214,6 +1236,25 @@ oc_error oc_load_fonts(oc_collection* collection) {
     if (ct_fonts) CFRelease(ct_fonts);
 
     return oc_error_ok;
+}
+
+int oc_get_weight(const oc_font* font) {
+    CFDictionaryRef traits;
+    CFNumberRef weight_obj;
+
+    double weight;
+
+    if (!font) {
+        return 0;
+    }
+
+    traits = CTFontDescriptorCopyAttribute((const CTFontDescriptorRef)(font), kCTFontTraitsAttribute);
+    weight_obj = CFDictionaryGetValue(traits, kCTFontWeightTrait);
+
+    CFNumberGetValue(weight_obj, kCFNumberDoubleType, &weight);
+    CFRelease(traits);
+    
+    return (400.0 + weight * 500.0) + 0.5;
 }
 
 static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_open_params* uparams, oc_face* oface) {
@@ -2359,6 +2400,16 @@ exit:
     return err;
 }
 
+int oc_get_weight(const oc_font* font) {
+    IDWriteFont* dw_font;
+
+    if (!font) {
+        return 0;
+    }
+
+    dw_font = (IDWriteFont*)font;
+    return dw_font->lpVtbl->GetWeight(dw_font);
+}
 
 // todo: family_name needs to be shared
 // const char* oc_get_family(const oc_font* font) {

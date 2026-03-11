@@ -59,6 +59,13 @@ void test_oc_init_collection(void) {
     oc_free_collection(NULL);
 }
 
+static int cmpr(const void* a, const void* b) {
+    const oc_font* afont = *(const oc_font**)a;
+    const oc_font* bfont = *(const oc_font**)b;
+
+    return oc_get_weight(afont) - oc_get_weight(bfont);
+}
+
 void test_oc_load_fonts(void) {
     oc_collection col;
     oc_error err;
@@ -74,16 +81,15 @@ void test_oc_load_fonts(void) {
     err = oc_load_fonts(&col);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
+    qsort(col.fonts, col.elements, sizeof(oc_font*), cmpr);
+
     printf("nfonts: %zu\n", col.elements);
 
-    // for (size_t i = 0; i < col.elements; i++) {
-    //     oc_font* font = col.fonts[i];
-    //
-    //     const char* family = oc_get_family(font);
-    //     const char* path = oc_get_path(font);
-    //
-    //     printf("%s: %s\n", path, family);
-    // }
+    for (size_t i = 0; i < col.elements; i++) {
+        oc_font* font = col.fonts[i];
+
+        printf("%d\n", oc_get_weight(font));
+    }
 
     oc_free_collection(&col);
 }

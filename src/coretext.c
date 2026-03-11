@@ -88,6 +88,25 @@ oc_error oc_load_fonts(oc_collection* collection) {
     return oc_error_ok;
 }
 
+int oc_get_weight(const oc_font* font) {
+    CFDictionaryRef traits;
+    CFNumberRef weight_obj;
+
+    double weight;
+
+    if (!font) {
+        return 0;
+    }
+
+    traits = CTFontDescriptorCopyAttribute((const CTFontDescriptorRef)(font), kCTFontTraitsAttribute);
+    weight_obj = CFDictionaryGetValue(traits, kCTFontWeightTrait);
+
+    CFNumberGetValue(weight_obj, kCFNumberDoubleType, &weight);
+    CFRelease(traits);
+    
+    return (400.0 + weight * 500.0) + 0.5;
+}
+
 static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_open_params* uparams, oc_face* oface) {
     oc_face face;
 
