@@ -26,18 +26,18 @@ typedef int32_t oc_26p6;
 // todo: add hinting https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L861 (grid fitting)
 //       hintign it self is a hard problem to solve
 
-#define OC_WEIGHT_THIN 0
-#define OC_WEIGHT_EXTRALIGHT 40
-#define OC_WEIGHT_LIGHT 50
-#define OC_WEIGHT_SEMILIGHT 55
-#define OC_WEIGHT_BOOK 75
-#define OC_WEIGHT_REGULAR 80
-#define FC_WEIGHT_MEDIUM 100
-#define OC_WEIGHT_DEMIBOLD 180
-#define OC_WEIGHT_BOLD 200
-#define OC_WEIGHT_EXTRABOLD 205
-#define OC_WEIGHT_BLACK 210
-#define OC_WEIGHT_EXTRABLACK 215
+// #define OC_WEIGHT_THIN 0
+// #define OC_WEIGHT_EXTRALIGHT 40
+// #define OC_WEIGHT_LIGHT 50
+// #define OC_WEIGHT_SEMILIGHT 55
+// #define OC_WEIGHT_BOOK 75
+// #define OC_WEIGHT_REGULAR 80
+// #define FC_WEIGHT_MEDIUM 100
+// #define OC_WEIGHT_DEMIBOLD 180
+// #define OC_WEIGHT_BOLD 200
+// #define OC_WEIGHT_EXTRABOLD 205
+// #define OC_WEIGHT_BLACK 210
+// #define OC_WEIGHT_EXTRABLACK 215
 
 #define OC_ERROR_LIST                                      \
     X(oc_error_ok, "no error")                             \
@@ -185,8 +185,8 @@ oc_get_weight(const oc_font* font);
 // OC_PUBLIC const char*
 // oc_get_family(const oc_font* font);
 //
-// OC_PUBLIC const char*
-// oc_get_path(const oc_font* font);
+OC_PUBLIC const char*
+oc_get_path(const oc_font* font);
 
 OC_PUBLIC oc_error
 oc_open_face(

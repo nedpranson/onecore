@@ -63,7 +63,8 @@ static int cmpr(const void* a, const void* b) {
     const oc_font* afont = *(const oc_font**)a;
     const oc_font* bfont = *(const oc_font**)b;
 
-    return oc_get_weight(afont) - oc_get_weight(bfont);
+    return strcmp(oc_get_path(afont), oc_get_path(bfont));
+    //return oc_get_weight(afont) - oc_get_weight(bfont);
 }
 
 void test_oc_load_fonts(void) {
@@ -88,7 +89,7 @@ void test_oc_load_fonts(void) {
     for (size_t i = 0; i < col.elements; i++) {
         oc_font* font = col.fonts[i];
 
-        printf("%d\n", oc_get_weight(font));
+        printf("%s: %d\n", oc_get_path(font), oc_get_weight(font));
     }
 
     oc_free_collection(&col);

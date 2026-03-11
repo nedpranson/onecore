@@ -1,4 +1,5 @@
 #include <CoreFoundation/CFArray.h>
+#include <CoreText/CTFontDescriptor.h>
 #define ONECORE_IMPLEMENTATION
 #include "onecore.h"
 
@@ -148,6 +149,27 @@ int oc_get_weight(const oc_font* font) {
     CFRelease(traits);
     
     return oc__convert(ct_weight) + 0.5;
+}
+
+const char* oc_get_path(const oc_font* font) {
+    CFDictionaryRef traits;
+    CFStringRef url_obj;
+    const char* url;
+
+    if (!font) {
+        return NULL;
+    }
+
+    traits = CTFontDescriptorCopyAttribute((const CTFontDescriptorRef)(font), kCTFontTraitsAttribute);
+    url_obj = CFDictionaryGetValue(traits, kCTFontURLAttribute);
+    url = CFStringGetCStringPtr(url_obj, kCFStringEncodingUTF8);
+
+    if (!url) {
+        printf("invl encoding!");
+    }
+
+    CFRelease(traits);
+    return url;
 }
 
 static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_open_params* uparams, oc_face* oface) {

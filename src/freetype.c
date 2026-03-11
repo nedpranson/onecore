@@ -157,35 +157,33 @@ int oc_get_weight(const oc_font* font) {
     return weight;
 }
 
-// todo: abstract oc_get_family and oc_get_path under one method
+static const char* oc__font_get_string(const oc_font* font, const char* object) {
+    const FcPattern* fc_pattern;
 
-// static const char* oc__font_get_string(const oc_font* font, const char* object) {
-//     const FcPattern* fc_pattern;
-//
-//     FcChar8* string;
-//     FcResult result;
-//
-//     if (!font) {
-//         return NULL;
-//     }
-//
-//     fc_pattern = (const FcPattern*)font;
-//     result = FcPatternGetString(fc_pattern, object, 0, &string);
-//
-//     if (result != FcResultMatch) {
-//         return NULL;
-//     }
-//
-//     return (const char*)string;
-// }
+    FcChar8* string;
+    FcResult result;
+
+    if (!font) {
+        return NULL;
+    }
+
+    fc_pattern = (const FcPattern*)font;
+    result = FcPatternGetString(fc_pattern, object, 0, &string);
+
+    if (result != FcResultMatch) {
+        return NULL;
+    }
+
+    return (const char*)string;
+}
 
 // const char* oc_get_family(const oc_font* font) {
 //     return oc__font_get_string(font, FC_FAMILY);
 // }
 //
-// const char* oc_get_path(const oc_font* font) {
-//     return oc__font_get_string(font, FC_FILE);
-// }
+const char* oc_get_path(const oc_font* font) {
+    return oc__font_get_string(font, FC_FILE);
+}
 
 // todo: this is not the place to write fontconfig impls
 // oc_error oc_discover_fonts(const oc_library* library, const oc_discovery_params* uparams) {

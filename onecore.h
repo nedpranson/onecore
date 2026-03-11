@@ -26,18 +26,18 @@ typedef int32_t oc_26p6;
 // todo: add hinting https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L861 (grid fitting)
 //       hintign it self is a hard problem to solve
 
-#define OC_WEIGHT_THIN 0
-#define OC_WEIGHT_EXTRALIGHT 40
-#define OC_WEIGHT_LIGHT 50
-#define OC_WEIGHT_SEMILIGHT 55
-#define OC_WEIGHT_BOOK 75
-#define OC_WEIGHT_REGULAR 80
-#define FC_WEIGHT_MEDIUM 100
-#define OC_WEIGHT_DEMIBOLD 180
-#define OC_WEIGHT_BOLD 200
-#define OC_WEIGHT_EXTRABOLD 205
-#define OC_WEIGHT_BLACK 210
-#define OC_WEIGHT_EXTRABLACK 215
+// #define OC_WEIGHT_THIN 0
+// #define OC_WEIGHT_EXTRALIGHT 40
+// #define OC_WEIGHT_LIGHT 50
+// #define OC_WEIGHT_SEMILIGHT 55
+// #define OC_WEIGHT_BOOK 75
+// #define OC_WEIGHT_REGULAR 80
+// #define FC_WEIGHT_MEDIUM 100
+// #define OC_WEIGHT_DEMIBOLD 180
+// #define OC_WEIGHT_BOLD 200
+// #define OC_WEIGHT_EXTRABOLD 205
+// #define OC_WEIGHT_BLACK 210
+// #define OC_WEIGHT_EXTRABLACK 215
 
 #define OC_ERROR_LIST                                      \
     X(oc_error_ok, "no error")                             \
@@ -185,8 +185,8 @@ oc_get_weight(const oc_font* font);
 // OC_PUBLIC const char*
 // oc_get_family(const oc_font* font);
 //
-// OC_PUBLIC const char*
-// oc_get_path(const oc_font* font);
+OC_PUBLIC const char*
+oc_get_path(const oc_font* font);
 
 OC_PUBLIC oc_error
 oc_open_face(
@@ -533,35 +533,33 @@ int oc_get_weight(const oc_font* font) {
     return weight;
 }
 
-// todo: abstract oc_get_family and oc_get_path under one method
+static const char* oc__font_get_string(const oc_font* font, const char* object) {
+    const FcPattern* fc_pattern;
 
-// static const char* oc__font_get_string(const oc_font* font, const char* object) {
-//     const FcPattern* fc_pattern;
-//
-//     FcChar8* string;
-//     FcResult result;
-//
-//     if (!font) {
-//         return NULL;
-//     }
-//
-//     fc_pattern = (const FcPattern*)font;
-//     result = FcPatternGetString(fc_pattern, object, 0, &string);
-//
-//     if (result != FcResultMatch) {
-//         return NULL;
-//     }
-//
-//     return (const char*)string;
-// }
+    FcChar8* string;
+    FcResult result;
+
+    if (!font) {
+        return NULL;
+    }
+
+    fc_pattern = (const FcPattern*)font;
+    result = FcPatternGetString(fc_pattern, object, 0, &string);
+
+    if (result != FcResultMatch) {
+        return NULL;
+    }
+
+    return (const char*)string;
+}
 
 // const char* oc_get_family(const oc_font* font) {
 //     return oc__font_get_string(font, FC_FAMILY);
 // }
 //
-// const char* oc_get_path(const oc_font* font) {
-//     return oc__font_get_string(font, FC_FILE);
-// }
+const char* oc_get_path(const oc_font* font) {
+    return oc__font_get_string(font, FC_FILE);
+}
 
 // todo: this is not the place to write fontconfig impls
 // oc_error oc_discover_fonts(const oc_library* library, const oc_discovery_params* uparams) {
@@ -1298,6 +1296,27 @@ int oc_get_weight(const oc_font* font) {
     CFRelease(traits);
     
     return oc__convert(ct_weight) + 0.5;
+}
+
+const char* oc_get_path(const oc_font* font) {
+    CFDictionaryRef traits;
+    CFStringRef url_obj;
+    const char* url;
+
+    if (!font) {
+        return NULL;
+    }
+
+    traits = CTFontDescriptorCopyAttribute((const CTFontDescriptorRef)(font), kCTFontTraitsAttribute);
+    url_obj = CFDictionaryGetValue(traits, kCTFontURLAttribute);
+    url = CFStringGetCStringPtr(url_obj, kCFStringEncodingUTF8);
+
+    if (!url) {
+        printf("invl encoding!");
+    }
+
+    CFRelease(traits);
+    return url;
 }
 
 static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_open_params* uparams, oc_face* oface) {
