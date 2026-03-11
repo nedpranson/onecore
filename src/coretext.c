@@ -88,11 +88,54 @@ oc_error oc_load_fonts(oc_collection* collection) {
     return oc_error_ok;
 }
 
+static const struct {
+  int ot;
+  double ct;
+} oc__weight_map[] = {
+    {   0, -0.8 },
+    { 100, -0.8 },
+    { 200, -0.6 },
+    { 300, -0.4 },
+    // { 350, FC_WEIGHT_DEMILIGHT },
+    // { 380, FC_WEIGHT_BOOK },
+    { 400, 0.0 },
+    { 500, 0.23 },
+    { 600, 0.3 },
+    { 700, 0.4 },
+    { 800, 0.56 },
+    { 900, 0.62 },
+    {1000, 1.0 }, // idk if this correct
+};
+
+static double oc__lerp(double x, double x1, double x2, int y1, int y2) {
+    double dx = x2 - x1;
+    int dy = y2 - y1;
+    assert (dx > 0 && dy >= 0 && x1 <= x && x <= x2);
+    return y1 + (dy*(x-x1) + dx / 2.0) / dx;
+}
+
+double oc__convert(double ct_weight) {
+    int i;
+
+    for (i = 1; ct_weight > oc__weight_map[i].ct; i++);
+
+    if (ct_weight == oc__weight_map[i].ct) {
+        return oc__weight_map[i].ot;
+    }
+
+    return oc__lerp(
+        ct_weight,
+        oc__weight_map[i-1].ct,
+        oc__weight_map[i].ct,
+        oc__weight_map[i-1].ot,
+        oc__weight_map[i].ot);
+}
+
 int oc_get_weight(const oc_font* font) {
     CFDictionaryRef traits;
     CFNumberRef weight_obj;
 
-    double weight;
+    double ct_weight;
 
     if (!font) {
         return 0;
@@ -101,10 +144,10 @@ int oc_get_weight(const oc_font* font) {
     traits = CTFontDescriptorCopyAttribute((const CTFontDescriptorRef)(font), kCTFontTraitsAttribute);
     weight_obj = CFDictionaryGetValue(traits, kCTFontWeightTrait);
 
-    CFNumberGetValue(weight_obj, kCFNumberDoubleType, &weight);
+    CFNumberGetValue(weight_obj, kCFNumberDoubleType, &ct_weight);
     CFRelease(traits);
     
-    return (400.0 + weight * 500.0) + 0.5;
+    return oc__convert(ct_weight) + 0.5;
 }
 
 static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_open_params* uparams, oc_face* oface) {
