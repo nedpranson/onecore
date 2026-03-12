@@ -26,19 +26,6 @@ typedef int32_t oc_26p6;
 // todo: add hinting https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L861 (grid fitting)
 //       hintign it self is a hard problem to solve
 
-// #define OC_WEIGHT_THIN 0
-// #define OC_WEIGHT_EXTRALIGHT 40
-// #define OC_WEIGHT_LIGHT 50
-// #define OC_WEIGHT_SEMILIGHT 55
-// #define OC_WEIGHT_BOOK 75
-// #define OC_WEIGHT_REGULAR 80
-// #define FC_WEIGHT_MEDIUM 100
-// #define OC_WEIGHT_DEMIBOLD 180
-// #define OC_WEIGHT_BOLD 200
-// #define OC_WEIGHT_EXTRABOLD 205
-// #define OC_WEIGHT_BLACK 210
-// #define OC_WEIGHT_EXTRABLACK 215
-
 #define OC_ERROR_LIST                                      \
     X(oc_error_ok, "no error")                             \
     X(oc_error_invalid_param, "invalid parameter")         \
@@ -126,7 +113,13 @@ typedef struct {
 // typedef struct oc_library_impl oc_library_impl;
 typedef struct oc_face_impl oc_face_impl;
 typedef struct oc_collection_impl oc_collection_impl;
-typedef struct oc_font oc_font;
+//typedef struct oc_font oc_font;
+
+typedef struct {
+    const char* path;
+    const char* family;
+    uint16_t weight;
+} oc_font;
 
 typedef struct {
     void* internals;
@@ -142,7 +135,6 @@ typedef struct {
     oc_collection_impl* impl;
     oc_font** fonts;
     size_t elements; // todo: use 4 bytes
-    //size_t capacity;
 } oc_collection;
 
 typedef struct {
@@ -150,11 +142,9 @@ typedef struct {
     size_t size;
 } oc_table;
 
-typedef struct {
-    const char* family;
-    uint8_t weight;
-    // flags for bold | italic
-} oc_discovery_params;
+// todo: we need better naming as now we have two seperate project in one lib:
+// * discovery
+// * loader/parser
 
 OC_PUBLIC oc_error
 oc_init_library(oc_library* olibrary);
@@ -171,22 +161,11 @@ oc_free_collection(oc_collection* collection);
 OC_PUBLIC oc_error
 oc_load_fonts(oc_collection* collection);
 
-OC_PUBLIC int
-oc_get_weight(const oc_font* font);
+// OC_PUBLIC int
+// oc_get_weight(const oc_font* font);
 
-// weight!
-// charset first!
-
-// strings later
-
-// todo: we need better naming as now we have two seperate project in one lib:
-// * discovery
-// * loader/parser
-// OC_PUBLIC const char*
-// oc_get_family(const oc_font* font);
-//
-OC_PUBLIC const char*
-oc_get_path(const oc_font* font);
+OC_PUBLIC oc_error
+oc_get_path(const oc_font* font, char* buffer, size_t buffer_size);
 
 OC_PUBLIC oc_error
 oc_open_face(

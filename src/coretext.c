@@ -97,6 +97,7 @@ static const struct {
     { 100, -0.8 },
     { 200, -0.6 },
     { 300, -0.4 },
+    // todo: check what these are equal to
     // { 350, FC_WEIGHT_DEMILIGHT },
     // { 380, FC_WEIGHT_BOOK },
     { 400, 0.0 },
@@ -108,6 +109,7 @@ static const struct {
     {1000, 1.0 }, // idk if this correct
 };
 
+// todo: fix these lerp functioms wtf is this
 static double oc__lerp(double x, double x1, double x2, int y1, int y2) {
     double dx = x2 - x1;
     int dy = y2 - y1;
@@ -152,24 +154,23 @@ int oc_get_weight(const oc_font* font) {
 }
 
 const char* oc_get_path(const oc_font* font) {
-    CFDictionaryRef traits;
-    CFStringRef url_obj;
-    const char* url;
+    CFURLRef url;
+    CFStringRef path;
 
     if (!font) {
         return NULL;
     }
 
-    traits = CTFontDescriptorCopyAttribute((const CTFontDescriptorRef)(font), kCTFontTraitsAttribute);
-    url_obj = CFDictionaryGetValue(traits, kCTFontURLAttribute);
-    url = CFStringGetCStringPtr(url_obj, kCFStringEncodingUTF8);
+    url = CTFontDescriptorCopyAttribute(
+        (CTFontDescriptorRef)font,
+        kCTFontURLAttribute
+    );
 
-    if (!url) {
-        printf("invl encoding!");
-    }
+    path = CFURLCopyFileSystemPath(url, kCFURLPOSIXPathStyle);
+    CFRelease(url);
 
-    CFRelease(traits);
-    return url;
+    CFRelease(path);
+    return NULL;
 }
 
 static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_open_params* uparams, oc_face* oface) {
