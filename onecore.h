@@ -26,19 +26,6 @@ typedef int32_t oc_26p6;
 // todo: add hinting https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L861 (grid fitting)
 //       hintign it self is a hard problem to solve
 
-// #define OC_WEIGHT_THIN 0
-// #define OC_WEIGHT_EXTRALIGHT 40
-// #define OC_WEIGHT_LIGHT 50
-// #define OC_WEIGHT_SEMILIGHT 55
-// #define OC_WEIGHT_BOOK 75
-// #define OC_WEIGHT_REGULAR 80
-// #define FC_WEIGHT_MEDIUM 100
-// #define OC_WEIGHT_DEMIBOLD 180
-// #define OC_WEIGHT_BOLD 200
-// #define OC_WEIGHT_EXTRABOLD 205
-// #define OC_WEIGHT_BLACK 210
-// #define OC_WEIGHT_EXTRABLACK 215
-
 #define OC_ERROR_LIST                                      \
     X(oc_error_ok, "no error")                             \
     X(oc_error_invalid_param, "invalid parameter")         \
@@ -126,7 +113,13 @@ typedef struct {
 // typedef struct oc_library_impl oc_library_impl;
 typedef struct oc_face_impl oc_face_impl;
 typedef struct oc_collection_impl oc_collection_impl;
-typedef struct oc_font oc_font;
+//typedef struct oc_font oc_font;
+
+typedef struct {
+    const char* path;
+    const char* family;
+    uint16_t weight;
+} oc_font;
 
 typedef struct {
     void* internals;
@@ -142,19 +135,12 @@ typedef struct {
     oc_collection_impl* impl;
     oc_font** fonts;
     size_t elements; // todo: use 4 bytes
-    //size_t capacity;
 } oc_collection;
 
 typedef struct {
     const void* data;
     size_t size;
 } oc_table;
-
-typedef struct {
-    const char* family;
-    uint8_t weight;
-    // flags for bold | italic
-} oc_discovery_params;
 
 // todo: we need better naming as now we have two seperate project in one lib:
 // * discovery
@@ -175,11 +161,14 @@ oc_free_collection(oc_collection* collection);
 OC_PUBLIC oc_error
 oc_load_fonts(oc_collection* collection);
 
-OC_PUBLIC int
-oc_get_weight(const oc_font* font);
+OC_PUBLIC oc_error
+oc_open_font(const oc_font* font, const oc_open_params* uparams, oc_face* oface);
 
-OC_PUBLIC const char*
-oc_get_path(const oc_font* font);
+// OC_PUBLIC int
+// oc_get_weight(const oc_font* font);
+
+// OC_PUBLIC oc_error
+// oc_get_path(const oc_font* font, char* buffer, size_t buffer_size);
 
 OC_PUBLIC oc_error
 oc_open_face(
@@ -1154,6 +1143,21 @@ void oc_free_library(oc_library* library) {
     if (library) memset(library, 0, sizeof(*library));
 }
 
+typedef struct {
+    CTFontDescriptorRef ct_font;
+    oc_font font;
+} oc__font_impl;
+
+#define oc__parentof(type, ptr, member) \
+    ((type*)((char*)(ptr) - offsetof(type, member)))
+
+static inline void oc__free_font_impl(oc_font* font) {
+    oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
+    free((char*)impl->font.path);
+    free((char*)impl->font.family);
+    free(impl);
+}
+
 oc_error oc_init_collection(const oc_library* library, oc_collection* ocollection) {
     oc_collection collection = { 0 };
     oc_error err = oc_error_ok;
@@ -1173,60 +1177,13 @@ exit:
 
 void oc_free_collection(oc_collection* collection) {
     if (collection) {
+        for (size_t i = 0; i < collection->elements; i++) {
+            oc__free_font_impl(collection->fonts[i]);
+        }
         free(collection->fonts);
         if (collection->impl) CFRelease(collection->impl);
         memset(collection, 0, sizeof(*collection));
     }
-}
-
-oc_error oc_load_fonts(oc_collection* collection) {
-    CTFontCollectionRef ct_collection;
-    CFArrayRef ct_fonts;
-
-    size_t font_count;
-    oc_font** fonts;
-
-    oc_collection collection_copy;
-
-    if (!collection) {
-        return oc_error_invalid_param;
-    }
-
-    ct_collection = CTFontCollectionCreateFromAvailableFonts(NULL);
-    if (ct_collection == NULL) {
-        return oc_error_out_of_memory;
-    }
-
-    ct_fonts = CTFontCollectionCreateMatchingFontDescriptors(ct_collection);
-    CFRelease(ct_collection);
-
-    if (ct_fonts == NULL) {
-        return oc_error_out_of_memory;
-    }
-
-    font_count = CFArrayGetCount(ct_fonts);
-    fonts = malloc(font_count * sizeof(*fonts));
-    
-    if (fonts == NULL) {
-        CFRelease(ct_fonts);
-        return oc_error_out_of_memory;
-    }
-
-    CFArrayGetValues(ct_fonts, CFRangeMake(0, font_count), (const void**)fonts);
-
-    collection_copy.impl = (oc_collection_impl*)ct_fonts;
-    collection_copy.fonts = fonts;
-    collection_copy.elements = font_count;
-
-    ct_fonts = (CFArrayRef)collection->impl;
-    fonts = collection->fonts;
-
-    *collection = collection_copy;
-
-    free(fonts);
-    if (ct_fonts) CFRelease(ct_fonts);
-
-    return oc_error_ok;
 }
 
 static const struct {
@@ -1274,43 +1231,160 @@ double oc__convert(double ct_weight) {
         oc__weight_map[i].ot);
 }
 
-int oc_get_weight(const oc_font* font) {
-    CFDictionaryRef traits;
-    CFNumberRef weight_obj;
+static inline char* oc__copy_string(CFStringRef string) {
+    assert(string != NULL);
 
-    double ct_weight;
+    CFIndex length = CFStringGetLength(string);
+    CFRange range = CFRangeMake(0, length);
 
-    if (!font) {
-        return 0;
-    }
+    CFIndex size = 0;
+    UInt8* out;
 
-    traits = CTFontDescriptorCopyAttribute((const CTFontDescriptorRef)(font), kCTFontTraitsAttribute);
-    weight_obj = CFDictionaryGetValue(traits, kCTFontWeightTrait);
+    assert(length > 0);
 
-    CFNumberGetValue(weight_obj, kCFNumberDoubleType, &ct_weight);
-    CFRelease(traits);
-    
-    return oc__convert(ct_weight) + 0.5;
-}
+    CFStringGetBytes(
+        string,
+        range,
+        kCFStringEncodingUTF8,
+        0,
+        false,
+        NULL,
+        0,
+        &size);
 
-const char* oc_get_path(const oc_font* font) {
-    CFURLRef url;
-    CFStringRef path;
-
-    if (!font) {
+    out = malloc(size + 1);
+    if (out == NULL) {
         return NULL;
     }
 
-    url = CTFontDescriptorCopyAttribute(
-        (CTFontDescriptorRef)font,
-        kCTFontURLAttribute
-    );
+    CFStringGetBytes(
+        string,
+        range,
+        kCFStringEncodingUTF8,
+        0,
+        false,
+        out,
+        size,
+        NULL);
 
-    path = CFURLCopyFileSystemPath(url, kCFURLPOSIXPathStyle);
-    CFRelease(url);
+    out[size] = '\0';
+    return (char*)out;
+}
 
-    CFRelease(path);
+static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
+    oc__font_impl* impl;
+
+    CFDictionaryRef ct_traits;
+    CFURLRef ct_url;
+    CFStringRef ct_path;
+
+    char* path = NULL;
+
+    CFNumberRef weight_obj;
+    double ct_weight;
+
+    assert(ct_font != NULL);
+
+    ct_url = CTFontDescriptorCopyAttribute(ct_font, kCTFontURLAttribute);
+    if (ct_url == NULL) {
+        goto exit;
+    }
+
+    ct_path = CFURLCopyFileSystemPath(ct_url, kCFURLPOSIXPathStyle);
+    CFRelease(ct_url);
+
+    if (ct_path == NULL) {
+        goto exit;
+    }
+
+    path = oc__copy_string(ct_path);
+    CFRelease(ct_path);
+
+    if (path == NULL) {
+        goto exit;
+    }
+
+    ct_traits = CTFontDescriptorCopyAttribute(ct_font, kCTFontTraitsAttribute);
+    if (ct_traits == NULL) {
+        goto exit;
+    }
+
+    weight_obj = CFDictionaryGetValue(ct_traits, kCTFontWeightTrait);
+    assert(weight_obj != NULL);
+
+    CFNumberGetValue(weight_obj, kCFNumberDoubleType, &ct_weight);
+    CFRelease(ct_traits);
+
+    impl = malloc(sizeof(*impl));
+    if (impl == NULL) {
+        goto exit;
+    }
+
+    impl->ct_font = ct_font;
+    impl->font.path = path;
+    impl->font.family = NULL;
+    impl->font.weight = oc__convert(ct_weight) + 0.5;
+
+    return impl;
+exit:
+    free(path);
     return NULL;
+}
+
+oc_error oc_load_fonts(oc_collection* collection) {
+    CTFontCollectionRef ct_collection;
+    CFArrayRef ct_fonts;
+
+    size_t font_count;
+    oc_font** fonts;
+
+    oc_collection collection_copy;
+
+    if (!collection) {
+        return oc_error_invalid_param;
+    }
+
+    ct_collection = CTFontCollectionCreateFromAvailableFonts(NULL);
+    if (ct_collection == NULL) {
+        return oc_error_out_of_memory;
+    }
+
+    ct_fonts = CTFontCollectionCreateMatchingFontDescriptors(ct_collection);
+    CFRelease(ct_collection);
+
+    if (ct_fonts == NULL) {
+        return oc_error_out_of_memory;
+    }
+
+    font_count = CFArrayGetCount(ct_fonts);
+    fonts = malloc(font_count * sizeof(*fonts));
+    
+    if (fonts == NULL) {
+        CFRelease(ct_fonts);
+        return oc_error_out_of_memory;
+    }
+
+    for (size_t i = 0; i < font_count; i++) {
+        CTFontDescriptorRef ct_font = CFArrayGetValueAtIndex(ct_fonts, i);
+        oc__font_impl* impl = oc__init_font_impl(ct_font);
+
+        assert(impl != NULL);
+        fonts[i] = &impl->font;
+    }
+
+    collection_copy.impl = (oc_collection_impl*)ct_fonts;
+    collection_copy.fonts = fonts;
+    collection_copy.elements = font_count;
+
+    ct_fonts = (CFArrayRef)collection->impl;
+    fonts = collection->fonts;
+
+    *collection = collection_copy;
+
+    free(fonts);
+    if (ct_fonts) CFRelease(ct_fonts);
+
+    return oc_error_ok;
 }
 
 static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_open_params* uparams, oc_face* oface) {

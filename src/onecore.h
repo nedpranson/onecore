@@ -161,11 +161,14 @@ oc_free_collection(oc_collection* collection);
 OC_PUBLIC oc_error
 oc_load_fonts(oc_collection* collection);
 
+OC_PUBLIC oc_error
+oc_open_font(const oc_font* font, const oc_open_params* uparams, oc_face* oface);
+
 // OC_PUBLIC int
 // oc_get_weight(const oc_font* font);
 
-OC_PUBLIC oc_error
-oc_get_path(const oc_font* font, char* buffer, size_t buffer_size);
+// OC_PUBLIC oc_error
+// oc_get_path(const oc_font* font, char* buffer, size_t buffer_size);
 
 OC_PUBLIC oc_error
 oc_open_face(
