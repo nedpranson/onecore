@@ -1267,8 +1267,10 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     CFDictionaryRef ct_traits;
     CFURLRef ct_url;
     CFStringRef ct_path;
+    CFStringRef ct_family;
 
     char* path = NULL;
+    char* family = NULL;
 
     CFNumberRef weight_obj;
     double ct_weight;
@@ -1305,6 +1307,16 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     CFNumberGetValue(weight_obj, kCFNumberDoubleType, &ct_weight);
     CFRelease(ct_traits);
 
+    ct_family = CTFontDescriptorCopyAttribute(ct_font, kCTFontFamilyNameAttribute);
+    assert(ct_family != NULL);
+
+    family = oc__copy_string(ct_family); 
+    CFRelease(ct_family);
+
+    if (family == NULL) {
+        goto exit;
+    }
+
     impl = malloc(sizeof(*impl));
     if (impl == NULL) {
         goto exit;
@@ -1312,11 +1324,12 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
 
     impl->ct_font = ct_font;
     impl->font.path = path;
-    impl->font.family = NULL;
+    impl->font.family = family;
     impl->font.weight = oc__convert(ct_weight) + 0.5;
 
     return impl;
 exit:
+    free(family);
     free(path);
     return NULL;
 }

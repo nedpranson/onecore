@@ -88,7 +88,7 @@ void test_oc_load_fonts(void) {
     for (size_t i = 0; i < col.elements; i++) {
         oc_font* font = col.fonts[i];
 
-        printf("%s: %d\n", font->path, font->weight);
+        printf("%s: %s, %d\n", font->path, font->family ,font->weight);
     }
 
     oc_free_collection(&col);
