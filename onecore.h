@@ -1326,56 +1326,67 @@ oc_error oc_load_fonts(oc_collection* collection) {
     CFArrayRef ct_fonts;
 
     size_t font_count;
-    oc_font** fonts;
 
+    oc_font** fonts = NULL;
+    size_t elements = 0;
+    
+    oc_error err = oc_error_ok;
     oc_collection collection_copy;
 
     if (!collection) {
-        return oc_error_invalid_param;
+        err = oc_error_invalid_param;
+        goto exit;
     }
 
     ct_collection = CTFontCollectionCreateFromAvailableFonts(NULL);
     if (ct_collection == NULL) {
-        return oc_error_out_of_memory;
+        err = oc_error_out_of_memory;
+        goto exit;
     }
 
     ct_fonts = CTFontCollectionCreateMatchingFontDescriptors(ct_collection);
     CFRelease(ct_collection);
 
     if (ct_fonts == NULL) {
-        return oc_error_out_of_memory;
+        err = oc_error_out_of_memory;
+        goto exit;
     }
 
     font_count = CFArrayGetCount(ct_fonts);
     fonts = malloc(font_count * sizeof(*fonts));
     
     if (fonts == NULL) {
-        CFRelease(ct_fonts);
-        return oc_error_out_of_memory;
+        err = oc_error_out_of_memory;
+        goto exit;
     }
 
     for (size_t i = 0; i < font_count; i++) {
         CTFontDescriptorRef ct_font = CFArrayGetValueAtIndex(ct_fonts, i);
+        // todo: there is probably much more wrong can happen than oom
         oc__font_impl* impl = oc__init_font_impl(ct_font);
+        if (impl == NULL) {
+            err = oc_error_out_of_memory;
+            goto exit;
+        }
 
-        // todo: remove this assert NULL means oom
-        assert(impl != NULL);
-        fonts[i] = &impl->font;
+        fonts[elements++] = &impl->font;
     }
 
     collection_copy.impl = (oc_collection_impl*)ct_fonts;
     collection_copy.fonts = fonts;
-    collection_copy.elements = font_count;
+    collection_copy.elements = elements;
 
     ct_fonts = (CFArrayRef)collection->impl;
+    elements = collection->elements;
     fonts = collection->fonts;
 
     *collection = collection_copy;
-
+exit:
+    while (elements--) oc__free_font_impl(fonts[elements]);
     free(fonts);
     if (ct_fonts) CFRelease(ct_fonts);
 
-    return oc_error_ok;
+    return err;
 }
 
 static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_open_params* uparams, oc_face* oface) {
