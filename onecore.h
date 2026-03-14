@@ -115,6 +115,7 @@ typedef struct oc_face_impl oc_face_impl;
 typedef struct oc_collection_impl oc_collection_impl;
 //typedef struct oc_font oc_font;
 
+// todo: integrate even more fields
 typedef struct {
     const char* path;
     const char* family;
@@ -389,6 +390,17 @@ struct oc_face_impl {
     oc__mutex_impl_t lock;
 };
 
+typedef struct {
+    FcPattern* fc_pattern;
+    oc_font font;
+} oc__font_impl;
+
+typedef enum {
+    oc__status_ok,
+    oc__status_memory,
+    oc__status_skip,
+} oc__status;
+
 oc_error oc_init_library(oc_library* plibrary) {
     FT_Library library;
     FT_Error err;
@@ -422,6 +434,10 @@ void oc_free_library(oc_library* library) {
     memset(library, 0, sizeof(*library));
 }
 
+static inline void oc__free_font(oc_font* font) {
+    oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
+    free(impl);
+}
 
 oc_error oc_init_collection(const oc_library* library, oc_collection* ocollection) {
     oc_error err = oc_error_ok;
@@ -453,22 +469,16 @@ void oc_free_collection(oc_collection* collection) {
         return;
     }
 
+    for (size_t i = 0; i < collection->elements; i++) {
+        oc__free_font(collection->fonts[i]);
+    }
+    free(collection->fonts);
+
     fc_config = (FcConfig*)collection->impl;
     FcConfigDestroy(fc_config);
 
     memset(collection, 0, sizeof(*collection));
 }
-
-typedef struct {
-    FcPattern* fc_pattern;
-    oc_font font;
-} oc__font_impl;
-
-typedef enum {
-    oc__status_ok,
-    oc__status_memory,
-    oc__status_skip,
-} oc__status;
 
 static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
     FcResult result;
@@ -476,8 +486,11 @@ static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
 
     int weight;
     FcChar8* path;
+    FcChar8* family;
 
     oc__font_impl* impl;
+
+    (void)result;
     
     result = FcPatternGet(fc_pattern, FC_WEIGHT, 0, &weight_value);
     assert(result == FcResultMatch);
@@ -499,6 +512,11 @@ static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
 
     result = FcPatternGetString(fc_pattern, FC_FILE, 0, &path);
     assert(result == FcResultMatch);
+    assert(path != NULL);
+
+    result = FcPatternGetString(fc_pattern, FC_FAMILY, 0, &family);
+    assert(result == FcResultMatch);
+    assert(family != NULL);
 
     impl = malloc(sizeof(*impl));
     if (impl == NULL) {
@@ -507,16 +525,11 @@ static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
 
     impl->fc_pattern = fc_pattern;
     impl->font.path = (char*)path;
-    impl->font.family = NULL;
+    impl->font.family = (char*)family;
     impl->font.weight = (uint16_t)weight;
 
     *ofont = &impl->font;
     return oc__status_ok;
-}
-
-static inline void oc__free_font(oc_font* font) {
-    oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
-    free(impl);
 }
 
 oc_error oc_load_fonts(oc_collection* collection) {

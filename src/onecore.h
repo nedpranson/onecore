@@ -115,6 +115,7 @@ typedef struct oc_face_impl oc_face_impl;
 typedef struct oc_collection_impl oc_collection_impl;
 //typedef struct oc_font oc_font;
 
+// todo: integrate even more fields
 typedef struct {
     const char* path;
     const char* family;
