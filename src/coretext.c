@@ -19,9 +19,6 @@ typedef struct {
     oc_font font;
 } oc__font_impl;
 
-#define oc__parentof(type, ptr, member) \
-    ((type*)((char*)(ptr) - offsetof(type, member)))
-
 static inline void oc__free_font_impl(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
     free((char*)impl->font.path);
@@ -239,6 +236,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
         CTFontDescriptorRef ct_font = CFArrayGetValueAtIndex(ct_fonts, i);
         oc__font_impl* impl = oc__init_font_impl(ct_font);
 
+        // todo: remove this assert NULL means oom
         assert(impl != NULL);
         fonts[i] = &impl->font;
     }

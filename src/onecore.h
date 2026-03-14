@@ -161,14 +161,8 @@ oc_free_collection(oc_collection* collection);
 OC_PUBLIC oc_error
 oc_load_fonts(oc_collection* collection);
 
-OC_PUBLIC oc_error
-oc_open_font(const oc_font* font, const oc_open_params* uparams, oc_face* oface);
-
-// OC_PUBLIC int
-// oc_get_weight(const oc_font* font);
-
 // OC_PUBLIC oc_error
-// oc_get_path(const oc_font* font, char* buffer, size_t buffer_size);
+// oc_open_font(const oc_font* font, const oc_open_params* uparams, oc_face* oface);
 
 OC_PUBLIC oc_error
 oc_open_face(
@@ -292,6 +286,9 @@ static inline oc_error oc__unexpected_impl(long err, const char* file, int line)
 }
 #define oc__unexpected(e) oc__unexpected_impl((long)e, __FILE__, __LINE__)
 #endif /* NDEBUG */
+
+#define oc__parentof(type, ptr, member) \
+    ((type*)((char*)(ptr) - offsetof(type, member)))
 
 const char* oc_strerror(oc_error err) {
 #ifdef ONECORE_NO_ERROR_STRINGS
