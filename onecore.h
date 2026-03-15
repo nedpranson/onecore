@@ -2473,13 +2473,13 @@ static oc_font* oc__init_font(IDWriteFontFamily* dw_family, IDWriteFont* dw_font
     hr = family_names->lpVtbl->GetStringLength(family_names, 0, &wide_size);
     assert(hr == S_OK);
 
-    wide_family = malloc(wide_size * sizeof(WCHAR));
+    wide_family = malloc((wide_size + 1) * sizeof(WCHAR));
     if (wide_family == NULL) {
         family_names->lpVtbl->Release(family_names);
         return NULL;
     }
 
-    hr = family_names->lpVtbl->GetString(family_names, 0, wide_family, wide_size);
+    hr = family_names->lpVtbl->GetString(family_names, 0, wide_family, wide_size + 1);
     family_names->lpVtbl->Release(family_names);
     assert(hr == S_OK);
 
