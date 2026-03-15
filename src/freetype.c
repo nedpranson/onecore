@@ -130,7 +130,6 @@ static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
     FcValue weight_value;
 
     int weight;
-    FcChar8* path;
     FcChar8* family;
 
     oc__font_impl* impl;
@@ -155,10 +154,6 @@ static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
     weight = FcWeightToOpenType(weight);
     assert(weight >= 0 && weight <= UINT16_MAX);
 
-    result = FcPatternGetString(fc_pattern, FC_FILE, 0, &path);
-    assert(result == FcResultMatch);
-    assert(path != NULL);
-
     result = FcPatternGetString(fc_pattern, FC_FAMILY, 0, &family);
     assert(result == FcResultMatch);
     assert(family != NULL);
@@ -169,7 +164,6 @@ static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
     }
 
     impl->fc_pattern = fc_pattern;
-    impl->font.path = (char*)path;
     impl->font.family = (char*)family;
     impl->font.weight = (uint16_t)weight;
 

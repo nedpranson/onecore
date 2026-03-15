@@ -117,7 +117,8 @@ typedef struct oc_collection_impl oc_collection_impl;
 
 // todo: integrate even more fields
 typedef struct {
-    const char* path;
+    // todo: make some kind of function to get path
+    // const char* path;
     const char* family;
     uint16_t weight;
 } oc_font;

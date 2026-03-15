@@ -21,7 +21,6 @@ typedef struct {
 
 static inline void oc__free_font_impl(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
-    free((char*)impl->font.path);
     free((char*)impl->font.family);
     free(impl);
 }
@@ -143,36 +142,14 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     oc__font_impl* impl;
 
     CFDictionaryRef ct_traits;
-    CFURLRef ct_url;
-    CFStringRef ct_path;
     CFStringRef ct_family;
 
-    char* path = NULL;
     char* family = NULL;
 
     CFNumberRef weight_obj;
     double ct_weight;
 
     assert(ct_font != NULL);
-
-    ct_url = CTFontDescriptorCopyAttribute(ct_font, kCTFontURLAttribute);
-    if (ct_url == NULL) {
-        goto exit;
-    }
-
-    ct_path = CFURLCopyFileSystemPath(ct_url, kCFURLPOSIXPathStyle);
-    CFRelease(ct_url);
-
-    if (ct_path == NULL) {
-        goto exit;
-    }
-
-    path = oc__copy_string(ct_path);
-    CFRelease(ct_path);
-
-    if (path == NULL) {
-        goto exit;
-    }
 
     ct_traits = CTFontDescriptorCopyAttribute(ct_font, kCTFontTraitsAttribute);
     if (ct_traits == NULL) {
@@ -201,14 +178,12 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     }
 
     impl->ct_font = ct_font;
-    impl->font.path = path;
     impl->font.family = family;
     impl->font.weight = oc__convert(ct_weight) + 0.5;
 
     return impl;
 exit:
     free(family);
-    free(path);
     return NULL;
 }
 
