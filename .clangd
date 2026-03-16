@@ -1,10 +1,10 @@
 CompileFlags:
   Add:
     - -I/home/nedas/Work/onecore
-    - -I/usr/include/freetype2
-    - -I/usr/include/fontconfig
-    # - "--target=x86_64-windows-gnu"
-    # - "-I/usr/lib/zig/libc/include/any-windows-any"
+    # - -I/usr/include/freetype2
+    # - -I/usr/include/fontconfig
+    - "--target=x86_64-windows-gnu"
+    - "-I/usr/lib/zig/libc/include/any-windows-any"
     # - --target=x86_64-apple-darwin
     # - -F/home/nedas/.cache/zig/p/N-V-__8AAGwnJycGuJCvu-9aG0jVe3x6zA3rCLWF_Bmsj4RV/System/Library/Frameworks
     # - -I/home/nedas/.cache/zig/p/N-V-__8AAGwnJycGuJCvu-9aG0jVe3x6zA3rCLWF_Bmsj4RV/usr/include

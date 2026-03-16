@@ -1,4 +1,5 @@
 #include "winerror.h"
+#include <stdint.h>
 #include <stdlib.h>
 #define ONECORE_IMPLEMENTATION
 #include "onecore.h"
@@ -408,7 +409,6 @@ typedef struct {
 
 static inline void oc__free_font(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
-    free((char*)impl->font.path);
     free((char*)impl->font.family);
     impl->dw_font->lpVtbl->Release(impl->dw_font);
     free(impl);
@@ -447,7 +447,7 @@ static inline char* oc__utf16_to_utf8(const wchar_t* utf16, size_t utf16_size) {
 
     utf8_size = WideCharToMultiByte(
         CP_UTF8,
-        0, // todo: WC_ERR_INVALID_CHARS
+        0, // todo: WC_ERR_INVALID_CHARS and test this
         utf16,
         utf16_size,
         NULL,
@@ -535,6 +535,101 @@ static oc_font* oc__init_font(IDWriteFontFamily* dw_family, IDWriteFont* dw_font
     return &impl->font;
 }
 
+uint64_t oc__fnv1a(const void* ptr, size_t size) {
+    const uint8_t* data = ptr;
+    uint64_t hash = 14695981039346656037ULL;
+
+    for (size_t i = 0; i < size; i++) {
+        hash ^= data[i];
+        hash *= 1099511628211ULL;
+    }
+
+    return hash;
+}
+
+typedef struct {
+    uint64_t key;
+    char*    val;
+} oc__kv_t;
+
+typedef struct {
+    oc__kv_t* kvs;
+    size_t    len;
+    size_t    cap;
+} oc__map_t;
+
+oc__kv_t* oc__map_find(oc__map_t* map, uint64_t hash) {
+    size_t index = 0;
+    size_t mask = map->cap - 1;
+
+    if (hash == 0) {
+        hash = (uint64_t)(-1);
+    }
+
+    for (;; index++) {
+        size_t i = (hash + index) & mask;
+        oc__kv_t* kv = map->kvs + i;
+
+        if (kv->key == hash || kv->key == 0) {
+            return kv;
+        }
+    }
+}
+
+bool oc__map_ensure_capacity(oc__map_t* map, size_t new_capacity) {
+    size_t capacity = map->cap;
+    size_t load = (new_capacity * 100 + new_capacity - 1) / capacity;
+
+    if (load >= 80) {
+        oc__map_t map_copy;
+        oc__kv_t* kvs;
+
+        capacity = max(capacity, 16);
+        while (new_capacity > capacity) {
+            capacity += capacity;
+        }
+
+        kvs = calloc(capacity, sizeof(*kvs));
+        if (kvs == NULL) {
+            return false;
+        }
+
+        map_copy.kvs = kvs;
+        map_copy.len = map->len;
+        map_copy.cap = capacity;
+
+        kvs = map->kvs;
+
+        for (size_t i = 0; i < map->len; i++) {
+            oc__kv_t kv = kvs[i];
+            if (kv.key != 0) {
+                *oc__map_find(&map_copy, kv.key) = kv;
+            }
+        }
+
+        *map = map_copy;
+        free(kvs);
+    }
+
+    return true;
+}
+
+oc__kv_t* oc__map_obtain(oc__map_t* map, const char* key) {
+    oc__kv_t* kv = NULL;
+    if (oc__map_ensure_capacity(map, map->len + 1)) {
+        uint64_t hash = oc__fnv1a(key, strlen(key));
+
+        kv = oc__map_find(map, hash);
+        if (kv->key == 0) {
+            kv->key = hash;
+            map->len++;
+        }
+    }
+
+    return kv;
+}
+
+// DOING!!!
 // todo: implement cache hashmap
 //       it will have strhash -> strptr
 //       we will save some memory this way

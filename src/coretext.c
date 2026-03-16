@@ -323,6 +323,8 @@ oc_error oc_open_face(const oc_library* library, const char* path, const oc_open
         return oc_error_invalid_param;
     }
 
+    // todo: validate utf8 so ct_path would only fail on oom
+
     ct_path = CFStringCreateWithCString(NULL, path, kCFStringEncodingUTF8);
     if (ct_path == NULL) {
         return oc_error_failed_to_open; // or oom
@@ -337,6 +339,8 @@ oc_error oc_open_face(const oc_library* library, const char* path, const oc_open
 
     descriptors = CTFontManagerCreateFontDescriptorsFromURL(url_path);
     CFRelease(url_path);
+
+    // todo: think
 
     if (descriptors == NULL) {
         return oc_error_failed_to_open; // or oom
