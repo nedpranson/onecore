@@ -699,8 +699,6 @@ static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWrite
 
     dw_face->lpVtbl->GetMetrics(dw_face, &metrics);
 
-    // todo: and make that point has to be atleast 1.0
-
     // https://github.com/freetype/freetype/blob/85c8efe0afa5ad0df35114e317a065f544943c52/include/freetype/internal/ftobjs.h#L665
     scaled = (params.desired_size * params.dpi + 36) / 72;
     scale = oc_div_16p16(scaled, metrics.designUnitsPerEm);
@@ -708,8 +706,7 @@ static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWrite
     // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L3368
     ppem = (scaled + 32) >> 6;
     if (ppem > UINT16_MAX) {
-        // todo: add this test case
-        return oc_error_invalid_param;
+        return oc_error_invalid_pixel_size;
     }
 
     face.impl->dw_face = dw_face;
@@ -846,7 +843,7 @@ uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
 }
 
 // race!!!!!! to face.metrics->ppem and face->metrics.scale should we allow it?
-oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
+oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     oc_16p16 scaled;
     oc_16p16 scale;
     int32_t ppem;
@@ -855,7 +852,7 @@ oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
         return oc_error_invalid_param;
     }
 
-    if (desired_size < 1 << 6 || dpi < 0) {
+    if (desired_size < 1 << 6) {
         return oc_error_invalid_param;
     }
 

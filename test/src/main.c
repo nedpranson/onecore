@@ -260,7 +260,9 @@ void test_oc_test_sizes(void) {
     TEST_ASSERT_EQUAL_INT32(28672, face.metrics.scale);
 
     err = oc_set_size(&face, 12 << 6, -1);
-    TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+    TEST_ASSERT_EQUAL_UINT16(10923, face.metrics.ppem);
+    TEST_ASSERT_EQUAL_INT32(22369280, face.metrics.scale);
 
     err = oc_set_size(&face, 12 << 6, 0);
     TEST_ASSERT_EQUAL(oc_error_ok, err);

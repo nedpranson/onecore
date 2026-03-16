@@ -390,7 +390,7 @@ void oc_free_face(oc_face* face) {
 }
 
 
-oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
+oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     FT_Error err;
     FT_Face ft_face;
 
@@ -399,11 +399,6 @@ oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
     }
 
     if (desired_size < 1 << 6) {
-        return oc_error_invalid_param;
-    }
-
-    // todo: make dpi unsigned
-    if (dpi < 0) {
         return oc_error_invalid_param;
     }
 

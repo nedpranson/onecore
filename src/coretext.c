@@ -291,9 +291,8 @@ static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_
     }
 
     ppem = (scaled + 32) >> 6;
-    if (ppem <= 0 || ppem > UINT16_MAX) {
-        // todo: add this test case
-        return oc_error_invalid_param;
+    if (ppem > UINT16_MAX) {
+        return oc_error_invalid_pixel_size;
     }
 
     size = CTFontGetSize(ct_font);
@@ -421,7 +420,7 @@ uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
     return glyphs[0];
 }
 
-oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
+oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     oc_16p16 scaled;
     oc_16p16 scale;
     int32_t ppem;
@@ -433,7 +432,7 @@ oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
         return oc_error_invalid_param;
     }
 
-    if (desired_size < 1 << 6 || dpi < 0) {
+    if (desired_size < 1 << 6) {
         return oc_error_invalid_param;
     }
 

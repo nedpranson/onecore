@@ -58,7 +58,7 @@ typedef enum {
 typedef struct {
     uint32_t face_index;
     oc_26p6 desired_size;
-    short dpi;
+    uint16_t dpi;
 } oc_open_params;
 
 // todo: add height which is just ascept + descent + leading
@@ -191,7 +191,7 @@ oc_free_face(oc_face* face);
 
 // todo: give a warning that this function is not thread safe
 OC_PUBLIC oc_error
-oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi);
+oc_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi);
 
 OC_PUBLIC uint16_t
 oc_get_char_index(const oc_face* face, uint32_t charcode);
@@ -203,7 +203,6 @@ oc_get_glyph_metrics(
     oc_load_flags flags,
     oc_glyph_metrics* ometrics);
 
-// todo: rename to oc_get_glyph_cbox
 OC_PUBLIC void
 oc_get_glyph_cbox(
     const oc_face* face,
@@ -351,7 +350,7 @@ static inline oc_open_params oc__open_params_defaults(const oc_open_params* upar
         params.desired_size = 1 << 6;
     }
 
-    if (params.dpi <= 0) {
+    if (params.dpi == 0) {
         params.dpi = 72;
     }
 
@@ -746,7 +745,7 @@ void oc_free_face(oc_face* face) {
 }
 
 
-oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
+oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     FT_Error err;
     FT_Face ft_face;
 
@@ -755,11 +754,6 @@ oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
     }
 
     if (desired_size < 1 << 6) {
-        return oc_error_invalid_param;
-    }
-
-    // todo: make dpi unsigned
-    if (dpi < 0) {
         return oc_error_invalid_param;
     }
 
@@ -1422,9 +1416,8 @@ static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_
     }
 
     ppem = (scaled + 32) >> 6;
-    if (ppem <= 0 || ppem > UINT16_MAX) {
-        // todo: add this test case
-        return oc_error_invalid_param;
+    if (ppem > UINT16_MAX) {
+        return oc_error_invalid_pixel_size;
     }
 
     size = CTFontGetSize(ct_font);
@@ -1552,7 +1545,7 @@ uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
     return glyphs[0];
 }
 
-oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
+oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     oc_16p16 scaled;
     oc_16p16 scale;
     int32_t ppem;
@@ -1564,7 +1557,7 @@ oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
         return oc_error_invalid_param;
     }
 
-    if (desired_size < 1 << 6 || dpi < 0) {
+    if (desired_size < 1 << 6) {
         return oc_error_invalid_param;
     }
 
@@ -2649,8 +2642,6 @@ static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWrite
 
     dw_face->lpVtbl->GetMetrics(dw_face, &metrics);
 
-    // todo: and make that point has to be atleast 1.0
-
     // https://github.com/freetype/freetype/blob/85c8efe0afa5ad0df35114e317a065f544943c52/include/freetype/internal/ftobjs.h#L665
     scaled = (params.desired_size * params.dpi + 36) / 72;
     scale = oc_div_16p16(scaled, metrics.designUnitsPerEm);
@@ -2658,8 +2649,7 @@ static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWrite
     // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L3368
     ppem = (scaled + 32) >> 6;
     if (ppem > UINT16_MAX) {
-        // todo: add this test case
-        return oc_error_invalid_param;
+        return oc_error_invalid_pixel_size;
     }
 
     face.impl->dw_face = dw_face;
@@ -2796,7 +2786,7 @@ uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
 }
 
 // race!!!!!! to face.metrics->ppem and face->metrics.scale should we allow it?
-oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
+oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     oc_16p16 scaled;
     oc_16p16 scale;
     int32_t ppem;
@@ -2805,7 +2795,7 @@ oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
         return oc_error_invalid_param;
     }
 
-    if (desired_size < 1 << 6 || dpi < 0) {
+    if (desired_size < 1 << 6) {
         return oc_error_invalid_param;
     }
 

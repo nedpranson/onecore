@@ -58,7 +58,7 @@ typedef enum {
 typedef struct {
     uint32_t face_index;
     oc_26p6 desired_size;
-    short dpi;
+    uint16_t dpi;
 } oc_open_params;
 
 // todo: add height which is just ascept + descent + leading
@@ -191,7 +191,7 @@ oc_free_face(oc_face* face);
 
 // todo: give a warning that this function is not thread safe
 OC_PUBLIC oc_error
-oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi);
+oc_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi);
 
 OC_PUBLIC uint16_t
 oc_get_char_index(const oc_face* face, uint32_t charcode);
@@ -203,7 +203,6 @@ oc_get_glyph_metrics(
     oc_load_flags flags,
     oc_glyph_metrics* ometrics);
 
-// todo: rename to oc_get_glyph_cbox
 OC_PUBLIC void
 oc_get_glyph_cbox(
     const oc_face* face,
@@ -351,7 +350,7 @@ static inline oc_open_params oc__open_params_defaults(const oc_open_params* upar
         params.desired_size = 1 << 6;
     }
 
-    if (params.dpi <= 0) {
+    if (params.dpi == 0) {
         params.dpi = 72;
     }
 
