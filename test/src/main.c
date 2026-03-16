@@ -146,6 +146,21 @@ void test_oc_open_face(void) {
 
     err = oc_open_face(&g_library, "", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
+
+    params.face_index = 0;
+    params.desired_size = 4194271;
+    params.dpi = 72;
+
+    err = oc_open_face(&g_library, "test/files/arial.ttf", &params, &face);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+    oc_free_face(&face);
+
+    params.face_index = 0;
+    params.desired_size = 4194272;
+    params.dpi = 72;
+
+    err = oc_open_face(&g_library, "test/files/arial.ttf", &params, &face);
+    TEST_ASSERT_EQUAL(oc_error_invalid_pixel_size, err);
 }
 
 void test_oc_open_memory_face(void) {
@@ -202,6 +217,21 @@ void test_oc_open_memory_face(void) {
 
     err = oc_open_memory_face(&g_library, data, size, &params, &face);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
+
+    params.face_index = 0;
+    params.desired_size = 4194271;
+    params.dpi = 72;
+
+    err = oc_open_memory_face(&g_library, data, size, &params, &face);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+    oc_free_face(&face);
+
+    params.face_index = 0;
+    params.desired_size = 4194272;
+    params.dpi = 72;
+
+    err = oc_open_memory_face(&g_library, data, size, &params, &face);
+    TEST_ASSERT_EQUAL(oc_error_invalid_pixel_size, err);
 
     free(data);
 }
@@ -264,7 +294,12 @@ void test_oc_test_sizes(void) {
     TEST_ASSERT_EQUAL_INT32(134215680, face.metrics.scale);
 
     err = oc_set_size(&face, 65536 << 6, 0);
-    TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
+    TEST_ASSERT_EQUAL(oc_error_invalid_pixel_size, err);
+    TEST_ASSERT_EQUAL_UINT16(65535 , face.metrics.ppem);
+    TEST_ASSERT_EQUAL_INT32(134215680, face.metrics.scale);
+
+    err = oc_set_size(&face, 4194272, 72);
+    TEST_ASSERT_EQUAL(oc_error_invalid_pixel_size, err);
     TEST_ASSERT_EQUAL_UINT16(65535 , face.metrics.ppem);
     TEST_ASSERT_EQUAL_INT32(134215680, face.metrics.scale);
 

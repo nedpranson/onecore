@@ -33,6 +33,7 @@ typedef int32_t oc_26p6;
     X(oc_error_out_of_memory, "out of memory")             \
     X(oc_error_failed_to_open, "failed to open")           \
     X(oc_error_insufficient_buffer, "insufficient buffer") \
+    X(oc_error_invalid_pixel_size, "invalid pixel size")   \
     X(oc_error_unexpected, "unexpected error")
 
 #define OC_MAKE_TAG(x1, x2, x3, x4) \
@@ -337,7 +338,6 @@ oc_16p16 oc_mul_16p16(oc_16p16 a, oc_16p16 b) {
     return (int32_t)((ab + 0x8000L + (ab >> 63)) >> 16);
 }
 
-// todo: make default dpi to 72
 static inline oc_open_params oc__open_params_defaults(const oc_open_params* uparams) {
     oc_open_params params = { 0 };
 

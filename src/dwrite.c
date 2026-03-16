@@ -529,7 +529,6 @@ static oc_font* oc__init_font(IDWriteFontFamily* dw_family, IDWriteFont* dw_font
     }
 
     impl->dw_font = dw_font;
-    impl->font.path = NULL; // todo: remove path
     impl->font.family = family;
     impl->font.weight = (uint16_t)weight;
 
@@ -856,7 +855,6 @@ oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
         return oc_error_invalid_param;
     }
 
-    // todo: think if oc_error_invl_pix_size should be returned
     if (desired_size < 1 << 6 || dpi < 0) {
         return oc_error_invalid_param;
     }
@@ -870,8 +868,7 @@ oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
     ppem = (scaled + 32) >> 6;
 
     if (ppem > UINT16_MAX) {
-        // todo: add this test case
-        return oc_error_invalid_param;
+        return oc_error_invalid_pixel_size;
     }
 
     face->metrics.ppem = (uint16_t)ppem;

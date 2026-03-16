@@ -30,6 +30,19 @@ typedef pthread_mutex_t oc__mutex_impl_t;
 #define oc__mutex_impl_destroy(m) pthread_mutex_destroy(m)
 #endif /* defined(_MSC_VER) || defined(__MINGW32__) */
 
+#define oc__exit(e) \
+    do {            \
+        err = (e);  \
+        goto exit;  \
+    } while (0)
+
+#define oc__exit_critical(e)         \
+    do {                             \
+        oc__mutex_impl_unlock(lock); \
+        err = (e);                   \
+        goto exit;                   \
+    } while (0)
+
 struct oc_face_impl {
     FT_Face ft_face;
     oc__mutex_impl_t lock;
@@ -250,7 +263,12 @@ static oc_error oc__init_face(FT_Face ft_face, const oc_open_params* params, oc_
     oc_face face;
 
     err = FT_Set_Char_Size(ft_face, 0, params->desired_size, params->dpi, params->dpi);
-    if (err != FT_Err_Ok) {
+    switch (err) {
+    case FT_Err_Ok:
+        break;
+    case FT_Err_Invalid_Pixel_Size:
+        return oc_error_invalid_pixel_size;
+    default:
         return oc__unexpected(err);
     }
 
@@ -380,8 +398,12 @@ oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
         return oc_error_invalid_param;
     }
 
-    // todo: think if oc_error_invl_pix_size should be returned
     if (desired_size < 1 << 6) {
+        return oc_error_invalid_param;
+    }
+
+    // todo: make dpi unsigned
+    if (dpi < 0) {
         return oc_error_invalid_param;
     }
 
@@ -392,7 +414,7 @@ oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, short dpi) {
     case FT_Err_Ok:
         break;
     case FT_Err_Invalid_Pixel_Size:
-        return oc_error_invalid_param;
+        return oc_error_invalid_pixel_size;
     default:
         return oc__unexpected(err);
     }
@@ -679,14 +701,13 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
     FT_Face ft_face;
     oc__mutex_impl_t* lock;
     FT_Bitmap ft_bitmap;
-    FT_Error ft_err = FT_Err_Ok;
+    FT_Error ft_err;
     FT_Glyph ft_glyph = NULL;
     oc_error err = oc_error_ok;
     oc_extent extent = { 0 };
 
     if (!(face && oextent)) {
-        err = oc_error_invalid_param;
-        goto exit;
+        oc__exit(oc_error_invalid_param);
     }
 
     ft_face = face->impl->ft_face;
@@ -694,44 +715,53 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
 
     oc__mutex_impl_lock(lock);
     ft_err = FT_Load_Glyph(ft_face, index, FT_LOAD_BITMAP_METRICS_ONLY | FT_LOAD_NO_HINTING | FT_LOAD_NO_AUTOHINT);
-    if (ft_err != FT_Err_Ok) {
-        oc__mutex_impl_unlock(lock);
-        goto exit;
+    switch (ft_err) {
+    case FT_Err_Ok:
+        break;
+    case FT_Err_Out_Of_Memory:
+        oc__exit_critical(oc_error_out_of_memory);
+    case FT_Err_Invalid_Argument:
+        oc__exit_critical(oc_error_invalid_param);
+    default:
+        oc__exit_critical(oc__unexpected(ft_err));
     }
 
     ft_bitmap = ft_face->glyph->bitmap;
     if (ft_bitmap.width != (FT_UInt)ft_bitmap.pitch) {
-        // // todo: implement diffrent types
-        err = oc_error_unexpected;
-        goto exit_critical;
+        // todo: implement diffrent types
+        oc__exit_critical(oc_error_unexpected);
     }
 
     extent.rows = ft_bitmap.rows;
     extent.cols = ft_bitmap.width;
 
     if (buffer == NULL) {
-        goto exit_critical;
+        oc__exit_critical(oc_error_ok);
     }
 
     if (extent.rows == 0 || extent.cols == 0) {
-        goto exit_critical;
+        oc__exit_critical(oc_error_ok);
     }
 
     if (buffer_size < extent.rows * extent.cols) {
-        err = oc_error_insufficient_buffer;
-        goto exit_critical;
+        oc__exit_critical(oc_error_insufficient_buffer);
     }
 
     ft_err = FT_Get_Glyph(ft_face->glyph, &ft_glyph);
     oc__mutex_impl_unlock(lock);
 
-    if (ft_err != FT_Err_Ok) {
-        goto exit;
+    switch (ft_err) {
+    case FT_Err_Out_Of_Memory:
+        oc__exit(oc_error_out_of_memory);
+    case FT_Err_Ok:
+        break;
+    default:
+        oc__exit(oc__unexpected(ft_err));
     }
 
     ft_err = FT_Glyph_To_Bitmap(&ft_glyph, FT_RENDER_MODE_NORMAL, NULL, 1);
     if (ft_err != FT_Err_Ok) {
-        goto exit;
+        oc__exit(oc__unexpected(ft_err));
     }
 
     assert(((FT_BitmapGlyph)ft_glyph)->bitmap.rows == extent.rows);
@@ -740,25 +770,9 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
 
     memcpy(buffer, ((FT_BitmapGlyph)ft_glyph)->bitmap.buffer, extent.rows * extent.cols);
 
-    // todo: clean this up
 exit:
     if (ft_glyph) FT_Done_Glyph(ft_glyph);
     if (oextent) *oextent = extent;
 
-    if (ft_err != FT_Err_Ok) {
-        switch (ft_err) {
-        case FT_Err_Out_Of_Memory:
-            return oc_error_out_of_memory;
-        case FT_Err_Invalid_Argument:
-            return oc_error_invalid_param;
-        default:
-            return oc__unexpected(ft_err);
-        }
-    }
-
     return err;
-// fragile section!!!
-exit_critical:
-    oc__mutex_impl_unlock(lock);
-    goto exit;
 }
