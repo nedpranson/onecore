@@ -7,11 +7,6 @@
 /* ONECORE_CORETEXT_IMPLEMENTATION */
 #include <CoreText/CoreText.h>
 
-struct oc_collection_impl {
-    CFArrayRef ct_fonts;
-    oc__map_t cache_map;
-};
-
 oc_error oc_init_library(oc_library* olibrary) {
     return olibrary == NULL ? oc_error_invalid_param : oc_error_ok;
 }
@@ -22,11 +17,13 @@ void oc_free_library(oc_library* library) {
 
 typedef struct {
     CTFontDescriptorRef ct_font;
+    CFStringRef ct_family;
     oc_font font;
 } oc__font_impl;
 
 static inline void oc__free_font_impl(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
+    CFRelease(impl->ct_family);
     free(impl);
 }
 
@@ -39,13 +36,7 @@ oc_error oc_init_collection(const oc_library* library, oc_collection* ocollectio
         goto exit;
     }
 
-    collection.impl = malloc(sizeof(oc_collection_impl));
-    if (collection.impl == NULL) {
-        return oc_error_out_of_memory;
-    }
-
-    collection.impl->ct_fonts = NULL;
-    memset(&collection.impl->cache_map, 0, sizeof(oc__map_t));
+    collection.impl = NULL;
     collection.fonts = NULL;
     collection.elements = 0;
 exit:
@@ -60,8 +51,7 @@ void oc_free_collection(oc_collection* collection) {
         }
         free(collection->fonts);
 
-        oc__free_map(&collection->impl->cache_map);
-        if (collection->impl->ct_fonts) CFRelease(collection->impl->ct_fonts);
+        if (collection->impl) CFRelease(collection->impl);
         memset(collection, 0, sizeof(*collection));
     }
 }
@@ -111,62 +101,56 @@ double oc__convert(double ct_weight) {
         oc__weight_map[i].ot);
 }
 
-static inline char* oc__copy_string(CFStringRef string) {
-    assert(string != NULL);
+// static inline char* oc__copy_string(CFStringRef string) {
+//     assert(string != NULL);
+//
+//     CFIndex length = CFStringGetLength(string);
+//     CFRange range = CFRangeMake(0, length);
+//
+//     CFIndex size = 0;
+//     UInt8* out;
+//
+//     assert(length > 0);
+//
+//     CFStringGetBytes(
+//         string,
+//         range,
+//         kCFStringEncodingUTF8,
+//         0,
+//         false,
+//         NULL,
+//         0,
+//         &size);
+//
+//     out = malloc(size + 1);
+//     if (out == NULL) {
+//         return NULL;
+//     }
+//
+//     CFStringGetBytes(
+//         string,
+//         range,
+//         kCFStringEncodingUTF8,
+//         0,
+//         false,
+//         out,
+//         size,
+//         NULL);
+//
+//     out[size] = '\0';
+//     return (char*)out;
+// }
 
-    CFIndex length = CFStringGetLength(string);
-    CFRange range = CFRangeMake(0, length);
-
-    CFIndex size = 0;
-    UInt8* out;
-
-    assert(length > 0);
-
-    CFStringGetBytes(
-        string,
-        range,
-        kCFStringEncodingUTF8,
-        0,
-        false,
-        NULL,
-        0,
-        &size);
-
-    out = malloc(size + 1);
-    if (out == NULL) {
-        return NULL;
-    }
-
-    CFStringGetBytes(
-        string,
-        range,
-        kCFStringEncodingUTF8,
-        0,
-        false,
-        out,
-        size,
-        NULL);
-
-    out[size] = '\0';
-    return (char*)out;
-}
-
-static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font, oc__map_t* cache) {
-    oc__font_impl* impl;
+static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
+    oc__font_impl* impl = NULL;
 
     CFDictionaryRef ct_traits;
     CFStringRef ct_family;
-
-    const UniChar* ct_family_ptr;
-    CFIndex ct_family_len;
 
     const char* family;
 
     CFNumberRef weight_obj;
     double ct_weight;
-
-    uint64_t hash;
-    oc__kv_t* kv;
 
     assert(ct_font != NULL);
 
@@ -184,42 +168,28 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font, oc__map_t*
     ct_family = CTFontDescriptorCopyAttribute(ct_font, kCTFontFamilyNameAttribute);
     assert(ct_family != NULL);
 
-    ct_family_ptr = CFStringGetCharactersPtr(ct_family);
-    ct_family_len = CFStringGetLength(ct_family);
-
-    assert(ct_family_ptr != NULL);
-
-    hash = oc__fnv1a(ct_family_ptr, ct_family_len * sizeof(UniChar));
-    kv = oc__map_obtain(cache, hash);
-
-    if (kv->val == NULL) {
-        kv->val = oc__copy_string(ct_family);
-    }
-    CFRelease(ct_family);
-
-    family = kv->val;
-    if (family == NULL) {
-        goto exit;
-    }
+    family = CFStringGetCStringPtr(ct_family, kCFStringEncodingUTF8);
+    // todo: test is it always utf8 and null terminated
+    assert(family != NULL);
 
     impl = malloc(sizeof(*impl));
     if (impl == NULL) {
+        CFRelease(ct_family);
         goto exit;
     }
 
     impl->ct_font = ct_font;
+    impl->ct_family = ct_family;
     impl->font.family = family;
     impl->font.weight = oc__convert(ct_weight) + 0.5;
 
-    return impl;
 exit:
-    return NULL;
+    return impl;
 }
 
 oc_error oc_load_fonts(oc_collection* collection) {
     CTFontCollectionRef ct_collection;
     CFArrayRef ct_fonts;
-    oc__map_t* cache_map;
 
     size_t font_count;
 
@@ -256,12 +226,10 @@ oc_error oc_load_fonts(oc_collection* collection) {
         goto exit;
     }
 
-    cache_map = &collection->impl->cache_map;
-
     for (size_t i = 0; i < font_count; i++) {
         CTFontDescriptorRef ct_font = CFArrayGetValueAtIndex(ct_fonts, i);
         // todo: there is probably much more wrong can happen than oom
-        oc__font_impl* impl = oc__init_font_impl(ct_font, cache_map);
+        oc__font_impl* impl = oc__init_font_impl(ct_font);
         if (impl == NULL) {
             err = oc_error_out_of_memory;
             goto exit;
@@ -270,8 +238,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
         fonts[elements++] = &impl->font;
     }
 
-    collection_copy.impl->ct_fonts = ct_fonts;
-    collection_copy.impl->cache_map = *cache_map;
+    collection_copy.impl = (oc_collection_impl*)ct_fonts;
     collection_copy.fonts = fonts;
     collection_copy.elements = elements;
 
