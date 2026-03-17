@@ -357,114 +357,6 @@ static inline oc_open_params oc__open_params_defaults(const oc_open_params* upar
     return params;
 }
 
-#ifndef ONECORE_FREETYPE_IMPLEMENTATION
-
-// tood: use wyhash as this one likes to collide alot
-static uint64_t oc__fnv1a(const void* ptr, size_t size) {
-    const uint8_t* data = ptr;
-    uint64_t hash = 14695981039346656037ULL;
-
-    for (size_t i = 0; i < size; i++) {
-        hash ^= data[i];
-        hash *= 1099511628211ULL;
-    }
-
-    return hash;
-}
-
-typedef struct {
-    uint64_t key;
-    char*    val;
-} oc__kv_t;
-
-typedef struct {
-    oc__kv_t* kvs;
-    size_t    len;
-    size_t    cap;
-} oc__map_t;
-
-static void oc__free_map(oc__map_t* map) {
-    for (size_t i = 0; i < map->cap; i++) {
-        free(map->kvs[i].val);
-    }
-    free(map->kvs);
-}
-
-static oc__kv_t* oc__map_find(oc__map_t* map, uint64_t hash) {
-    size_t index = 0;
-    size_t mask = map->cap - 1;
-
-    if (hash == 0) {
-        hash = (uint64_t)(-1);
-    }
-
-    for (;; index++) {
-        size_t i = (hash + index) & mask;
-        oc__kv_t* kv = map->kvs + i;
-
-        if (kv->key == hash || kv->key == 0) {
-            return kv;
-        }
-    }
-}
-
-static bool oc__map_ensure_capacity(oc__map_t* map, size_t new_capacity) {
-    size_t capacity = map->cap;
-    size_t load = 100;
-
-    if (capacity > 0) {
-        load = (new_capacity * 100 + new_capacity - 1) / capacity;
-    }
-
-    if (load >= 80) {
-        oc__map_t map_copy;
-        oc__kv_t* kvs;
-
-        capacity = capacity > 16 ? capacity : 16;
-        while (new_capacity > capacity) {
-            capacity += capacity;
-        }
-
-        kvs = calloc(capacity, sizeof(*kvs));
-        if (kvs == NULL) {
-            return false;
-        }
-
-        map_copy.kvs = kvs;
-        map_copy.len = map->len;
-        map_copy.cap = capacity;
-
-        kvs = map->kvs;
-
-        for (size_t i = 0; i < map->len; i++) {
-            oc__kv_t kv = kvs[i];
-            if (kv.key != 0) {
-                *oc__map_find(&map_copy, kv.key) = kv;
-            }
-        }
-
-        *map = map_copy;
-        free(kvs);
-    }
-
-    return true;
-}
-
-static oc__kv_t* oc__map_obtain(oc__map_t* map, uint64_t key) {
-    oc__kv_t* kv = NULL;
-    if (oc__map_ensure_capacity(map, map->len + 1)) {
-        kv = oc__map_find(map, key);
-        if (kv->key == 0) {
-            kv->key = key;
-            map->len++;
-        }
-    }
-
-    return kv;
-}
-
-#endif /* !ONECORE_FREETYPE_IMPLEMENTATION */
-
 #ifdef ONECORE_FREETYPE_IMPLEMENTATION
 #include <assert.h>
 // todo: make font config optional
@@ -1239,11 +1131,6 @@ exit:
 #ifdef ONECORE_CORETEXT_IMPLEMENTATION
 #include <CoreText/CoreText.h>
 
-struct oc_collection_impl {
-    CFArrayRef ct_fonts;
-    oc__map_t cache_map;
-};
-
 oc_error oc_init_library(oc_library* olibrary) {
     return olibrary == NULL ? oc_error_invalid_param : oc_error_ok;
 }
@@ -1254,11 +1141,13 @@ void oc_free_library(oc_library* library) {
 
 typedef struct {
     CTFontDescriptorRef ct_font;
+    CFStringRef ct_family;
     oc_font font;
 } oc__font_impl;
 
 static inline void oc__free_font_impl(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
+    CFRelease(impl->ct_family);
     free(impl);
 }
 
@@ -1271,13 +1160,7 @@ oc_error oc_init_collection(const oc_library* library, oc_collection* ocollectio
         goto exit;
     }
 
-    collection.impl = malloc(sizeof(oc_collection_impl));
-    if (collection.impl == NULL) {
-        return oc_error_out_of_memory;
-    }
-
-    collection.impl->ct_fonts = NULL;
-    memset(&collection.impl->cache_map, 0, sizeof(oc__map_t));
+    collection.impl = NULL;
     collection.fonts = NULL;
     collection.elements = 0;
 exit:
@@ -1292,8 +1175,7 @@ void oc_free_collection(oc_collection* collection) {
         }
         free(collection->fonts);
 
-        oc__free_map(&collection->impl->cache_map);
-        if (collection->impl->ct_fonts) CFRelease(collection->impl->ct_fonts);
+        if (collection->impl) CFRelease(collection->impl);
         memset(collection, 0, sizeof(*collection));
     }
 }
@@ -1343,62 +1225,56 @@ double oc__convert(double ct_weight) {
         oc__weight_map[i].ot);
 }
 
-static inline char* oc__copy_string(CFStringRef string) {
-    assert(string != NULL);
+// static inline char* oc__copy_string(CFStringRef string) {
+//     assert(string != NULL);
+//
+//     CFIndex length = CFStringGetLength(string);
+//     CFRange range = CFRangeMake(0, length);
+//
+//     CFIndex size = 0;
+//     UInt8* out;
+//
+//     assert(length > 0);
+//
+//     CFStringGetBytes(
+//         string,
+//         range,
+//         kCFStringEncodingUTF8,
+//         0,
+//         false,
+//         NULL,
+//         0,
+//         &size);
+//
+//     out = malloc(size + 1);
+//     if (out == NULL) {
+//         return NULL;
+//     }
+//
+//     CFStringGetBytes(
+//         string,
+//         range,
+//         kCFStringEncodingUTF8,
+//         0,
+//         false,
+//         out,
+//         size,
+//         NULL);
+//
+//     out[size] = '\0';
+//     return (char*)out;
+// }
 
-    CFIndex length = CFStringGetLength(string);
-    CFRange range = CFRangeMake(0, length);
-
-    CFIndex size = 0;
-    UInt8* out;
-
-    assert(length > 0);
-
-    CFStringGetBytes(
-        string,
-        range,
-        kCFStringEncodingUTF8,
-        0,
-        false,
-        NULL,
-        0,
-        &size);
-
-    out = malloc(size + 1);
-    if (out == NULL) {
-        return NULL;
-    }
-
-    CFStringGetBytes(
-        string,
-        range,
-        kCFStringEncodingUTF8,
-        0,
-        false,
-        out,
-        size,
-        NULL);
-
-    out[size] = '\0';
-    return (char*)out;
-}
-
-static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font, oc__map_t* cache) {
-    oc__font_impl* impl;
+static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
+    oc__font_impl* impl = NULL;
 
     CFDictionaryRef ct_traits;
     CFStringRef ct_family;
-
-    const UniChar* ct_family_ptr;
-    CFIndex ct_family_len;
 
     const char* family;
 
     CFNumberRef weight_obj;
     double ct_weight;
-
-    uint64_t hash;
-    oc__kv_t* kv;
 
     assert(ct_font != NULL);
 
@@ -1416,42 +1292,28 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font, oc__map_t*
     ct_family = CTFontDescriptorCopyAttribute(ct_font, kCTFontFamilyNameAttribute);
     assert(ct_family != NULL);
 
-    ct_family_ptr = CFStringGetCharactersPtr(ct_family);
-    ct_family_len = CFStringGetLength(ct_family);
-
-    assert(ct_family_ptr != NULL);
-
-    hash = oc__fnv1a(ct_family_ptr, ct_family_len * sizeof(UniChar));
-    kv = oc__map_obtain(cache, hash);
-
-    if (kv->val == NULL) {
-        kv->val = oc__copy_string(ct_family);
-    }
-    CFRelease(ct_family);
-
-    family = kv->val;
-    if (family == NULL) {
-        goto exit;
-    }
+    family = CFStringGetCStringPtr(ct_family, kCFStringEncodingUTF8);
+    // todo: test is it always utf8 and null terminated
+    assert(family != NULL);
 
     impl = malloc(sizeof(*impl));
     if (impl == NULL) {
+        CFRelease(ct_family);
         goto exit;
     }
 
     impl->ct_font = ct_font;
+    impl->ct_family = ct_family;
     impl->font.family = family;
     impl->font.weight = oc__convert(ct_weight) + 0.5;
 
-    return impl;
 exit:
-    return NULL;
+    return impl;
 }
 
 oc_error oc_load_fonts(oc_collection* collection) {
     CTFontCollectionRef ct_collection;
     CFArrayRef ct_fonts;
-    oc__map_t* cache_map;
 
     size_t font_count;
 
@@ -1488,12 +1350,10 @@ oc_error oc_load_fonts(oc_collection* collection) {
         goto exit;
     }
 
-    cache_map = &collection->impl->cache_map;
-
     for (size_t i = 0; i < font_count; i++) {
         CTFontDescriptorRef ct_font = CFArrayGetValueAtIndex(ct_fonts, i);
         // todo: there is probably much more wrong can happen than oom
-        oc__font_impl* impl = oc__init_font_impl(ct_font, cache_map);
+        oc__font_impl* impl = oc__init_font_impl(ct_font);
         if (impl == NULL) {
             err = oc_error_out_of_memory;
             goto exit;
@@ -1502,8 +1362,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
         fonts[elements++] = &impl->font;
     }
 
-    collection_copy.impl->ct_fonts = ct_fonts;
-    collection_copy.impl->cache_map = *cache_map;
+    collection_copy.impl = (oc_collection_impl*)ct_fonts;
     collection_copy.fonts = fonts;
     collection_copy.elements = elements;
 
@@ -2102,6 +1961,112 @@ exit:
         err = (e);  \
         goto exit;  \
     } while (0)
+
+// tood: use wyhash as this one likes to collide alot
+static uint64_t oc__fnv1a(const void* ptr, size_t size) {
+    const uint8_t* data = ptr;
+    uint64_t hash = 14695981039346656037ULL;
+
+    for (size_t i = 0; i < size; i++) {
+        hash ^= data[i];
+        hash *= 1099511628211ULL;
+    }
+
+    return hash;
+}
+
+typedef struct {
+    uint64_t key;
+    char*    val;
+} oc__kv_t;
+
+// tood: rename to set_t an handle true hash collision
+//       a.k.a. just check if input key is same as value key
+typedef struct {
+    oc__kv_t* kvs;
+    size_t    len;
+    size_t    cap;
+} oc__map_t;
+
+static void oc__free_map(oc__map_t* map) {
+    for (size_t i = 0; i < map->cap; i++) {
+        free(map->kvs[i].val);
+    }
+    free(map->kvs);
+}
+
+static oc__kv_t* oc__map_find(oc__map_t* map, uint64_t hash) {
+    size_t index = 0;
+    size_t mask = map->cap - 1;
+
+    if (hash == 0) {
+        hash = (uint64_t)(-1);
+    }
+
+    for (;; index++) {
+        size_t i = (hash + index) & mask;
+        oc__kv_t* kv = map->kvs + i;
+
+        if (kv->key == hash || kv->key == 0) {
+            return kv;
+        }
+    }
+}
+
+static bool oc__map_ensure_capacity(oc__map_t* map, size_t new_capacity) {
+    size_t capacity = map->cap;
+    size_t load = 100;
+
+    if (capacity > 0) {
+        load = (new_capacity * 100 + new_capacity - 1) / capacity;
+    }
+
+    if (load >= 80) {
+        oc__map_t map_copy;
+        oc__kv_t* kvs;
+
+        capacity = capacity > 16 ? capacity : 16;
+        while (new_capacity > capacity) {
+            capacity += capacity;
+        }
+
+        kvs = calloc(capacity, sizeof(*kvs));
+        if (kvs == NULL) {
+            return false;
+        }
+
+        map_copy.kvs = kvs;
+        map_copy.len = map->len;
+        map_copy.cap = capacity;
+
+        kvs = map->kvs;
+
+        for (size_t i = 0; i < map->len; i++) {
+            oc__kv_t kv = kvs[i];
+            if (kv.key != 0) {
+                *oc__map_find(&map_copy, kv.key) = kv;
+            }
+        }
+
+        *map = map_copy;
+        free(kvs);
+    }
+
+    return true;
+}
+
+static oc__kv_t* oc__map_obtain(oc__map_t* map, uint64_t key) {
+    oc__kv_t* kv = NULL;
+    if (oc__map_ensure_capacity(map, map->len + 1)) {
+        kv = oc__map_find(map, key);
+        if (kv->key == 0) {
+            kv->key = key;
+            map->len++;
+        }
+    }
+
+    return kv;
+}
 
 struct oc_face_impl {
     IDWriteFontFace* dw_face;
