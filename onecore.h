@@ -463,7 +463,7 @@ static oc__kv_t* oc__map_obtain(oc__map_t* map, uint64_t key) {
     return kv;
 }
 
-#endif
+#endif /* !ONECORE_FREETYPE_IMPLEMENTATION */
 
 #ifdef ONECORE_FREETYPE_IMPLEMENTATION
 #include <assert.h>
@@ -1239,6 +1239,11 @@ exit:
 #ifdef ONECORE_CORETEXT_IMPLEMENTATION
 #include <CoreText/CoreText.h>
 
+struct oc_collection_impl {
+    CFArrayRef ct_fonts;
+    oc__map_t cache_map;
+};
+
 oc_error oc_init_library(oc_library* olibrary) {
     return olibrary == NULL ? oc_error_invalid_param : oc_error_ok;
 }
@@ -1254,7 +1259,6 @@ typedef struct {
 
 static inline void oc__free_font_impl(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
-    free((char*)impl->font.family);
     free(impl);
 }
 
@@ -1267,7 +1271,13 @@ oc_error oc_init_collection(const oc_library* library, oc_collection* ocollectio
         goto exit;
     }
 
-    collection.impl = NULL;
+    collection.impl = malloc(sizeof(oc_collection_impl));
+    if (collection.impl == NULL) {
+        return oc_error_out_of_memory;
+    }
+
+    collection.impl->ct_fonts = NULL;
+    memset(&collection.impl->cache_map, 0, sizeof(oc__map_t));
     collection.fonts = NULL;
     collection.elements = 0;
 exit:
@@ -1281,7 +1291,9 @@ void oc_free_collection(oc_collection* collection) {
             oc__free_font_impl(collection->fonts[i]);
         }
         free(collection->fonts);
-        if (collection->impl) CFRelease(collection->impl);
+
+        oc__free_map(&collection->impl->cache_map);
+        if (collection->impl->ct_fonts) CFRelease(collection->impl->ct_fonts);
         memset(collection, 0, sizeof(*collection));
     }
 }
@@ -1371,16 +1383,22 @@ static inline char* oc__copy_string(CFStringRef string) {
     return (char*)out;
 }
 
-static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
+static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font, oc__map_t* cache) {
     oc__font_impl* impl;
 
     CFDictionaryRef ct_traits;
     CFStringRef ct_family;
 
-    char* family = NULL;
+    const UniChar* ct_family_ptr;
+    CFIndex ct_family_len;
+
+    const char* family;
 
     CFNumberRef weight_obj;
     double ct_weight;
+
+    uint64_t hash;
+    oc__kv_t* kv;
 
     assert(ct_font != NULL);
 
@@ -1398,9 +1416,20 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     ct_family = CTFontDescriptorCopyAttribute(ct_font, kCTFontFamilyNameAttribute);
     assert(ct_family != NULL);
 
-    family = oc__copy_string(ct_family); 
+    ct_family_ptr = CFStringGetCharactersPtr(ct_family);
+    ct_family_len = CFStringGetLength(ct_family);
+
+    assert(ct_family_ptr != NULL);
+
+    hash = oc__fnv1a(ct_family_ptr, ct_family_len * sizeof(UniChar));
+    kv = oc__map_obtain(cache, hash);
+
+    if (kv->val == NULL) {
+        kv->val = oc__copy_string(ct_family);
+    }
     CFRelease(ct_family);
 
+    family = kv->val;
     if (family == NULL) {
         goto exit;
     }
@@ -1416,13 +1445,13 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
 
     return impl;
 exit:
-    free(family);
     return NULL;
 }
 
 oc_error oc_load_fonts(oc_collection* collection) {
     CTFontCollectionRef ct_collection;
     CFArrayRef ct_fonts;
+    oc__map_t* cache_map;
 
     size_t font_count;
 
@@ -1459,10 +1488,12 @@ oc_error oc_load_fonts(oc_collection* collection) {
         goto exit;
     }
 
+    cache_map = &collection->impl->cache_map;
+
     for (size_t i = 0; i < font_count; i++) {
         CTFontDescriptorRef ct_font = CFArrayGetValueAtIndex(ct_fonts, i);
         // todo: there is probably much more wrong can happen than oom
-        oc__font_impl* impl = oc__init_font_impl(ct_font);
+        oc__font_impl* impl = oc__init_font_impl(ct_font, cache_map);
         if (impl == NULL) {
             err = oc_error_out_of_memory;
             goto exit;
@@ -1471,7 +1502,8 @@ oc_error oc_load_fonts(oc_collection* collection) {
         fonts[elements++] = &impl->font;
     }
 
-    collection_copy.impl = (oc_collection_impl*)ct_fonts;
+    collection_copy.impl->ct_fonts = ct_fonts;
+    collection_copy.impl->cache_map = *cache_map;
     collection_copy.fonts = fonts;
     collection_copy.elements = elements;
 
