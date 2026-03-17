@@ -357,6 +357,114 @@ static inline oc_open_params oc__open_params_defaults(const oc_open_params* upar
     return params;
 }
 
+#ifndef ONECORE_FREETYPE_IMPLEMENTATION
+
+// tood: use wyhash as this one likes to collide alot
+static uint64_t oc__fnv1a(const void* ptr, size_t size) {
+    const uint8_t* data = ptr;
+    uint64_t hash = 14695981039346656037ULL;
+
+    for (size_t i = 0; i < size; i++) {
+        hash ^= data[i];
+        hash *= 1099511628211ULL;
+    }
+
+    return hash;
+}
+
+typedef struct {
+    uint64_t key;
+    char*    val;
+} oc__kv_t;
+
+typedef struct {
+    oc__kv_t* kvs;
+    size_t    len;
+    size_t    cap;
+} oc__map_t;
+
+static void oc__free_map(oc__map_t* map) {
+    for (size_t i = 0; i < map->cap; i++) {
+        free(map->kvs[i].val);
+    }
+    free(map->kvs);
+}
+
+static oc__kv_t* oc__map_find(oc__map_t* map, uint64_t hash) {
+    size_t index = 0;
+    size_t mask = map->cap - 1;
+
+    if (hash == 0) {
+        hash = (uint64_t)(-1);
+    }
+
+    for (;; index++) {
+        size_t i = (hash + index) & mask;
+        oc__kv_t* kv = map->kvs + i;
+
+        if (kv->key == hash || kv->key == 0) {
+            return kv;
+        }
+    }
+}
+
+static bool oc__map_ensure_capacity(oc__map_t* map, size_t new_capacity) {
+    size_t capacity = map->cap;
+    size_t load = 100;
+
+    if (capacity > 0) {
+        load = (new_capacity * 100 + new_capacity - 1) / capacity;
+    }
+
+    if (load >= 80) {
+        oc__map_t map_copy;
+        oc__kv_t* kvs;
+
+        capacity = capacity > 16 ? capacity : 16;
+        while (new_capacity > capacity) {
+            capacity += capacity;
+        }
+
+        kvs = calloc(capacity, sizeof(*kvs));
+        if (kvs == NULL) {
+            return false;
+        }
+
+        map_copy.kvs = kvs;
+        map_copy.len = map->len;
+        map_copy.cap = capacity;
+
+        kvs = map->kvs;
+
+        for (size_t i = 0; i < map->len; i++) {
+            oc__kv_t kv = kvs[i];
+            if (kv.key != 0) {
+                *oc__map_find(&map_copy, kv.key) = kv;
+            }
+        }
+
+        *map = map_copy;
+        free(kvs);
+    }
+
+    return true;
+}
+
+static oc__kv_t* oc__map_obtain(oc__map_t* map, uint64_t key) {
+    oc__kv_t* kv = NULL;
+    if (oc__map_ensure_capacity(map, map->len + 1)) {
+        kv = oc__map_find(map, key);
+        if (kv->key == 0) {
+            kv->key = key;
+            map->len++;
+        }
+    }
+
+    return kv;
+}
+
+#endif
+
 #ifdef ONECORE_FREETYPE_IMPLEMENTATION
 #include <assert.h>
 // todo: make font config optional
@@ -1963,17 +2071,6 @@ exit:
         goto exit;  \
     } while (0)
 
-typedef struct {
-    uint64_t key;
-    char*    val;
-} oc__kv_t;
-
-typedef struct {
-    oc__kv_t* kvs;
-    size_t    len;
-    size_t    cap;
-} oc__map_t;
-
 struct oc_face_impl {
     IDWriteFontFace* dw_face;
     IDWriteFactory* dw_factory;
@@ -2366,6 +2463,8 @@ static inline void oc__free_font(oc_font* font) {
     free(impl);
 }
 
+// todo: make ocol be **oc_collection
+// and make oc_collection anonymous no internals shaize
 oc_error oc_init_collection(const oc_library* library, oc_collection* ocollection) {
     oc_collection collection = { 0 };
     oc_error err = oc_error_ok;
@@ -2381,7 +2480,7 @@ oc_error oc_init_collection(const oc_library* library, oc_collection* ocollectio
         return oc_error_out_of_memory;
     }
 
-    collection.impl->dw_factory = (IDWriteFactory*)library;
+    collection.impl->dw_factory = library->internals;
     memset(&collection.impl->cache_map, 0, sizeof(oc__map_t));
 
     collection.fonts = NULL;
@@ -2398,11 +2497,7 @@ void oc_free_collection(oc_collection* collection) {
         }
         free(collection->fonts);
 
-        for (size_t i = 0; i < collection->impl->cache_map.len; i++) {
-            // if key is empty val will be NULL
-            free(collection->impl->cache_map.kvs[i].val);
-        }
-        free(collection->impl->cache_map.kvs);
+        oc__free_map(&collection->impl->cache_map);
 
         free(collection->impl);
         memset(collection, 0, sizeof(*collection));
@@ -2443,87 +2538,6 @@ static inline char* oc__utf16_to_utf8(const wchar_t* utf16, size_t utf16_size) {
     }
 
     return utf8;
-}
-
-uint64_t oc__fnv1a(const void* ptr, size_t size) {
-    const uint8_t* data = ptr;
-    uint64_t hash = 14695981039346656037ULL;
-
-    for (size_t i = 0; i < size; i++) {
-        hash ^= data[i];
-        hash *= 1099511628211ULL;
-    }
-
-    return hash;
-}
-
-oc__kv_t* oc__map_find(oc__map_t* map, uint64_t hash) {
-    size_t index = 0;
-    size_t mask = map->cap - 1;
-
-    if (hash == 0) {
-        hash = (uint64_t)(-1);
-    }
-
-    for (;; index++) {
-        size_t i = (hash + index) & mask;
-        oc__kv_t* kv = map->kvs + i;
-
-        if (kv->key == hash || kv->key == 0) {
-            return kv;
-        }
-    }
-}
-
-bool oc__map_ensure_capacity(oc__map_t* map, size_t new_capacity) {
-    size_t capacity = map->cap;
-    size_t load = (new_capacity * 100 + new_capacity - 1) / capacity;
-
-    if (load >= 80) {
-        oc__map_t map_copy;
-        oc__kv_t* kvs;
-
-        capacity = max(capacity, 16);
-        while (new_capacity > capacity) {
-            capacity += capacity;
-        }
-
-        kvs = calloc(capacity, sizeof(*kvs));
-        if (kvs == NULL) {
-            return false;
-        }
-
-        map_copy.kvs = kvs;
-        map_copy.len = map->len;
-        map_copy.cap = capacity;
-
-        kvs = map->kvs;
-
-        for (size_t i = 0; i < map->len; i++) {
-            oc__kv_t kv = kvs[i];
-            if (kv.key != 0) {
-                *oc__map_find(&map_copy, kv.key) = kv;
-            }
-        }
-
-        *map = map_copy;
-        free(kvs);
-    }
-
-    return true;
-}
-
-oc__kv_t* oc__map_obtain(oc__map_t* map, uint64_t key) {
-    oc__kv_t* kv = NULL;
-    if (oc__map_ensure_capacity(map, map->len + 1)) {
-        kv = oc__map_find(map, key);
-        if (kv->key == 0) {
-            kv->key = key;
-            map->len++;
-        }
-    }
-
-    return kv;
 }
 
 // todo: reuse family name
