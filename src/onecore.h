@@ -292,6 +292,12 @@ static inline oc_error oc__unexpected_impl(long err, const char* file, int line)
 #define oc__parentof(type, ptr, member) \
     ((type*)((char*)(ptr) - offsetof(type, member)))
 
+#define OC__MAX(a, b) \
+    ((a) > (b) ? (a) : (b))
+
+#define OC__MIN(a, b) \
+    ((a) < (b) ? (a) : (b))
+
 const char* oc_strerror(oc_error err) {
 #ifdef ONECORE_NO_ERROR_STRINGS
     return NULL;
