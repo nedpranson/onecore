@@ -2542,7 +2542,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
     fonts = collection->fonts;
     nfonts = collection->nfonts;
 
-    *tmp_collection.impl = tmp_impl;
+    *collection->impl = tmp_impl;
     *collection = tmp_collection;
 exit:
     while (nfonts--) oc__free_font(fonts[nfonts]);
