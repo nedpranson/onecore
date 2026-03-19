@@ -28,17 +28,14 @@ static inline void oc__free_font_impl(oc_font* font) {
 }
 
 oc_error oc_init_collection(const oc_library* library, oc_collection* ocollection) {
-    oc_collection collection = { 0 };
     oc_error err = oc_error_ok;
+    oc_collection collection = { 0 };
 
     if (!(library && ocollection)) {
         err = oc_error_invalid_param;
         goto exit;
     }
 
-    collection.impl = NULL;
-    collection.fonts = NULL;
-    collection.elements = 0;
 exit:
     if (ocollection) *ocollection = collection;
     return err;
@@ -46,9 +43,10 @@ exit:
 
 void oc_free_collection(oc_collection* collection) {
     if (collection) {
-        for (size_t i = 0; i < collection->elements; i++) {
-            oc__free_font_impl(collection->fonts[i]);
+        while (collection->nfonts--) {
+            oc__free_font_impl(collection->fonts[collection->nfonts]);
         }
+
         free(collection->fonts);
 
         if (collection->impl) CFRelease(collection->impl);
@@ -101,46 +99,6 @@ double oc__convert(double ct_weight) {
         oc__weight_map[i].ot);
 }
 
-// static inline char* oc__copy_string(CFStringRef string) {
-//     assert(string != NULL);
-//
-//     CFIndex length = CFStringGetLength(string);
-//     CFRange range = CFRangeMake(0, length);
-//
-//     CFIndex size = 0;
-//     UInt8* out;
-//
-//     assert(length > 0);
-//
-//     CFStringGetBytes(
-//         string,
-//         range,
-//         kCFStringEncodingUTF8,
-//         0,
-//         false,
-//         NULL,
-//         0,
-//         &size);
-//
-//     out = malloc(size + 1);
-//     if (out == NULL) {
-//         return NULL;
-//     }
-//
-//     CFStringGetBytes(
-//         string,
-//         range,
-//         kCFStringEncodingUTF8,
-//         0,
-//         false,
-//         out,
-//         size,
-//         NULL);
-//
-//     out[size] = '\0';
-//     return (char*)out;
-// }
-
 static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     oc__font_impl* impl = NULL;
 
@@ -188,16 +146,17 @@ exit:
 }
 
 oc_error oc_load_fonts(oc_collection* collection) {
+    oc_error err = oc_error_ok;
+
     CTFontCollectionRef ct_collection;
     CFArrayRef ct_fonts;
 
-    size_t font_count;
+    CFIndex font_count;
 
     oc_font** fonts = NULL;
-    size_t elements = 0;
+    uint32_t nfonts = 0;
     
-    oc_error err = oc_error_ok;
-    oc_collection collection_copy;
+    oc_collection tmp_collection;
 
     if (!collection) {
         err = oc_error_invalid_param;
@@ -226,7 +185,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
         goto exit;
     }
 
-    for (size_t i = 0; i < font_count; i++) {
+    for (CFIndex i = 0; i < font_count; i++) {
         CTFontDescriptorRef ct_font = CFArrayGetValueAtIndex(ct_fonts, i);
         // todo: there is probably much more wrong can happen than oom
         oc__font_impl* impl = oc__init_font_impl(ct_font);
@@ -235,20 +194,20 @@ oc_error oc_load_fonts(oc_collection* collection) {
             goto exit;
         }
 
-        fonts[elements++] = &impl->font;
+        fonts[nfonts++] = &impl->font;
     }
 
-    collection_copy.impl = (oc_collection_impl*)ct_fonts;
-    collection_copy.fonts = fonts;
-    collection_copy.elements = elements;
+    tmp_collection.impl = (oc_collection_impl*)ct_fonts;
+    tmp_collection.fonts = fonts;
+    tmp_collection.nfonts = nfonts;
 
     ct_fonts = (CFArrayRef)collection->impl;
-    elements = collection->elements;
     fonts = collection->fonts;
+    nfonts = collection->nfonts;
 
-    *collection = collection_copy;
+    *collection = tmp_collection;
 exit:
-    while (elements--) oc__free_font_impl(fonts[elements]);
+    while (nfonts--) oc__free_font_impl(fonts[nfonts]);
     free(fonts);
     if (ct_fonts) CFRelease(ct_fonts);
 
@@ -340,8 +299,7 @@ oc_error oc_open_face(const oc_library* library, const char* path, const oc_open
     descriptors = CTFontManagerCreateFontDescriptorsFromURL(url_path);
     CFRelease(url_path);
 
-    // todo: think
-
+    // todo: think how to reliably handle this err
     if (descriptors == NULL) {
         return oc_error_failed_to_open; // or oom
     }

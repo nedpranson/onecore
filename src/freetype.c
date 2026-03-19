@@ -1,4 +1,4 @@
-#include <cstdint>
+#include <stdint.h>
 #define ONECORE_IMPLEMENTATION
 #include "onecore.h"
 
@@ -114,8 +114,6 @@ oc_error oc_init_collection(const oc_library* library, oc_collection* ocollectio
     }
 
     collection.impl = (oc_collection_impl*)fc_config;
-    collection.fonts = NULL;
-    collection.elements = 0;
 exit:
     if (ocollection) *ocollection = collection;
     return err;
@@ -123,19 +121,19 @@ exit:
 
 void oc_free_collection(oc_collection* collection) {
     FcConfig* fc_config;
-    if (!collection) {
-        return;
+
+    if (collection) {
+        fc_config = (FcConfig*)collection->impl;
+
+        while (collection->nfonts--) {
+            oc__free_font(collection->fonts[collection->nfonts]);
+        }
+        free(collection->fonts);
+
+        FcConfigDestroy(fc_config);
+
+        memset(collection, 0, sizeof(*collection));
     }
-
-    for (size_t i = 0; i < collection->elements; i++) {
-        oc__free_font(collection->fonts[i]);
-    }
-    free(collection->fonts);
-
-    fc_config = (FcConfig*)collection->impl;
-    FcConfigDestroy(fc_config);
-
-    memset(collection, 0, sizeof(*collection));
 }
 
 static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
@@ -188,37 +186,33 @@ oc_error oc_load_fonts(oc_collection* collection) {
     oc_error err = oc_error_ok;
 
     FcConfig* fc_config;
-    FcFontSet* fc_font_set;
+    FcFontSet* fc_fonts;
 
     int font_count;
 
     oc_font** fonts = NULL;
-    size_t elements = 0;
+    uint32_t nfonts = 0;
 
-
-    oc_collection collection_copy;
+    oc_collection tmp_collection;
 
     if (!collection) {
-        err = oc_error_invalid_param;
-        goto exit;
+        oc__exit(oc_error_invalid_param);
     }
 
     fc_config = (FcConfig*)collection->impl;
     if (!FcConfigBuildFonts(fc_config)) {
-        err = oc_error_invalid_param;
-        goto exit;
+        oc__exit(oc_error_invalid_param);
     }
 
     // todo: check what it does if there is no system fonts
-    fc_font_set = FcConfigGetFonts(fc_config, FcSetSystem);
-    assert(fc_font_set != NULL); // todo: look source code check if this can return NULL
+    fc_fonts = FcConfigGetFonts(fc_config, FcSetSystem);
+    assert(fc_fonts != NULL); // todo: look source code check if this can return NULL
 
-    font_count = fc_font_set->nfont;
-    fonts = malloc(sizeof(*fonts) * font_count);
+    font_count = fc_fonts->nfont;
+    fonts = malloc(font_count * sizeof(*fonts));
 
     if (fonts == NULL) {
-        err = oc_error_invalid_param;
-        goto exit;
+        oc__exit(oc_error_out_of_memory);
     }
 
     for (int i = 0; i < font_count; i++) {
@@ -227,32 +221,31 @@ oc_error oc_load_fonts(oc_collection* collection) {
         FcPattern* pattern;
         oc_font* font;
 
-        pattern = fc_font_set->fonts[i];
+        pattern = fc_fonts->fonts[i];
         status = oc__init_font(pattern, &font);
 
         switch (status) {
         case oc__status_ok:
             assert(font != NULL);
-            fonts[elements++] = font;
+            fonts[nfonts++] = font;
             break;
         case oc__status_memory:
-            err = oc_error_out_of_memory;
-            goto exit;
+            oc__exit(oc_error_out_of_memory);
         case oc__status_skip:
             break;
         }
     }
 
-    collection_copy.impl = collection->impl;
-    collection_copy.fonts = fonts;
-    collection_copy.elements = elements;
+    tmp_collection.impl = (oc_collection_impl*)fc_config;
+    tmp_collection.fonts = fonts;
+    tmp_collection.nfonts = nfonts;
 
     fonts = collection->fonts;
-    elements = collection->elements;
+    nfonts = collection->nfonts;
 
-    *collection = collection_copy;
+    *collection = tmp_collection;
 exit:
-    while (elements--) oc__free_font(fonts[elements]);
+    while (nfonts--) oc__free_font(fonts[nfonts]);
     free(fonts);
 
     return err;

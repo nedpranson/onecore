@@ -136,8 +136,9 @@ typedef struct {
 
 typedef struct {
     oc_collection_impl* impl;
+
     oc_font** fonts;
-    size_t elements; // todo: use 4 bytes
+    uint32_t nfonts;
 } oc_collection;
 
 typedef struct {
@@ -475,8 +476,6 @@ oc_error oc_init_collection(const oc_library* library, oc_collection* ocollectio
     }
 
     collection.impl = (oc_collection_impl*)fc_config;
-    collection.fonts = NULL;
-    collection.elements = 0;
 exit:
     if (ocollection) *ocollection = collection;
     return err;
@@ -484,19 +483,19 @@ exit:
 
 void oc_free_collection(oc_collection* collection) {
     FcConfig* fc_config;
-    if (!collection) {
-        return;
+
+    if (collection) {
+        fc_config = (FcConfig*)collection->impl;
+
+        while (collection->nfonts--) {
+            oc__free_font(collection->fonts[collection->nfonts]);
+        }
+        free(collection->fonts);
+
+        FcConfigDestroy(fc_config);
+
+        memset(collection, 0, sizeof(*collection));
     }
-
-    for (size_t i = 0; i < collection->elements; i++) {
-        oc__free_font(collection->fonts[i]);
-    }
-    free(collection->fonts);
-
-    fc_config = (FcConfig*)collection->impl;
-    FcConfigDestroy(fc_config);
-
-    memset(collection, 0, sizeof(*collection));
 }
 
 static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
@@ -549,37 +548,33 @@ oc_error oc_load_fonts(oc_collection* collection) {
     oc_error err = oc_error_ok;
 
     FcConfig* fc_config;
-    FcFontSet* fc_font_set;
+    FcFontSet* fc_fonts;
 
     int font_count;
 
     oc_font** fonts = NULL;
-    size_t elements = 0;
+    uint32_t nfonts = 0;
 
-
-    oc_collection collection_copy;
+    oc_collection tmp_collection;
 
     if (!collection) {
-        err = oc_error_invalid_param;
-        goto exit;
+        oc__exit(oc_error_invalid_param);
     }
 
     fc_config = (FcConfig*)collection->impl;
     if (!FcConfigBuildFonts(fc_config)) {
-        err = oc_error_invalid_param;
-        goto exit;
+        oc__exit(oc_error_invalid_param);
     }
 
     // todo: check what it does if there is no system fonts
-    fc_font_set = FcConfigGetFonts(fc_config, FcSetSystem);
-    assert(fc_font_set != NULL); // todo: look source code check if this can return NULL
+    fc_fonts = FcConfigGetFonts(fc_config, FcSetSystem);
+    assert(fc_fonts != NULL); // todo: look source code check if this can return NULL
 
-    font_count = fc_font_set->nfont;
-    fonts = malloc(sizeof(*fonts) * font_count);
+    font_count = fc_fonts->nfont;
+    fonts = malloc(font_count * sizeof(*fonts));
 
     if (fonts == NULL) {
-        err = oc_error_invalid_param;
-        goto exit;
+        oc__exit(oc_error_out_of_memory);
     }
 
     for (int i = 0; i < font_count; i++) {
@@ -588,32 +583,31 @@ oc_error oc_load_fonts(oc_collection* collection) {
         FcPattern* pattern;
         oc_font* font;
 
-        pattern = fc_font_set->fonts[i];
+        pattern = fc_fonts->fonts[i];
         status = oc__init_font(pattern, &font);
 
         switch (status) {
         case oc__status_ok:
             assert(font != NULL);
-            fonts[elements++] = font;
+            fonts[nfonts++] = font;
             break;
         case oc__status_memory:
-            err = oc_error_out_of_memory;
-            goto exit;
+            oc__exit(oc_error_out_of_memory);
         case oc__status_skip:
             break;
         }
     }
 
-    collection_copy.impl = collection->impl;
-    collection_copy.fonts = fonts;
-    collection_copy.elements = elements;
+    tmp_collection.impl = (oc_collection_impl*)fc_config;
+    tmp_collection.fonts = fonts;
+    tmp_collection.nfonts = nfonts;
 
     fonts = collection->fonts;
-    elements = collection->elements;
+    nfonts = collection->nfonts;
 
-    *collection = collection_copy;
+    *collection = tmp_collection;
 exit:
-    while (elements--) oc__free_font(fonts[elements]);
+    while (nfonts--) oc__free_font(fonts[nfonts]);
     free(fonts);
 
     return err;
@@ -1158,17 +1152,14 @@ static inline void oc__free_font_impl(oc_font* font) {
 }
 
 oc_error oc_init_collection(const oc_library* library, oc_collection* ocollection) {
-    oc_collection collection = { 0 };
     oc_error err = oc_error_ok;
+    oc_collection collection = { 0 };
 
     if (!(library && ocollection)) {
         err = oc_error_invalid_param;
         goto exit;
     }
 
-    collection.impl = NULL;
-    collection.fonts = NULL;
-    collection.elements = 0;
 exit:
     if (ocollection) *ocollection = collection;
     return err;
@@ -1176,9 +1167,10 @@ exit:
 
 void oc_free_collection(oc_collection* collection) {
     if (collection) {
-        for (size_t i = 0; i < collection->elements; i++) {
-            oc__free_font_impl(collection->fonts[i]);
+        while (collection->nfonts--) {
+            oc__free_font_impl(collection->fonts[collection->nfonts]);
         }
+
         free(collection->fonts);
 
         if (collection->impl) CFRelease(collection->impl);
@@ -1231,46 +1223,6 @@ double oc__convert(double ct_weight) {
         oc__weight_map[i].ot);
 }
 
-// static inline char* oc__copy_string(CFStringRef string) {
-//     assert(string != NULL);
-//
-//     CFIndex length = CFStringGetLength(string);
-//     CFRange range = CFRangeMake(0, length);
-//
-//     CFIndex size = 0;
-//     UInt8* out;
-//
-//     assert(length > 0);
-//
-//     CFStringGetBytes(
-//         string,
-//         range,
-//         kCFStringEncodingUTF8,
-//         0,
-//         false,
-//         NULL,
-//         0,
-//         &size);
-//
-//     out = malloc(size + 1);
-//     if (out == NULL) {
-//         return NULL;
-//     }
-//
-//     CFStringGetBytes(
-//         string,
-//         range,
-//         kCFStringEncodingUTF8,
-//         0,
-//         false,
-//         out,
-//         size,
-//         NULL);
-//
-//     out[size] = '\0';
-//     return (char*)out;
-// }
-
 static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     oc__font_impl* impl = NULL;
 
@@ -1318,16 +1270,17 @@ exit:
 }
 
 oc_error oc_load_fonts(oc_collection* collection) {
+    oc_error err = oc_error_ok;
+
     CTFontCollectionRef ct_collection;
     CFArrayRef ct_fonts;
 
-    size_t font_count;
+    CFIndex font_count;
 
     oc_font** fonts = NULL;
-    size_t elements = 0;
+    uint32_t nfonts = 0;
     
-    oc_error err = oc_error_ok;
-    oc_collection collection_copy;
+    oc_collection tmp_collection;
 
     if (!collection) {
         err = oc_error_invalid_param;
@@ -1356,7 +1309,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
         goto exit;
     }
 
-    for (size_t i = 0; i < font_count; i++) {
+    for (CFIndex i = 0; i < font_count; i++) {
         CTFontDescriptorRef ct_font = CFArrayGetValueAtIndex(ct_fonts, i);
         // todo: there is probably much more wrong can happen than oom
         oc__font_impl* impl = oc__init_font_impl(ct_font);
@@ -1365,20 +1318,20 @@ oc_error oc_load_fonts(oc_collection* collection) {
             goto exit;
         }
 
-        fonts[elements++] = &impl->font;
+        fonts[nfonts++] = &impl->font;
     }
 
-    collection_copy.impl = (oc_collection_impl*)ct_fonts;
-    collection_copy.fonts = fonts;
-    collection_copy.elements = elements;
+    tmp_collection.impl = (oc_collection_impl*)ct_fonts;
+    tmp_collection.fonts = fonts;
+    tmp_collection.nfonts = nfonts;
 
     ct_fonts = (CFArrayRef)collection->impl;
-    elements = collection->elements;
     fonts = collection->fonts;
+    nfonts = collection->nfonts;
 
-    *collection = collection_copy;
+    *collection = tmp_collection;
 exit:
-    while (elements--) oc__free_font_impl(fonts[elements]);
+    while (nfonts--) oc__free_font_impl(fonts[nfonts]);
     free(fonts);
     if (ct_fonts) CFRelease(ct_fonts);
 
@@ -1470,8 +1423,7 @@ oc_error oc_open_face(const oc_library* library, const char* path, const oc_open
     descriptors = CTFontManagerCreateFontDescriptorsFromURL(url_path);
     CFRelease(url_path);
 
-    // todo: think
-
+    // todo: think how to reliably handle this err
     if (descriptors == NULL) {
         return oc_error_failed_to_open; // or oom
     }
@@ -1968,112 +1920,6 @@ exit:
         goto exit;  \
     } while (0)
 
-// tood: use wyhash as this one likes to collide alot
-// static uint64_t oc__fnv1a(const void* ptr, size_t size) {
-//     const uint8_t* data = ptr;
-//     uint64_t hash = 14695981039346656037ULL;
-//
-//     for (size_t i = 0; i < size; i++) {
-//         hash ^= data[i];
-//         hash *= 1099511628211ULL;
-//     }
-//
-//     return hash;
-// }
-//
-// typedef struct {
-//     uint64_t key;
-//     char*    val;
-// } oc__kv_t;
-//
-// // tood: rename to set_t an handle true hash collision
-// //       a.k.a. just check if input key is same as value key
-// typedef struct {
-//     oc__kv_t* kvs;
-//     size_t    len;
-//     size_t    cap;
-// } oc__map_t;
-//
-// static void oc__free_map(oc__map_t* map) {
-//     for (size_t i = 0; i < map->cap; i++) {
-//         free(map->kvs[i].val);
-//     }
-//     free(map->kvs);
-// }
-//
-// static oc__kv_t* oc__map_find(oc__map_t* map, uint64_t hash) {
-//     size_t index = 0;
-//     size_t mask = map->cap - 1;
-//
-//     if (hash == 0) {
-//         hash = (uint64_t)(-1);
-//     }
-//
-//     for (;; index++) {
-//         size_t i = (hash + index) & mask;
-//         oc__kv_t* kv = map->kvs + i;
-//
-//         if (kv->key == hash || kv->key == 0) {
-//             return kv;
-//         }
-//     }
-// }
-//
-// static bool oc__map_ensure_capacity(oc__map_t* map, size_t new_capacity) {
-//     size_t capacity = map->cap;
-//     size_t load = 100;
-//
-//     if (capacity > 0) {
-//         load = (new_capacity * 100 + new_capacity - 1) / capacity;
-//     }
-//
-//     if (load >= 80) {
-//         oc__map_t map_copy;
-//         oc__kv_t* kvs;
-//
-//         capacity = capacity > 16 ? capacity : 16;
-//         while (new_capacity > capacity) {
-//             capacity += capacity;
-//         }
-//
-//         kvs = calloc(capacity, sizeof(*kvs));
-//         if (kvs == NULL) {
-//             return false;
-//         }
-//
-//         map_copy.kvs = kvs;
-//         map_copy.len = map->len;
-//         map_copy.cap = capacity;
-//
-//         kvs = map->kvs;
-//
-//         for (size_t i = 0; i < map->len; i++) {
-//             oc__kv_t kv = kvs[i];
-//             if (kv.key != 0) {
-//                 *oc__map_find(&map_copy, kv.key) = kv;
-//             }
-//         }
-//
-//         *map = map_copy;
-//         free(kvs);
-//     }
-//
-//     return true;
-// }
-//
-// static oc__kv_t* oc__map_obtain(oc__map_t* map, uint64_t key) {
-//     oc__kv_t* kv = NULL;
-//     if (oc__map_ensure_capacity(map, map->len + 1)) {
-//         kv = oc__map_find(map, key);
-//         if (kv->key == 0) {
-//             kv->key = key;
-//             map->len++;
-//         }
-//     }
-//
-//     return kv;
-// }
-
 struct oc_face_impl {
     IDWriteFontFace* dw_face;
     IDWriteFactory* dw_factory;
@@ -2081,8 +1927,8 @@ struct oc_face_impl {
 
 struct oc_collection_impl {
     IDWriteFactory* dw_factory;
-    char** family_names;
-    UINT32 family_names_count;
+    char** families;
+    UINT32 nfamilies;
 };
 
 typedef struct {
@@ -2477,17 +2323,12 @@ oc_error oc_init_collection(const oc_library* library, oc_collection* ocollectio
         goto exit;
     }
 
-
-    collection.impl = malloc(sizeof(oc_collection_impl));
+    collection.impl = calloc(1, sizeof(oc_collection_impl));
     if (collection.impl == NULL) {
         return oc_error_out_of_memory;
     }
 
     collection.impl->dw_factory = library->internals;
-    collection.impl->family_names = NULL;
-    collection.impl->family_names_count = 0;
-    collection.fonts = NULL;
-    collection.elements = 0;
 exit:
     if (ocollection) *ocollection = collection;
     return err;
@@ -2495,57 +2336,21 @@ exit:
 
 void oc_free_collection(oc_collection* collection) {
     if (collection) {
-        for (size_t i = 0; i < collection->elements; i++) {
-            oc__free_font(collection->fonts[i]);
+        while (collection->nfonts--) {
+            oc__free_font(collection->fonts[collection->nfonts]);
         }
 
-        for (UINT32 i = 0; i < collection->impl->family_names_count; i++) {
-            free(collection->impl->family_names[i]);
+        while (collection->impl->nfamilies--) {
+            free(collection->impl->families[collection->impl->nfamilies]);
         }
 
         free(collection->fonts);
-        free(collection->impl->family_names);
+        free(collection->impl->families);
         free(collection->impl);
 
         memset(collection, 0, sizeof(*collection));
     }
 }
-
-// static inline char* oc__utf16_to_utf8(const wchar_t* utf16, size_t utf16_size) {
-//     char* utf8;
-//     size_t utf8_size;
-//
-//     utf8_size = WideCharToMultiByte(
-//         CP_UTF8,
-//         0, // todo: WC_ERR_INVALID_CHARS and test this
-//         utf16,
-//         utf16_size,
-//         NULL,
-//         0,
-//         NULL,
-//         NULL);
-//
-//     if (utf8_size == 0) {
-//         return NULL;
-//     }
-//
-//     utf8 = malloc(utf8_size + 1);
-//     if (utf8 != NULL) {
-//         WideCharToMultiByte(
-//             CP_UTF8,
-//             0,
-//             utf16,
-//             utf16_size,
-//             utf8,
-//             utf8_size,
-//             NULL,
-//             NULL);
-//
-//         utf8[utf8_size] = '\0';
-//     }
-//
-//     return utf8;
-// }
 
 static oc_font* oc__init_font(IDWriteFont* dw_font, const char* family) {
     DWRITE_FONT_WEIGHT weight;
@@ -2572,23 +2377,24 @@ oc_error oc_load_fonts(oc_collection* collection) {
     IDWriteFactory* dw_factory;
     IDWriteFontCollection* dw_collection = NULL;
 
-    UINT32 font_count;
     UINT32 family_count;
+    UINT32 font_count;
 
-    UINT32 family_names_count = 0;
+    UINT32 nfamilies = 0;
 
     union {
         char*  str;
         UINT32 len;
-    }* family_names = NULL;
+    }* families = NULL;
 
     WCHAR* wide_buf = NULL;
     UINT32 wide_buf_len;
 
     oc_font** fonts = NULL;
-    size_t elements = 0;
+    uint32_t nfonts = 0;
 
-    oc_collection collection_copy;
+    oc_collection tmp_collection;
+    oc_collection_impl tmp_impl;
 
     // on failure collection must stay the same
     // this function should have no side effects on failure!
@@ -2612,8 +2418,8 @@ oc_error oc_load_fonts(oc_collection* collection) {
     family_count = dw_collection->lpVtbl->GetFontFamilyCount(dw_collection);
     font_count = 0;
 
-    family_names = malloc(family_count * sizeof(*family_names));
-    if (family_names == NULL) {
+    families = malloc(family_count * sizeof(*families));
+    if (families == NULL) {
         oc__exit(oc_error_out_of_memory);
     }
 
@@ -2632,7 +2438,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
         hr = names->lpVtbl->GetStringLength(names, 0, &length);
         assert(hr == S_OK);
 
-        family_names[i].len = length;
+        families[i].len = length;
         wide_buf_len = OC__MAX(wide_buf_len, length);
         font_count += family->lpVtbl->GetFontCount(family);
 
@@ -2654,7 +2460,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
         IDWriteFontFamily* font_family;
         IDWriteLocalizedStrings* names;
 
-        UINT32 wide_length = family_names[i].len;
+        UINT32 wide_length = families[i].len;
         UINT32 font_index;
 
         char* family;
@@ -2684,8 +2490,8 @@ oc_error oc_load_fonts(oc_collection* collection) {
 
         family = malloc(length + 1);
         if (family == NULL) {
-            // todo: do smth!
-            assert(false);
+            font_family->lpVtbl->Release(font_family);
+            oc__exit(oc_error_out_of_memory);
         }
 
         length = WideCharToMultiByte(
@@ -2701,7 +2507,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
         assert(length > 0);
 
         family[length] = '\0';
-        family_names[family_names_count++].str = family;
+        families[nfamilies++].str = family;
         font_index = font_family->lpVtbl->GetFontCount(font_family);
 
         while (font_index--) {
@@ -2717,43 +2523,39 @@ oc_error oc_load_fonts(oc_collection* collection) {
                 oc__exit(oc_error_out_of_memory);
             }
 
-            fonts[elements++] = font;
+            fonts[nfonts++] = font;
         }
 
         font_family->lpVtbl->Release(font_family);
     }
 
-    // swap old collection with new
-    // todo: fix this
+    tmp_impl.dw_factory = dw_factory;
+    tmp_impl.families = (char**)families;
+    tmp_impl.nfamilies = nfamilies;
 
-    char** a = collection->impl->family_names;
-    UINT32 b = collection->impl->family_names_count;
+    tmp_collection.impl = collection->impl;
+    tmp_collection.fonts = fonts;
+    tmp_collection.nfonts = nfonts;
 
-    collection_copy.impl = collection->impl;
-    collection_copy.impl->family_names = (char**)family_names;
-    collection_copy.impl->family_names_count = family_names_count;
-    collection_copy.elements = elements;
-    collection_copy.fonts = fonts;
-
+    families = (void*)collection->impl->families;
+    nfamilies = collection->impl->nfamilies;
     fonts = collection->fonts;
-    elements = collection->elements;
-    family_names = (void*)a;
-    family_names_count = b;
+    nfonts = collection->nfonts;
 
-    *collection = collection_copy;
+    *tmp_collection.impl = tmp_impl;
+    *collection = tmp_collection;
 exit:
-    while (elements--) oc__free_font(fonts[elements]);
-    while (family_names_count--) free(family_names[family_names_count].str);
+    while (nfonts--) oc__free_font(fonts[nfonts]);
+    while (nfamilies--) free(families[nfamilies].str);
 
     if (dw_collection) dw_collection->lpVtbl->Release(dw_collection);
 
-    free(family_names);
-    free(wide_buf);
     free(fonts);
+    free(families);
+    free(wide_buf);
 
     return err;
 }
-
 static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWriteFontFile* font_file, const oc_open_params* uparams, oc_face* oface) {
     HRESULT err;
     WINBOOL is_supported_fonttype;

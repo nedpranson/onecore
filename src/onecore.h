@@ -136,8 +136,9 @@ typedef struct {
 
 typedef struct {
     oc_collection_impl* impl;
+
     oc_font** fonts;
-    size_t elements; // todo: use 4 bytes
+    uint32_t nfonts;
 } oc_collection;
 
 typedef struct {
