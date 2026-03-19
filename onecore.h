@@ -2724,17 +2724,21 @@ oc_error oc_load_fonts(oc_collection* collection) {
     }
 
     // swap old collection with new
+    // todo: fix this
 
-    collection_copy.impl->dw_factory = collection->impl->dw_factory;
+    char** a = collection->impl->family_names;
+    UINT32 b = collection->impl->family_names_count;
+
+    collection_copy.impl = collection->impl;
     collection_copy.impl->family_names = (char**)family_names;
     collection_copy.impl->family_names_count = family_names_count;
-    collection_copy.elements = font_count;
+    collection_copy.elements = elements;
     collection_copy.fonts = fonts;
 
     fonts = collection->fonts;
     elements = collection->elements;
-    family_names = (void*)collection->impl->family_names;
-    family_names_count = collection->impl->family_names_count;
+    family_names = (void*)a;
+    family_names_count = b;
 
     *collection = collection_copy;
 exit:
