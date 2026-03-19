@@ -292,6 +292,12 @@ static inline oc_error oc__unexpected_impl(long err, const char* file, int line)
 #define oc__parentof(type, ptr, member) \
     ((type*)((char*)(ptr) - offsetof(type, member)))
 
+#define OC__MAX(a, b) \
+    ((a) > (b) ? (a) : (b))
+
+#define OC__MIN(a, b) \
+    ((a) < (b) ? (a) : (b))
+
 const char* oc_strerror(oc_error err) {
 #ifdef ONECORE_NO_ERROR_STRINGS
     return NULL;
@@ -1963,110 +1969,110 @@ exit:
     } while (0)
 
 // tood: use wyhash as this one likes to collide alot
-static uint64_t oc__fnv1a(const void* ptr, size_t size) {
-    const uint8_t* data = ptr;
-    uint64_t hash = 14695981039346656037ULL;
-
-    for (size_t i = 0; i < size; i++) {
-        hash ^= data[i];
-        hash *= 1099511628211ULL;
-    }
-
-    return hash;
-}
-
-typedef struct {
-    uint64_t key;
-    char*    val;
-} oc__kv_t;
-
-// tood: rename to set_t an handle true hash collision
-//       a.k.a. just check if input key is same as value key
-typedef struct {
-    oc__kv_t* kvs;
-    size_t    len;
-    size_t    cap;
-} oc__map_t;
-
-static void oc__free_map(oc__map_t* map) {
-    for (size_t i = 0; i < map->cap; i++) {
-        free(map->kvs[i].val);
-    }
-    free(map->kvs);
-}
-
-static oc__kv_t* oc__map_find(oc__map_t* map, uint64_t hash) {
-    size_t index = 0;
-    size_t mask = map->cap - 1;
-
-    if (hash == 0) {
-        hash = (uint64_t)(-1);
-    }
-
-    for (;; index++) {
-        size_t i = (hash + index) & mask;
-        oc__kv_t* kv = map->kvs + i;
-
-        if (kv->key == hash || kv->key == 0) {
-            return kv;
-        }
-    }
-}
-
-static bool oc__map_ensure_capacity(oc__map_t* map, size_t new_capacity) {
-    size_t capacity = map->cap;
-    size_t load = 100;
-
-    if (capacity > 0) {
-        load = (new_capacity * 100 + new_capacity - 1) / capacity;
-    }
-
-    if (load >= 80) {
-        oc__map_t map_copy;
-        oc__kv_t* kvs;
-
-        capacity = capacity > 16 ? capacity : 16;
-        while (new_capacity > capacity) {
-            capacity += capacity;
-        }
-
-        kvs = calloc(capacity, sizeof(*kvs));
-        if (kvs == NULL) {
-            return false;
-        }
-
-        map_copy.kvs = kvs;
-        map_copy.len = map->len;
-        map_copy.cap = capacity;
-
-        kvs = map->kvs;
-
-        for (size_t i = 0; i < map->len; i++) {
-            oc__kv_t kv = kvs[i];
-            if (kv.key != 0) {
-                *oc__map_find(&map_copy, kv.key) = kv;
-            }
-        }
-
-        *map = map_copy;
-        free(kvs);
-    }
-
-    return true;
-}
-
-static oc__kv_t* oc__map_obtain(oc__map_t* map, uint64_t key) {
-    oc__kv_t* kv = NULL;
-    if (oc__map_ensure_capacity(map, map->len + 1)) {
-        kv = oc__map_find(map, key);
-        if (kv->key == 0) {
-            kv->key = key;
-            map->len++;
-        }
-    }
-
-    return kv;
-}
+// static uint64_t oc__fnv1a(const void* ptr, size_t size) {
+//     const uint8_t* data = ptr;
+//     uint64_t hash = 14695981039346656037ULL;
+//
+//     for (size_t i = 0; i < size; i++) {
+//         hash ^= data[i];
+//         hash *= 1099511628211ULL;
+//     }
+//
+//     return hash;
+// }
+//
+// typedef struct {
+//     uint64_t key;
+//     char*    val;
+// } oc__kv_t;
+//
+// // tood: rename to set_t an handle true hash collision
+// //       a.k.a. just check if input key is same as value key
+// typedef struct {
+//     oc__kv_t* kvs;
+//     size_t    len;
+//     size_t    cap;
+// } oc__map_t;
+//
+// static void oc__free_map(oc__map_t* map) {
+//     for (size_t i = 0; i < map->cap; i++) {
+//         free(map->kvs[i].val);
+//     }
+//     free(map->kvs);
+// }
+//
+// static oc__kv_t* oc__map_find(oc__map_t* map, uint64_t hash) {
+//     size_t index = 0;
+//     size_t mask = map->cap - 1;
+//
+//     if (hash == 0) {
+//         hash = (uint64_t)(-1);
+//     }
+//
+//     for (;; index++) {
+//         size_t i = (hash + index) & mask;
+//         oc__kv_t* kv = map->kvs + i;
+//
+//         if (kv->key == hash || kv->key == 0) {
+//             return kv;
+//         }
+//     }
+// }
+//
+// static bool oc__map_ensure_capacity(oc__map_t* map, size_t new_capacity) {
+//     size_t capacity = map->cap;
+//     size_t load = 100;
+//
+//     if (capacity > 0) {
+//         load = (new_capacity * 100 + new_capacity - 1) / capacity;
+//     }
+//
+//     if (load >= 80) {
+//         oc__map_t map_copy;
+//         oc__kv_t* kvs;
+//
+//         capacity = capacity > 16 ? capacity : 16;
+//         while (new_capacity > capacity) {
+//             capacity += capacity;
+//         }
+//
+//         kvs = calloc(capacity, sizeof(*kvs));
+//         if (kvs == NULL) {
+//             return false;
+//         }
+//
+//         map_copy.kvs = kvs;
+//         map_copy.len = map->len;
+//         map_copy.cap = capacity;
+//
+//         kvs = map->kvs;
+//
+//         for (size_t i = 0; i < map->len; i++) {
+//             oc__kv_t kv = kvs[i];
+//             if (kv.key != 0) {
+//                 *oc__map_find(&map_copy, kv.key) = kv;
+//             }
+//         }
+//
+//         *map = map_copy;
+//         free(kvs);
+//     }
+//
+//     return true;
+// }
+//
+// static oc__kv_t* oc__map_obtain(oc__map_t* map, uint64_t key) {
+//     oc__kv_t* kv = NULL;
+//     if (oc__map_ensure_capacity(map, map->len + 1)) {
+//         kv = oc__map_find(map, key);
+//         if (kv->key == 0) {
+//             kv->key = key;
+//             map->len++;
+//         }
+//     }
+//
+//     return kv;
+// }
 
 struct oc_face_impl {
     IDWriteFontFace* dw_face;
@@ -2075,7 +2081,8 @@ struct oc_face_impl {
 
 struct oc_collection_impl {
     IDWriteFactory* dw_factory;
-    oc__map_t cache_map;
+    char** family_names;
+    UINT32 family_names_count;
 };
 
 typedef struct {
@@ -2455,7 +2462,6 @@ typedef struct {
 
 static inline void oc__free_font(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
-    // free((char*)impl->font.family);
     impl->dw_font->lpVtbl->Release(impl->dw_font);
     free(impl);
 }
@@ -2478,8 +2484,8 @@ oc_error oc_init_collection(const oc_library* library, oc_collection* ocollectio
     }
 
     collection.impl->dw_factory = library->internals;
-    memset(&collection.impl->cache_map, 0, sizeof(oc__map_t));
-
+    collection.impl->family_names = NULL;
+    collection.impl->family_names_count = 0;
     collection.fonts = NULL;
     collection.elements = 0;
 exit:
@@ -2492,112 +2498,62 @@ void oc_free_collection(oc_collection* collection) {
         for (size_t i = 0; i < collection->elements; i++) {
             oc__free_font(collection->fonts[i]);
         }
+
+        for (UINT32 i = 0; i < collection->impl->family_names_count; i++) {
+            free(collection->impl->family_names[i]);
+        }
+
         free(collection->fonts);
-
-        oc__free_map(&collection->impl->cache_map);
-
+        free(collection->impl->family_names);
         free(collection->impl);
+
         memset(collection, 0, sizeof(*collection));
     }
 }
 
-static inline char* oc__utf16_to_utf8(const wchar_t* utf16, size_t utf16_size) {
-    char* utf8;
-    size_t utf8_size;
+// static inline char* oc__utf16_to_utf8(const wchar_t* utf16, size_t utf16_size) {
+//     char* utf8;
+//     size_t utf8_size;
+//
+//     utf8_size = WideCharToMultiByte(
+//         CP_UTF8,
+//         0, // todo: WC_ERR_INVALID_CHARS and test this
+//         utf16,
+//         utf16_size,
+//         NULL,
+//         0,
+//         NULL,
+//         NULL);
+//
+//     if (utf8_size == 0) {
+//         return NULL;
+//     }
+//
+//     utf8 = malloc(utf8_size + 1);
+//     if (utf8 != NULL) {
+//         WideCharToMultiByte(
+//             CP_UTF8,
+//             0,
+//             utf16,
+//             utf16_size,
+//             utf8,
+//             utf8_size,
+//             NULL,
+//             NULL);
+//
+//         utf8[utf8_size] = '\0';
+//     }
+//
+//     return utf8;
+// }
 
-    utf8_size = WideCharToMultiByte(
-        CP_UTF8,
-        0, // todo: WC_ERR_INVALID_CHARS and test this
-        utf16,
-        utf16_size,
-        NULL,
-        0,
-        NULL,
-        NULL);
-
-    if (utf8_size == 0) {
-        return NULL;
-    }
-
-    utf8 = malloc(utf8_size + 1);
-    if (utf8 != NULL) {
-        WideCharToMultiByte(
-            CP_UTF8,
-            0,
-            utf16,
-            utf16_size,
-            utf8,
-            utf8_size,
-            NULL,
-            NULL);
-
-        utf8[utf8_size] = '\0';
-    }
-
-    return utf8;
-}
-
-// todo: reuse family name
-static oc_font* oc__init_font(IDWriteFontFamily* dw_family, IDWriteFont* dw_font, oc__map_t* cache) {
-    HRESULT hr;
-    IDWriteLocalizedStrings* family_names;
-
-    const char* family;
+static oc_font* oc__init_font(IDWriteFont* dw_font, const char* family) {
     DWRITE_FONT_WEIGHT weight;
-
     oc__font_impl* impl;
 
-    WCHAR* wide_buf;
-    UINT32 wide_len;
-
-    uint64_t hash;
-    oc__kv_t* kv;
-
     weight = dw_font->lpVtbl->GetWeight(dw_font);
-    hr = dw_family->lpVtbl->GetFamilyNames(dw_family, &family_names);
-
-    switch (hr) {
-    case S_OK:
-        break;
-    case E_OUTOFMEMORY:
-        return NULL;
-    default:
-        assert(false);
-    }
-
-    hr = family_names->lpVtbl->GetStringLength(family_names, 0, &wide_len);
-    assert(hr == S_OK);
-    assert(wide_len <= 1 << 16);
-    // todo: if it is zero there is no need to allocate it
-    assert(wide_len > 0);
-
-    // using alloca for stack allocation hence msvc
-    // does not support VLAs
-    wide_buf = alloca((wide_len + 1) * sizeof(WCHAR));
-
-    //wide_family = malloc((wide_size + 1) * sizeof(WCHAR));
-    //if (wide_family == NULL) {
-        //family_names->lpVtbl->Release(family_names);
-        //return NULL;
-    //}
-
-    hr = family_names->lpVtbl->GetString(family_names, 0, wide_buf, wide_len + 1);
-    family_names->lpVtbl->Release(family_names);
-    assert(hr == S_OK);
-
-    hash = oc__fnv1a(wide_buf, wide_len * sizeof(WCHAR));
-    kv = oc__map_obtain(cache, hash);
-
-    if (kv->val == NULL) {
-        kv->val = oc__utf16_to_utf8(wide_buf, wide_len);
-    }
-
-    family = kv->val;
-    if (family == NULL) {
-        return NULL;
-    }
-
     impl = malloc(sizeof(*impl));
+
     if (impl == NULL) {
         return NULL;
     }
@@ -2609,12 +2565,6 @@ static oc_font* oc__init_font(IDWriteFontFamily* dw_family, IDWriteFont* dw_font
     return &impl->font;
 }
 
-// todo: implement cache hashmap
-//       it will have strhash -> strptr
-//       we will save some memory this way
-//       use wyhash for hashing
-
-// impl needs to have dw_factory and dw_collection
 oc_error oc_load_fonts(oc_collection* collection) {
     oc_error err = oc_error_ok;
     HRESULT hr;
@@ -2622,8 +2572,18 @@ oc_error oc_load_fonts(oc_collection* collection) {
     IDWriteFactory* dw_factory;
     IDWriteFontCollection* dw_collection = NULL;
 
-    UINT32 family_count;
     UINT32 font_count;
+    UINT32 family_count;
+
+    UINT32 family_names_count = 0;
+
+    union {
+        char*  str;
+        UINT32 len;
+    }* family_names = NULL;
+
+    WCHAR* wide_buf = NULL;
+    UINT32 wide_buf_len;
 
     oc_font** fonts = NULL;
     size_t elements = 0;
@@ -2652,14 +2612,37 @@ oc_error oc_load_fonts(oc_collection* collection) {
     family_count = dw_collection->lpVtbl->GetFontFamilyCount(dw_collection);
     font_count = 0;
 
+    family_names = malloc(family_count * sizeof(*family_names));
+    if (family_names == NULL) {
+        oc__exit(oc_error_out_of_memory);
+    }
+
     for (UINT32 i = 0; i < family_count; i++) {
         IDWriteFontFamily* family;
+        IDWriteLocalizedStrings* names;
+        UINT32 length;
 
         hr = dw_collection->lpVtbl->GetFontFamily(dw_collection, i, &family);
         assert(hr == S_OK);
 
+        hr = family->lpVtbl->GetFamilyNames(family, &names);
+        assert(hr == S_OK);
+
+        // todo: test this locale idx feature an other backends
+        hr = names->lpVtbl->GetStringLength(names, 0, &length);
+        assert(hr == S_OK);
+
+        family_names[i].len = length;
+        wide_buf_len = OC__MAX(wide_buf_len, length);
         font_count += family->lpVtbl->GetFontCount(family);
+
+        names->lpVtbl->Release(names);
         family->lpVtbl->Release(family);
+    }
+
+    wide_buf = malloc((wide_buf_len + 1) * sizeof(WCHAR));
+    if (wide_buf == NULL) {
+        oc__exit(oc_error_out_of_memory);
     }
 
     fonts = malloc(sizeof(*fonts) * font_count);
@@ -2668,45 +2651,102 @@ oc_error oc_load_fonts(oc_collection* collection) {
     }
 
     for (UINT32 i = 0; i < family_count; i++) {
-        IDWriteFontFamily* family;
+        IDWriteFontFamily* font_family;
+        IDWriteLocalizedStrings* names;
+
+        UINT32 wide_length = family_names[i].len;
         UINT32 font_index;
 
-        hr = dw_collection->lpVtbl->GetFontFamily(dw_collection, i, &family);
+        char* family;
+        int length;
+
+        hr = dw_collection->lpVtbl->GetFontFamily(dw_collection, i, &font_family);
         assert(hr == S_OK);
 
-        font_index = family->lpVtbl->GetFontCount(family);
+        hr = font_family->lpVtbl->GetFamilyNames(font_family, &names);
+        assert(hr == S_OK);
+
+        hr = names->lpVtbl->GetString(names, 0, wide_buf, wide_length + 1);
+        names->lpVtbl->Release(names);
+        assert(hr == S_OK);
+
+        length = WideCharToMultiByte(
+            CP_UTF8,
+            0,
+            wide_buf,
+            wide_length,
+            NULL,
+            0,
+            NULL,
+            NULL);
+
+        assert(length > 0);
+
+        family = malloc(length + 1);
+        if (family == NULL) {
+            // todo: do smth!
+            assert(false);
+        }
+
+        length = WideCharToMultiByte(
+            CP_UTF8,
+            0,
+            wide_buf,
+            wide_length,
+            family,
+            length,
+            NULL,
+            NULL);
+
+        assert(length > 0);
+
+        family[length] = '\0';
+        family_names[family_names_count++].str = family;
+        font_index = font_family->lpVtbl->GetFontCount(font_family);
+
         while (font_index--) {
             IDWriteFont* dw_font;
             oc_font* font;
 
-            hr = family->lpVtbl->GetFont(family, font_index, &dw_font);
+            hr = font_family->lpVtbl->GetFont(font_family, font_index, &dw_font);
             assert(hr == S_OK);
 
-            font = oc__init_font(family, dw_font, &collection->impl->cache_map);
+            font = oc__init_font(dw_font, family);
             if (font == NULL) {
-                family->lpVtbl->Release(family);
-                err = oc_error_out_of_memory;
-                goto exit;
+                font_family->lpVtbl->Release(font_family);
+                oc__exit(oc_error_out_of_memory);
             }
 
             fonts[elements++] = font;
         }
 
-        family->lpVtbl->Release(family);
+        font_family->lpVtbl->Release(font_family);
     }
 
-    collection_copy.impl = collection->impl;
+    // swap old collection with new
+
+    collection_copy.impl->dw_factory = collection->impl->dw_factory;
+    collection_copy.impl->family_names = (char**)family_names;
+    collection_copy.impl->family_names_count = family_names_count;
     collection_copy.elements = font_count;
     collection_copy.fonts = fonts;
 
     fonts = collection->fonts;
     elements = collection->elements;
+    family_names = (void*)collection->impl->family_names;
+    family_names_count = collection->impl->family_names_count;
 
     *collection = collection_copy;
 exit:
     while (elements--) oc__free_font(fonts[elements]);
-    free(fonts);
+    while (family_names_count--) free(family_names[family_names_count].str);
+
     if (dw_collection) dw_collection->lpVtbl->Release(dw_collection);
+
+    free(family_names);
+    free(wide_buf);
+    free(fonts);
+
     return err;
 }
 

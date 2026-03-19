@@ -132,7 +132,7 @@ struct oc_face_impl {
 struct oc_collection_impl {
     IDWriteFactory* dw_factory;
     char** family_names;
-    uint16_t family_names_length;
+    UINT32 family_names_count;
 };
 
 typedef struct {
@@ -535,7 +535,7 @@ oc_error oc_init_collection(const oc_library* library, oc_collection* ocollectio
 
     collection.impl->dw_factory = library->internals;
     collection.impl->family_names = NULL;
-    collection.impl->family_names_length = 0;
+    collection.impl->family_names_count = 0;
     collection.fonts = NULL;
     collection.elements = 0;
 exit:
@@ -549,6 +549,10 @@ void oc_free_collection(oc_collection* collection) {
             oc__free_font(collection->fonts[i]);
         }
 
+        for (UINT32 i = 0; i < collection->impl->family_names_count; i++) {
+            free(collection->impl->family_names[i]);
+        }
+
         free(collection->fonts);
         free(collection->impl->family_names);
         free(collection->impl);
@@ -557,41 +561,41 @@ void oc_free_collection(oc_collection* collection) {
     }
 }
 
-static inline char* oc__utf16_to_utf8(const wchar_t* utf16, size_t utf16_size) {
-    char* utf8;
-    size_t utf8_size;
-
-    utf8_size = WideCharToMultiByte(
-        CP_UTF8,
-        0, // todo: WC_ERR_INVALID_CHARS and test this
-        utf16,
-        utf16_size,
-        NULL,
-        0,
-        NULL,
-        NULL);
-
-    if (utf8_size == 0) {
-        return NULL;
-    }
-
-    utf8 = malloc(utf8_size + 1);
-    if (utf8 != NULL) {
-        WideCharToMultiByte(
-            CP_UTF8,
-            0,
-            utf16,
-            utf16_size,
-            utf8,
-            utf8_size,
-            NULL,
-            NULL);
-
-        utf8[utf8_size] = '\0';
-    }
-
-    return utf8;
-}
+// static inline char* oc__utf16_to_utf8(const wchar_t* utf16, size_t utf16_size) {
+//     char* utf8;
+//     size_t utf8_size;
+//
+//     utf8_size = WideCharToMultiByte(
+//         CP_UTF8,
+//         0, // todo: WC_ERR_INVALID_CHARS and test this
+//         utf16,
+//         utf16_size,
+//         NULL,
+//         0,
+//         NULL,
+//         NULL);
+//
+//     if (utf8_size == 0) {
+//         return NULL;
+//     }
+//
+//     utf8 = malloc(utf8_size + 1);
+//     if (utf8 != NULL) {
+//         WideCharToMultiByte(
+//             CP_UTF8,
+//             0,
+//             utf16,
+//             utf16_size,
+//             utf8,
+//             utf8_size,
+//             NULL,
+//             NULL);
+//
+//         utf8[utf8_size] = '\0';
+//     }
+//
+//     return utf8;
+// }
 
 static oc_font* oc__init_font(IDWriteFont* dw_font, const char* family) {
     DWRITE_FONT_WEIGHT weight;
@@ -619,23 +623,20 @@ oc_error oc_load_fonts(oc_collection* collection) {
     IDWriteFontCollection* dw_collection = NULL;
 
     UINT32 font_count;
-    UINT32 family_index = 0;
-
-    // char** family_names = NULL;
     UINT32 family_count;
+
+    UINT32 family_names_count = 0;
+
+    union {
+        char*  str;
+        UINT32 len;
+    }* family_names = NULL;
 
     WCHAR* wide_buf = NULL;
     UINT32 wide_buf_len;
 
     oc_font** fonts = NULL;
     size_t elements = 0;
-
-    // todo: make IDWriteLocalizedStrings* and char* union
-    //       and on exit handle dw releases
-    union {
-        char*  str;
-        UINT32 len;
-    }* family_names = NULL;
 
     oc_collection collection_copy;
 
@@ -666,7 +667,6 @@ oc_error oc_load_fonts(oc_collection* collection) {
         oc__exit(oc_error_out_of_memory);
     }
 
-    // todo: just allocate family names here!!!
     for (UINT32 i = 0; i < family_count; i++) {
         IDWriteFontFamily* family;
         IDWriteLocalizedStrings* names;
@@ -751,7 +751,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
         assert(length > 0);
 
         family[length] = '\0';
-        family_names[font_index++].str = family;
+        family_names[family_names_count++].str = family;
         font_index = font_family->lpVtbl->GetFontCount(font_family);
 
         while (font_index--) {
@@ -763,11 +763,8 @@ oc_error oc_load_fonts(oc_collection* collection) {
 
             font = oc__init_font(dw_font, family);
             if (font == NULL) {
-                // todo: handle
-                assert(false);
-        //         family->lpVtbl->Release(family);
-        //         err = oc_error_out_of_memory;
-        //         goto exit;
+                font_family->lpVtbl->Release(font_family);
+                oc__exit(oc_error_out_of_memory);
             }
 
             fonts[elements++] = font;
@@ -776,17 +773,23 @@ oc_error oc_load_fonts(oc_collection* collection) {
         font_family->lpVtbl->Release(font_family);
     }
 
-    collection_copy.impl = collection->impl;
+    // swap old collection with new
+
+    collection_copy.impl->dw_factory = collection->impl->dw_factory;
+    collection_copy.impl->family_names = (char**)family_names;
+    collection_copy.impl->family_names_count = family_names_count;
     collection_copy.elements = font_count;
     collection_copy.fonts = fonts;
 
     fonts = collection->fonts;
     elements = collection->elements;
+    family_names = (void*)collection->impl->family_names;
+    family_names_count = collection->impl->family_names_count;
 
     *collection = collection_copy;
 exit:
     while (elements--) oc__free_font(fonts[elements]);
-    while (family_index--) free(family_names[family_index].str);
+    while (family_names_count--) free(family_names[family_names_count].str);
 
     if (dw_collection) dw_collection->lpVtbl->Release(dw_collection);
 
