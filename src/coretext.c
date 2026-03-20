@@ -426,38 +426,39 @@ oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     return oc_error_ok;
 }
 
-oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, oc_table* otable, void** ocontext) {
+oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, void* data, uint32_t* size) {
     CTFontRef ct_font;
-    CFDataRef ct_data;
+    CFDataRef ct_table;
 
-    oc_error err = oc_error_ok;
-    oc_table table = { 0 };
+    const UInt8* buffer;
+    CFIndex length;
 
-    if (!(face && otable && ocontext)) {
-        err = oc_error_invalid_param;
-        goto exit;
+    if (!(face && size)) {
+        return oc_error_invalid_param;
     }
 
     ct_font = (CTFontRef)face->impl;
-    ct_data = CTFontCopyTable(ct_font, tag, kCTFontTableOptionNoOptions);
+    ct_table = CTFontCopyTable(ct_font, tag, kCTFontTableOptionNoOptions);
+    length = (CFIndex)*size;
 
-    if (ct_data == NULL) {
-        err = oc_error_table_missing; // or oom
-        goto exit;
+    assert(length == 0 || length >= offset);
+
+    if (ct_table == NULL) {
+        return oc_error_table_missing;
     }
 
-    table.data = CFDataGetBytePtr(ct_data);
-    table.size = CFDataGetLength(ct_data);
+    if (length == 0) {
+        length = CFDataGetLength(ct_table);
 
-    *ocontext = (void*)ct_data;
-exit:
-    if (otable) *otable = table;
-    return err;
-}
+        assert(UINT32_MAX >= length);
+        *size = (uint32_t)length;
+    } else {
+        buffer = CFDataGetBytePtr(ct_table);
+        memcpy(data, buffer + offset, length);
+    }
 
-void oc_free_table(const oc_face* face, void* context) {
-    (void)face;
-    CFRelease(context);
+    CFRelease(ct_table);
+    return oc_error_ok;
 }
 
 void oc_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {

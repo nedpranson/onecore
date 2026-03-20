@@ -436,11 +436,17 @@ oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, voi
     }
 
     ft_face = face->impl->ft_face;
-    length = *size;
+    length = (FT_ULong)*size;
 
     assert(length == 0 || length >= offset);
 
-    err = FT_Load_Sfnt_Table(ft_face, (FT_ULong)tag, (FT_ULong)offset, (FT_Byte*)data, &length);
+    err = FT_Load_Sfnt_Table(
+        ft_face,
+        (FT_ULong)tag,
+        (FT_ULong)offset,
+        (FT_Byte*)data,
+        &length);
+
     switch (err) {
     case FT_Err_Ok:
         break;
@@ -451,8 +457,8 @@ oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, voi
     }
 
     assert(UINT32_MAX >= length);
+    *size = (uint32_t)length;
 
-    *size = length;
     return oc_error_ok;
 }
 

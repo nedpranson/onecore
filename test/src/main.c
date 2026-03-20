@@ -378,7 +378,6 @@ void test_oc_get_sfnt_table(void) {
 
     oc_tag cmap = OC_MAKE_TAG('c', 'm', 'a', 'p');
     oc_tag unkn = OC_MAKE_TAG('u', 'n', 'k', 'n');
-    // todo: test tag 0 and tag 1
 
     uint32_t hash;
 
