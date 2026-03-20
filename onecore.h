@@ -143,11 +143,6 @@ typedef struct {
     uint32_t nfonts;
 } oc_collection;
 
-// typedef struct {
-//     const void* data;
-//     size_t size;
-// } oc_table;
-
 // todo: we need better naming as now we have two seperate project in one lib:
 // * discovery
 // * loader/parser
@@ -233,14 +228,6 @@ oc_get_outline(
     const oc_outline_funcs* funcs,
     void* user);
 
-// todo: copy variant would be nice which we would not need to free
-// DOING!!! we will make it malloc free
-// OC_PUBLIC oc_error
-// oc_get_sfnt_table(
-//     const oc_face* face,
-//     oc_tag tag,
-//     oc_table* otable,
-//     void** ocontext);
 OC_PUBLIC oc_error
 oc_get_sfnt_table(
     const oc_face* face,
@@ -248,9 +235,6 @@ oc_get_sfnt_table(
     uint32_t offset,
     void* data,
     uint32_t* size);
-
-// OC_PUBLIC void
-// oc_free_table(const oc_face* face, void* context);
 
 OC_PUBLIC
 const char* oc_strerror(oc_error err);
@@ -2803,56 +2787,57 @@ oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     return oc_error_ok;
 }
 
-oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, oc_table* otable, void** ocontext) {
-    HRESULT dw_err;
+oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, void* data, uint32_t* size) {
+    HRESULT err;
+    IDWriteFontFace* dw_face;
+
     const void* table_data;
     UINT32 table_size;
+
     void* context;
     WINBOOL exists;
-    oc_table table = { 0 };
-    oc_error err = oc_error_ok;
 
-    if (!(face && otable && ocontext)) {
-        oc__exit(oc_error_invalid_param);
+    uint32_t length;
+
+    if (!(face && size)) {
+        return oc_error_invalid_param;
     }
 
-    dw_err = face->impl->dw_face->lpVtbl->TryGetFontTable(
-        face->impl->dw_face,
-        _byteswap_ulong(tag), // swapping bytes because windows table tags are little-endian
+    dw_face = face->impl->dw_face;
+    length = *size;
+
+    assert(sizeof(UINT32) == sizeof(uint32_t));
+    assert(length == 0 || length >= offset);
+
+    err = dw_face->lpVtbl->TryGetFontTable(
+        dw_face,
+        _byteswap_ulong(tag), // swapping bytes as windows table tags are little-endian
         &table_data,
         &table_size,
         &context,
         &exists);
 
-    switch (dw_err) {
+    switch (err) {
     case S_OK:
         break;
     case E_OUTOFMEMORY:
-        oc__exit(oc_error_out_of_memory);
+        return oc_error_out_of_memory;
     default:
-        oc__exit(oc__unexpected(err));
+        return oc__unexpected(err);
     }
 
     if (!exists) {
-        oc__exit(oc_error_table_missing);
+        return oc_error_table_missing;
     }
 
-    table.data = table_data;
-    table.size = table_size;
-
-    *ocontext = context;
-exit:
-    if (otable) *otable = table;
-    return err;
-}
-
-void oc_free_table(const oc_face* face, void* context) {
-    IDWriteFontFace* dw_face;
-
-    if (!face) return;
-
-    dw_face = face->impl->dw_face;
+    if (length == 0) {
+        *size = table_size;
+    } else {
+        memcpy(data, table_data + offset, length);
+    }
+    
     dw_face->lpVtbl->ReleaseFontTable(dw_face, context);
+    return oc_error_ok;
 }
 
 // static void fit_metrics(oc_glyph_metrics* pmetrics) {
