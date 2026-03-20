@@ -1,3 +1,4 @@
+#include "freetype/fttypes.h"
 #include <stdint.h>
 #define ONECORE_IMPLEMENTATION
 #include "onecore.h"
@@ -417,21 +418,29 @@ uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
     return face ? FT_Get_Char_Index(face->impl->ft_face, charcode) : 0;
 }
 
-oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, oc_table* otable, void** ocontext) {
+oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, void* data, uint32_t* size) {
     FT_Error err;
     FT_Face ft_face;
-    oc_table table;
-    uint8_t* buffer;
-    FT_ULong size = 0;
 
-    if (!(face && otable && ocontext)) {
+    FT_ULong length;
+
+    if (!(face && size)) {
         return oc_error_invalid_param;
     }
 
-    ft_face = face->impl->ft_face;
+    // freetype has two magic tag values:
+    //  1 -> raw font file
+    //  2 -> SFNT table dir
+    if (3 > tag) {
+        return oc_error_table_missing;
+    }
 
-    // todo: add offset option
-    err = FT_Load_Sfnt_Table(ft_face, tag, 0, NULL, &size);
+    ft_face = face->impl->ft_face;
+    length = *size;
+
+    assert(length == 0 || length >= offset);
+
+    err = FT_Load_Sfnt_Table(ft_face, (FT_ULong)tag, (FT_ULong)offset, (FT_Byte*)data, &length);
     switch (err) {
     case FT_Err_Ok:
         break;
@@ -441,26 +450,10 @@ oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, oc_table* otable, vo
         return oc__unexpected(err);
     }
 
-    buffer = malloc(size);
-    if (buffer == NULL) {
-        return oc_error_out_of_memory;
-    }
+    assert(UINT32_MAX >= length);
 
-    err = FT_Load_Sfnt_Table(ft_face, tag, 0, buffer, &size);
-    assert(err == oc_error_ok);
-
-    table.data = buffer;
-    table.size = size;
-
-    *otable = table;
-    *ocontext = buffer;
-
+    *size = length;
     return oc_error_ok;
-}
-
-void oc_free_table(const oc_face* face, void* context) {
-    (void)face;
-    free(context);
 }
 
 // todo: add option for verticals and maybe load both hori and vert bearings, advances

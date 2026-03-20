@@ -81,11 +81,11 @@ void test_oc_load_fonts(void) {
 
     qsort(col.fonts, col.nfonts, sizeof(oc_font*), cmpr);
 
-    for (size_t i = 0; i < col.nfonts; i++) {
-        oc_font* font = col.fonts[i];
-
-        printf("%s, %d\n", font->family ,font->weight);
-    }
+    // for (size_t i = 0; i < col.nfonts; i++) {
+    //     oc_font* font = col.fonts[i];
+    //
+    //     printf("%s, %d\n", font->family ,font->weight);
+    // }
 
     oc_free_collection(&col);
 }
@@ -358,26 +358,72 @@ void test_oc_get_char_index(void) {
     oc_free_face(&face);
 }
 
+uint32_t fnv1a_hash(const void* data, size_t len) {
+    const uint8_t* bytes = (const uint8_t*)data;
+    uint32_t hash = 2166136261U;
+
+    for (size_t i = 0; i < len; i++) {
+        hash ^= bytes[i];
+        hash *= 16777619U;
+    }
+
+    return hash;
+}
+
 void test_oc_get_sfnt_table(void) {
-    oc_table table;
     oc_error err;
-    void* context;
 
-    err = oc_get_sfnt_table(&g_arial_ttf, OC_MAKE_TAG('c', 'm', 'a', 'p'), NULL, NULL);
+    uint8_t buf[5994];
+    uint32_t len;
+
+    oc_tag cmap = OC_MAKE_TAG('c', 'm', 'a', 'p');
+    oc_tag unkn = OC_MAKE_TAG('u', 'n', 'k', 'n');
+    // todo: test tag 0 and tag 1
+
+    uint32_t hash;
+
+    err = oc_get_sfnt_table(&g_arial_ttf, unkn, 0, NULL, &len);
+    TEST_ASSERT_EQUAL(oc_error_table_missing, err);
+
+    len = 0;
+    err = oc_get_sfnt_table(&g_arial_ttf, unkn, 0, NULL, &len);
+    TEST_ASSERT_EQUAL(oc_error_table_missing, err);
+
+    err = oc_get_sfnt_table(&g_arial_ttf, cmap, 0, NULL, NULL);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
-    err = oc_get_sfnt_table(&g_arial_ttf, OC_MAKE_TAG('c', 'm', 'a', 'p'), &table, NULL);
-    TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
-
-    err = oc_get_sfnt_table(&g_arial_ttf, OC_MAKE_TAG('c', 'm', 'a', 'p'), NULL, &context);
-    TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
-
-    err = oc_get_sfnt_table(&g_arial_ttf, OC_MAKE_TAG('c', 'm', 'a', 'p'), &table, &context);
+    len = 0;
+    err = oc_get_sfnt_table(&g_arial_ttf, cmap, 9999, NULL, &len);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    TEST_ASSERT_EQUAL_size_t(5994, table.size);
-    oc_free_table(&g_arial_ttf, context);
+    TEST_ASSERT_EQUAL_UINT32(5994, len);
 
-    err = oc_get_sfnt_table(&g_arial_ttf, OC_MAKE_TAG('u', 'n', 'k', 'n'), &table, &context);
+    err = oc_get_sfnt_table(&g_arial_ttf, cmap, 0, buf, &len);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+    TEST_ASSERT_EQUAL_UINT32(5994, len);
+
+    hash = fnv1a_hash(buf, len);
+    TEST_ASSERT_EQUAL_HEX32(0x2CC0B4F7, hash);
+
+    len -= 1723;
+    err = oc_get_sfnt_table(&g_arial_ttf, cmap, 1723, buf, &len);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+    TEST_ASSERT_EQUAL_UINT32(4271, len);
+
+    hash = fnv1a_hash(buf, len);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+    TEST_ASSERT_EQUAL_HEX32(0x13858CBD, hash);
+
+    len = 1723;
+    err = oc_get_sfnt_table(&g_arial_ttf, cmap, 0, buf, &len);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    hash = fnv1a_hash(buf, len);
+    TEST_ASSERT_EQUAL_HEX32(0x7F6863E7, hash);
+
+    err = oc_get_sfnt_table(&g_arial_ttf, 0, 0, buf, &len);
+    TEST_ASSERT_EQUAL(oc_error_table_missing, err);
+
+    err = oc_get_sfnt_table(&g_arial_ttf, 1, 0, buf, &len);
     TEST_ASSERT_EQUAL(oc_error_table_missing, err);
 }
 

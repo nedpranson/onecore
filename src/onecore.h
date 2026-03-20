@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// todo: add _t suffix
+
 typedef uint32_t oc_tag;
 typedef uint32_t oc_load_flags;
 typedef int32_t oc_16p16;
@@ -141,10 +143,10 @@ typedef struct {
     uint32_t nfonts;
 } oc_collection;
 
-typedef struct {
-    const void* data;
-    size_t size;
-} oc_table;
+// typedef struct {
+//     const void* data;
+//     size_t size;
+// } oc_table;
 
 // todo: we need better naming as now we have two seperate project in one lib:
 // * discovery
@@ -232,15 +234,23 @@ oc_get_outline(
     void* user);
 
 // todo: copy variant would be nice which we would not need to free
+// DOING!!! we will make it malloc free
+// OC_PUBLIC oc_error
+// oc_get_sfnt_table(
+//     const oc_face* face,
+//     oc_tag tag,
+//     oc_table* otable,
+//     void** ocontext);
 OC_PUBLIC oc_error
 oc_get_sfnt_table(
     const oc_face* face,
     oc_tag tag,
-    oc_table* otable,
-    void** ocontext);
+    uint32_t offset,
+    void* data,
+    uint32_t* size);
 
-OC_PUBLIC void
-oc_free_table(const oc_face* face, void* context);
+// OC_PUBLIC void
+// oc_free_table(const oc_face* face, void* context);
 
 OC_PUBLIC
 const char* oc_strerror(oc_error err);
