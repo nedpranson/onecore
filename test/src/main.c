@@ -2,7 +2,8 @@
 #include <string.h>
 #include <unity.h>
 
-#define ONECORE_IMPLEMENTATION
+#define ONECORE_LOADER_IMPLEMENTATION
+#define ONECORE_FINDER_IMPLEMENTATION
 #include <onecore.h>
 
 oc_library g_library;
@@ -232,6 +233,7 @@ void test_oc_open_memory_face(void) {
     free(data);
 }
 
+// todo: test if metric stuff changes after set sizes
 void test_oc_test_sizes(void) {
     oc_error err;
     oc_face face;
@@ -242,33 +244,33 @@ void test_oc_test_sizes(void) {
 
     err = oc_open_face(&g_library, "test/files/arial.otf", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    TEST_ASSERT_EQUAL_UINT16(12, face.metrics.ppem);
-    TEST_ASSERT_EQUAL_INT32(24576, face.metrics.scale);
+    TEST_ASSERT_EQUAL_UINT16(12, face.size.ppem);
+    TEST_ASSERT_EQUAL_INT32(24576, face.size.scale);
 
     err = oc_set_size(&face, 16 << 6, 128);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    TEST_ASSERT_EQUAL_UINT16(28, face.metrics.ppem);
-    TEST_ASSERT_EQUAL_INT32(58240, face.metrics.scale);
+    TEST_ASSERT_EQUAL_UINT16(28, face.size.ppem);
+    TEST_ASSERT_EQUAL_INT32(58240, face.size.scale);
 
     err = oc_set_size(&face, 10.5f * 64, 96);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    TEST_ASSERT_EQUAL_UINT16(14, face.metrics.ppem);
-    TEST_ASSERT_EQUAL_INT32(28672, face.metrics.scale);
+    TEST_ASSERT_EQUAL_UINT16(14, face.size.ppem);
+    TEST_ASSERT_EQUAL_INT32(28672, face.size.scale);
 
     err = oc_set_size(&face, 12 << 6, -1);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    TEST_ASSERT_EQUAL_UINT16(10923, face.metrics.ppem);
-    TEST_ASSERT_EQUAL_INT32(22369280, face.metrics.scale);
+    TEST_ASSERT_EQUAL_UINT16(10923, face.size.ppem);
+    TEST_ASSERT_EQUAL_INT32(22369280, face.size.scale);
 
     err = oc_set_size(&face, 12 << 6, 0);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    TEST_ASSERT_EQUAL_UINT16(12, face.metrics.ppem);
-    TEST_ASSERT_EQUAL_INT32(24576, face.metrics.scale);
+    TEST_ASSERT_EQUAL_UINT16(12, face.size.ppem);
+    TEST_ASSERT_EQUAL_INT32(24576, face.size.scale);
 
     err = oc_set_size(&face, 12 << 6, 72);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    TEST_ASSERT_EQUAL_UINT16(12, face.metrics.ppem);
-    TEST_ASSERT_EQUAL_INT32(24576, face.metrics.scale);
+    TEST_ASSERT_EQUAL_UINT16(12, face.size.ppem);
+    TEST_ASSERT_EQUAL_INT32(24576, face.size.scale);
 
     err = oc_set_size(&face, -10.5f * 64, 96);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
@@ -278,33 +280,33 @@ void test_oc_test_sizes(void) {
 
     err = oc_set_size(&face, 1 << 6, 72);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    TEST_ASSERT_EQUAL_UINT16(1, face.metrics.ppem);
-    TEST_ASSERT_EQUAL_INT32(2048, face.metrics.scale);
+    TEST_ASSERT_EQUAL_UINT16(1, face.size.ppem);
+    TEST_ASSERT_EQUAL_INT32(2048, face.size.scale);
 
     err = oc_set_size(&face, 2 << 6, 72);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    TEST_ASSERT_EQUAL_UINT16(2, face.metrics.ppem);
-    TEST_ASSERT_EQUAL_INT32(4096, face.metrics.scale);
+    TEST_ASSERT_EQUAL_UINT16(2, face.size.ppem);
+    TEST_ASSERT_EQUAL_INT32(4096, face.size.scale);
 
     err = oc_set_size(&face, 65535 << 6, 0);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    TEST_ASSERT_EQUAL_UINT16(65535 , face.metrics.ppem);
-    TEST_ASSERT_EQUAL_INT32(134215680, face.metrics.scale);
+    TEST_ASSERT_EQUAL_UINT16(65535 , face.size.ppem);
+    TEST_ASSERT_EQUAL_INT32(134215680, face.size.scale);
 
     err = oc_set_size(&face, 65536 << 6, 0);
     TEST_ASSERT_EQUAL(oc_error_invalid_pixel_size, err);
-    TEST_ASSERT_EQUAL_UINT16(65535 , face.metrics.ppem);
-    TEST_ASSERT_EQUAL_INT32(134215680, face.metrics.scale);
+    TEST_ASSERT_EQUAL_UINT16(65535 , face.size.ppem);
+    TEST_ASSERT_EQUAL_INT32(134215680, face.size.scale);
 
     err = oc_set_size(&face, 4194272, 72);
     TEST_ASSERT_EQUAL(oc_error_invalid_pixel_size, err);
-    TEST_ASSERT_EQUAL_UINT16(65535 , face.metrics.ppem);
-    TEST_ASSERT_EQUAL_INT32(134215680, face.metrics.scale);
+    TEST_ASSERT_EQUAL_UINT16(65535 , face.size.ppem);
+    TEST_ASSERT_EQUAL_INT32(134215680, face.size.scale);
 
     err = oc_set_size(&face, 12 << 6, 96);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    TEST_ASSERT_EQUAL_UINT16(16, face.metrics.ppem);
-    TEST_ASSERT_EQUAL_INT32(32768, face.metrics.scale);
+    TEST_ASSERT_EQUAL_UINT16(16, face.size.ppem);
+    TEST_ASSERT_EQUAL_INT32(32768, face.size.scale);
 
     idx = oc_get_char_index(&g_arial_ttf, 'G');
     TEST_ASSERT_EQUAL_INT16(42, idx);
@@ -433,34 +435,34 @@ void test_oc_font_metrics(void) {
     err = oc_open_face(&g_library, "test/files/arial.ttf", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
-    TEST_ASSERT_EQUAL_UINT16(2048, face.metrics.upem);
-    TEST_ASSERT_EQUAL_UINT16(1854, face.metrics.ascent);
-    TEST_ASSERT_EQUAL_UINT16(434, face.metrics.descent);
-    TEST_ASSERT_EQUAL_INT16(67, face.metrics.leading);
-    TEST_ASSERT_EQUAL_INT16(-217, face.metrics.underline_position);
-    TEST_ASSERT_EQUAL_UINT16(150, face.metrics.underline_thickness);
+    TEST_ASSERT_EQUAL_UINT16(2048, face.upem);
+    TEST_ASSERT_EQUAL_UINT16(1854, face.ascent);
+    TEST_ASSERT_EQUAL_UINT16(434, face.descent);
+    TEST_ASSERT_EQUAL_INT16(67, face.leading);
+    TEST_ASSERT_EQUAL_INT16(-217, face.underline_position);
+    TEST_ASSERT_EQUAL_UINT16(150, face.underline_thickness);
     oc_free_face(&face);
 
     err = oc_open_face(&g_library, "test/files/source-serif.otf", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
-    TEST_ASSERT_EQUAL_UINT16(1000, face.metrics.upem);
-    TEST_ASSERT_EQUAL_UINT16(1036, face.metrics.ascent);
-    TEST_ASSERT_EQUAL_UINT16(335, face.metrics.descent);
-    TEST_ASSERT_EQUAL_INT16(0, face.metrics.leading);
-    TEST_ASSERT_EQUAL_INT16(-50, face.metrics.underline_position);
-    TEST_ASSERT_EQUAL_UINT16(50, face.metrics.underline_thickness);
+    TEST_ASSERT_EQUAL_UINT16(1000, face.upem);
+    TEST_ASSERT_EQUAL_UINT16(1036, face.ascent);
+    TEST_ASSERT_EQUAL_UINT16(335, face.descent);
+    TEST_ASSERT_EQUAL_INT16(0, face.leading);
+    TEST_ASSERT_EQUAL_INT16(-50, face.underline_position);
+    TEST_ASSERT_EQUAL_UINT16(50, face.underline_thickness);
     oc_free_face(&face);
 
     err = oc_open_face(&g_library, "test/files/roman.ttf", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
-    TEST_ASSERT_EQUAL_UINT16(1000, face.metrics.upem);
-    TEST_ASSERT_EQUAL_UINT16(878, face.metrics.ascent);
-    TEST_ASSERT_EQUAL_UINT16(250, face.metrics.descent);
-    TEST_ASSERT_EQUAL_INT16(0, face.metrics.leading);
-    TEST_ASSERT_EQUAL_INT16(-100, face.metrics.underline_position);
-    TEST_ASSERT_EQUAL_UINT16(50, face.metrics.underline_thickness);
+    TEST_ASSERT_EQUAL_UINT16(1000, face.upem);
+    TEST_ASSERT_EQUAL_UINT16(878, face.ascent);
+    TEST_ASSERT_EQUAL_UINT16(250, face.descent);
+    TEST_ASSERT_EQUAL_INT16(0, face.leading);
+    TEST_ASSERT_EQUAL_INT16(-100, face.underline_position);
+    TEST_ASSERT_EQUAL_UINT16(50, face.underline_thickness);
     oc_free_face(&face);
 }
 
@@ -909,7 +911,7 @@ int main(void) {
 
     err = oc_open_face(&g_library, "test/files/arial.ttf", &face_params, &g_arial_ttf);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    TEST_ASSERT_EQUAL_UINT16(16, g_arial_ttf.metrics.ppem);
+    TEST_ASSERT_EQUAL_UINT16(16, g_arial_ttf.size.ppem);
 
     RUN_TEST(test_math);
     RUN_TEST(test_oc_init_library);

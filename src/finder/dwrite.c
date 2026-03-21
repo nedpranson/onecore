@@ -1,0 +1,268 @@
+#define ONECORE_IMPLEMENTATION
+#include "../onecore.h"
+
+/* ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION */
+#include <dwrite.h>
+#include <assert.h>
+
+struct oc_collection_impl {
+    IDWriteFactory* dw_factory;
+    char** families;
+    UINT32 nfamilies;
+};
+
+typedef struct {
+    IDWriteFont* dw_font;
+    oc_font font;
+} oc__font_impl;
+
+static inline void oc__free_font(oc_font* font) {
+    oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
+    impl->dw_font->lpVtbl->Release(impl->dw_font);
+    free(impl);
+}
+
+// todo: make ocol be **oc_collection
+// and make oc_collection anonymous no internals shaize
+oc_error oc_init_collection(const oc_library* library, oc_collection* ocollection) {
+    oc_collection collection = { 0 };
+    oc_error err = oc_error_ok;
+
+    if (!(library && ocollection)) {
+        err = oc_error_invalid_param;
+        goto exit;
+    }
+
+    collection.impl = calloc(1, sizeof(oc_collection_impl));
+    if (collection.impl == NULL) {
+        return oc_error_out_of_memory;
+    }
+
+    collection.impl->dw_factory = library->internals;
+exit:
+    if (ocollection) *ocollection = collection;
+    return err;
+}
+
+void oc_free_collection(oc_collection* collection) {
+    if (collection) {
+        while (collection->nfonts--) {
+            oc__free_font(collection->fonts[collection->nfonts]);
+        }
+
+        while (collection->impl->nfamilies--) {
+            free(collection->impl->families[collection->impl->nfamilies]);
+        }
+
+        free(collection->fonts);
+        free(collection->impl->families);
+        free(collection->impl);
+
+        memset(collection, 0, sizeof(*collection));
+    }
+}
+
+static oc_font* oc__init_font(IDWriteFont* dw_font, const char* family) {
+    DWRITE_FONT_WEIGHT weight;
+    oc__font_impl* impl;
+
+    weight = dw_font->lpVtbl->GetWeight(dw_font);
+    impl = malloc(sizeof(*impl));
+
+    if (impl == NULL) {
+        return NULL;
+    }
+
+    impl->dw_font = dw_font;
+    impl->font.family = family;
+    impl->font.weight = (uint16_t)weight;
+
+    return &impl->font;
+}
+
+oc_error oc_load_fonts(oc_collection* collection) {
+    oc_error err = oc_error_ok;
+    HRESULT hr;
+
+    IDWriteFactory* dw_factory;
+    IDWriteFontCollection* dw_collection = NULL;
+
+    UINT32 family_count;
+    UINT32 font_count;
+
+    UINT32 nfamilies = 0;
+
+    union {
+        char*  str;
+        UINT32 len;
+    }* families = NULL;
+
+    WCHAR* wide_buf = NULL;
+    UINT32 wide_buf_len;
+
+    oc_font** fonts = NULL;
+    uint32_t nfonts = 0;
+
+    oc_collection tmp_collection;
+    oc_collection_impl tmp_impl;
+
+    // on failure collection must stay the same
+    // this function should have no side effects on failure!
+
+    if (!collection) {
+        oc__exit(oc_error_invalid_param);
+    }
+
+    dw_factory = collection->impl->dw_factory;
+    hr = dw_factory->lpVtbl->GetSystemFontCollection(dw_factory, &dw_collection, TRUE);
+
+    switch (hr) {
+    case S_OK:
+        break;
+    case E_OUTOFMEMORY:
+        oc__exit(oc_error_out_of_memory);
+    default:
+        oc__exit(oc__unexpected(hr));
+    }
+
+    family_count = dw_collection->lpVtbl->GetFontFamilyCount(dw_collection);
+    font_count = 0;
+
+    families = malloc(family_count * sizeof(*families));
+    if (families == NULL) {
+        oc__exit(oc_error_out_of_memory);
+    }
+
+    for (UINT32 i = 0; i < family_count; i++) {
+        IDWriteFontFamily* family;
+        IDWriteLocalizedStrings* names;
+        UINT32 length;
+
+        hr = dw_collection->lpVtbl->GetFontFamily(dw_collection, i, &family);
+        assert(hr == S_OK);
+
+        hr = family->lpVtbl->GetFamilyNames(family, &names);
+        assert(hr == S_OK);
+
+        // todo: test this locale idx feature an other backends
+        hr = names->lpVtbl->GetStringLength(names, 0, &length);
+        assert(hr == S_OK);
+
+        families[i].len = length;
+        wide_buf_len = OC__MAX(wide_buf_len, length);
+        font_count += family->lpVtbl->GetFontCount(family);
+
+        names->lpVtbl->Release(names);
+        family->lpVtbl->Release(family);
+    }
+
+    wide_buf = malloc((wide_buf_len + 1) * sizeof(WCHAR));
+    if (wide_buf == NULL) {
+        oc__exit(oc_error_out_of_memory);
+    }
+
+    fonts = malloc(sizeof(*fonts) * font_count);
+    if (fonts == NULL) {
+        oc__exit(oc_error_out_of_memory);
+    }
+
+    for (UINT32 i = 0; i < family_count; i++) {
+        IDWriteFontFamily* font_family;
+        IDWriteLocalizedStrings* names;
+
+        UINT32 wide_length = families[i].len;
+        UINT32 font_index;
+
+        char* family;
+        int length;
+
+        hr = dw_collection->lpVtbl->GetFontFamily(dw_collection, i, &font_family);
+        assert(hr == S_OK);
+
+        hr = font_family->lpVtbl->GetFamilyNames(font_family, &names);
+        assert(hr == S_OK);
+
+        hr = names->lpVtbl->GetString(names, 0, wide_buf, wide_length + 1);
+        names->lpVtbl->Release(names);
+        assert(hr == S_OK);
+
+        length = WideCharToMultiByte(
+            CP_UTF8,
+            0,
+            wide_buf,
+            wide_length,
+            NULL,
+            0,
+            NULL,
+            NULL);
+
+        assert(length > 0);
+
+        family = malloc(length + 1);
+        if (family == NULL) {
+            font_family->lpVtbl->Release(font_family);
+            oc__exit(oc_error_out_of_memory);
+        }
+
+        length = WideCharToMultiByte(
+            CP_UTF8,
+            0,
+            wide_buf,
+            wide_length,
+            family,
+            length,
+            NULL,
+            NULL);
+
+        assert(length > 0);
+
+        family[length] = '\0';
+        families[nfamilies++].str = family;
+        font_index = font_family->lpVtbl->GetFontCount(font_family);
+
+        while (font_index--) {
+            IDWriteFont* dw_font;
+            oc_font* font;
+
+            hr = font_family->lpVtbl->GetFont(font_family, font_index, &dw_font);
+            assert(hr == S_OK);
+
+            font = oc__init_font(dw_font, family);
+            if (font == NULL) {
+                font_family->lpVtbl->Release(font_family);
+                oc__exit(oc_error_out_of_memory);
+            }
+
+            fonts[nfonts++] = font;
+        }
+
+        font_family->lpVtbl->Release(font_family);
+    }
+
+    tmp_impl.dw_factory = dw_factory;
+    tmp_impl.families = (char**)families;
+    tmp_impl.nfamilies = nfamilies;
+
+    tmp_collection.impl = collection->impl;
+    tmp_collection.fonts = fonts;
+    tmp_collection.nfonts = nfonts;
+
+    families = (void*)collection->impl->families;
+    nfamilies = collection->impl->nfamilies;
+    fonts = collection->fonts;
+    nfonts = collection->nfonts;
+
+    *collection->impl = tmp_impl;
+    *collection = tmp_collection;
+exit:
+    while (nfonts--) oc__free_font(fonts[nfonts]);
+    while (nfamilies--) free(families[nfamilies].str);
+
+    if (dw_collection) dw_collection->lpVtbl->Release(dw_collection);
+
+    free(fonts);
+    free(families);
+    free(wide_buf);
+
+    return err;
+}

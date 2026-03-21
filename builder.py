@@ -7,9 +7,12 @@ source_dir = pathlib.Path("src")
 onecore_h = source_dir / "onecore.h"
 
 sources = [
-    (source_dir / "freetype.c", "ONECORE_FREETYPE_IMPLEMENTATION"),
-    (source_dir / "coretext.c", "ONECORE_CORETEXT_IMPLEMENTATION"),
-    (source_dir / "dwrite.c", "ONECORE_DIRECTWRITE_IMPLEMENTATION"),
+    (source_dir / "loader/freetype.c", "ONECORE_FREETYPE_LOADER_IMPLEMENTATION"),
+    (source_dir / "loader/coretext.c", "ONECORE_CORETEXT_LOADER_IMPLEMENTATION"),
+    (source_dir / "loader/dwrite.c", "ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION"),
+    (source_dir / "finder/fontconfig.c", "ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION"),
+    (source_dir / "finder/coretext.c", "ONECORE_CORETEXT_FINDER_IMPLEMENTATION"),
+    (source_dir / "finder/dwrite.c", "ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION"),
 ]
 
 def strip(path, marker):

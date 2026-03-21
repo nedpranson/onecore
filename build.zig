@@ -49,6 +49,8 @@ pub fn build(b: *std.Build) void {
             lib_tests.root_module.linkSystemLibrary("fontconfig", .{});
         },
         .CoreText => {
+            addAppleSDK(b, lib_tests.root_module);
+
             lib_tests.root_module.linkFramework("CoreFoundation", .{});
             lib_tests.root_module.linkFramework("CoreGraphics", .{});
             lib_tests.root_module.linkFramework("CoreText", .{});
@@ -89,10 +91,11 @@ pub fn build(b: *std.Build) void {
     switch (font_backend) {
         .FreeType => {
             example.root_module.linkSystemLibrary("freetype2", .{});
-            example.root_module.linkSystemLibrary("fontconfig", .{});
         },
         .DirectWrite => example.root_module.linkSystemLibrary("dwrite", .{}),
         .CoreText => {
+            addAppleSDK(b, example.root_module);
+
             example.root_module.linkFramework("CoreFoundation", .{});
             example.root_module.linkFramework("CoreGraphics", .{});
             example.root_module.linkFramework("CoreText", .{});
@@ -110,12 +113,12 @@ pub fn build(b: *std.Build) void {
     example_step.dependOn(&install_example.step);
 }
 
-// fn addAppleSDK(b: *std.Build, m: *std.Build.Module) void {
-//     if (builtin.os.tag.isDarwin()) return;
-//
-//     const apple_sdk = b.lazyDependency("apple_sdk", .{}) orelse return;
-//
-//     m.addSystemFrameworkPath(apple_sdk.path("System/Library/Frameworks"));
-//     m.addSystemIncludePath(apple_sdk.path("usr/include"));
-//     m.addLibraryPath(apple_sdk.path("usr/lib"));
-// }
+fn addAppleSDK(b: *std.Build, m: *std.Build.Module) void {
+    if (builtin.os.tag.isDarwin()) return;
+
+    const apple_sdk = b.lazyDependency("apple_sdk", .{}) orelse return;
+
+    m.addSystemFrameworkPath(apple_sdk.path("System/Library/Frameworks"));
+    m.addSystemIncludePath(apple_sdk.path("usr/include"));
+    m.addLibraryPath(apple_sdk.path("usr/lib"));
+}

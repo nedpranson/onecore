@@ -1,12 +1,8 @@
-#include "freetype/fttypes.h"
-#include <stdint.h>
 #define ONECORE_IMPLEMENTATION
-#include "onecore.h"
+#include "../onecore.h"
 
-/* ONECORE_FREETYPE_IMPLEMENTATION */
+/* ONECORE_FREETYPE_LOADER_IMPLEMENTATION */
 #include <assert.h>
-// todo: make font config optional
-#include <fontconfig/fontconfig.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_TRUETYPE_TABLES_H
@@ -31,12 +27,6 @@ typedef pthread_mutex_t oc__mutex_impl_t;
 #define oc__mutex_impl_destroy(m) pthread_mutex_destroy(m)
 #endif /* defined(_MSC_VER) || defined(__MINGW32__) */
 
-#define oc__exit(e) \
-    do {            \
-        err = (e);  \
-        goto exit;  \
-    } while (0)
-
 #define oc__exit_critical(e)         \
     do {                             \
         oc__mutex_impl_unlock(lock); \
@@ -48,17 +38,6 @@ struct oc_face_impl {
     FT_Face ft_face;
     oc__mutex_impl_t lock;
 };
-
-typedef struct {
-    FcPattern* fc_pattern;
-    oc_font font;
-} oc__font_impl;
-
-typedef enum {
-    oc__status_ok,
-    oc__status_memory,
-    oc__status_skip,
-} oc__status;
 
 oc_error oc_init_library(oc_library* plibrary) {
     FT_Library library;
@@ -93,165 +72,6 @@ void oc_free_library(oc_library* library) {
     memset(library, 0, sizeof(*library));
 }
 
-static inline void oc__free_font(oc_font* font) {
-    oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
-    free(impl);
-}
-
-oc_error oc_init_collection(const oc_library* library, oc_collection* ocollection) {
-    oc_error err = oc_error_ok;
-    FcConfig* fc_config;
-    oc_collection collection = { 0 };
-
-    if (!(library && ocollection)) {
-        err = oc_error_invalid_param;
-        goto exit;
-    }
-
-    fc_config = FcInitLoadConfig();
-    if (fc_config == NULL) {
-        err = oc_error_out_of_memory;
-        goto exit;
-    }
-
-    collection.impl = (oc_collection_impl*)fc_config;
-exit:
-    if (ocollection) *ocollection = collection;
-    return err;
-}
-
-void oc_free_collection(oc_collection* collection) {
-    FcConfig* fc_config;
-
-    if (collection) {
-        fc_config = (FcConfig*)collection->impl;
-
-        while (collection->nfonts--) {
-            oc__free_font(collection->fonts[collection->nfonts]);
-        }
-        free(collection->fonts);
-
-        FcConfigDestroy(fc_config);
-
-        memset(collection, 0, sizeof(*collection));
-    }
-}
-
-static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
-    FcResult result;
-    FcValue weight_value;
-
-    int weight;
-    FcChar8* family;
-
-    oc__font_impl* impl;
-
-    (void)result;
-    
-    result = FcPatternGet(fc_pattern, FC_WEIGHT, 0, &weight_value);
-    assert(result == FcResultMatch);
-
-    switch (weight_value.type) {
-    case FcTypeInteger:
-        weight = weight_value.u.i;
-        break;
-    case FcTypeDouble:
-        weight = weight_value.u.d;
-        break;
-    default:
-        return oc__status_skip;
-    }
-
-    // todo: check if weight can be negative
-    weight = FcWeightToOpenType(weight);
-    assert(weight >= 0 && weight <= UINT16_MAX);
-
-    result = FcPatternGetString(fc_pattern, FC_FAMILY, 0, &family);
-    assert(result == FcResultMatch);
-    assert(family != NULL);
-
-    impl = malloc(sizeof(*impl));
-    if (impl == NULL) {
-        return oc__status_memory;
-    }
-
-    impl->fc_pattern = fc_pattern;
-    impl->font.family = (char*)family;
-    impl->font.weight = (uint16_t)weight;
-
-    *ofont = &impl->font;
-    return oc__status_ok;
-}
-
-oc_error oc_load_fonts(oc_collection* collection) {
-    oc_error err = oc_error_ok;
-
-    FcConfig* fc_config;
-    FcFontSet* fc_fonts;
-
-    int font_count;
-
-    oc_font** fonts = NULL;
-    uint32_t nfonts = 0;
-
-    oc_collection tmp_collection;
-
-    if (!collection) {
-        oc__exit(oc_error_invalid_param);
-    }
-
-    fc_config = (FcConfig*)collection->impl;
-    if (!FcConfigBuildFonts(fc_config)) {
-        oc__exit(oc_error_invalid_param);
-    }
-
-    // todo: check what it does if there is no system fonts
-    fc_fonts = FcConfigGetFonts(fc_config, FcSetSystem);
-    assert(fc_fonts != NULL); // todo: look source code check if this can return NULL
-
-    font_count = fc_fonts->nfont;
-    fonts = malloc(font_count * sizeof(*fonts));
-
-    if (fonts == NULL) {
-        oc__exit(oc_error_out_of_memory);
-    }
-
-    for (int i = 0; i < font_count; i++) {
-        oc__status status;
-
-        FcPattern* pattern;
-        oc_font* font;
-
-        pattern = fc_fonts->fonts[i];
-        status = oc__init_font(pattern, &font);
-
-        switch (status) {
-        case oc__status_ok:
-            assert(font != NULL);
-            fonts[nfonts++] = font;
-            break;
-        case oc__status_memory:
-            oc__exit(oc_error_out_of_memory);
-        case oc__status_skip:
-            break;
-        }
-    }
-
-    tmp_collection.impl = (oc_collection_impl*)fc_config;
-    tmp_collection.fonts = fonts;
-    tmp_collection.nfonts = nfonts;
-
-    fonts = collection->fonts;
-    nfonts = collection->nfonts;
-
-    *collection = tmp_collection;
-exit:
-    while (nfonts--) oc__free_font(fonts[nfonts]);
-    free(fonts);
-
-    return err;
-}
-
 static oc_error oc__init_face(FT_Face ft_face, const oc_open_params* params, oc_face* oface) {
     FT_Error err;
     oc_face face;
@@ -274,15 +94,15 @@ static oc_error oc__init_face(FT_Face ft_face, const oc_open_params* params, oc_
     face.impl->ft_face = ft_face;
     oc__mutex_impl_init(&face.impl->lock);
 
-    face.metrics.upem = ft_face->units_per_EM;
-    face.metrics.ppem = ft_face->size->metrics.y_ppem;
-    face.metrics.scale = ft_face->size->metrics.y_scale;
-    face.metrics.ascent = ft_face->ascender;
-    face.metrics.descent = -ft_face->descender;
-    face.metrics.leading = ft_face->height - ft_face->ascender + ft_face->descender;
+    face.size.scale = ft_face->size->metrics.y_scale;
+    face.size.ppem = ft_face->size->metrics.y_ppem;
+    face.upem = ft_face->units_per_EM;
+    face.ascent = ft_face->ascender;
+    face.descent = -ft_face->descender;
+    face.leading = ft_face->height - ft_face->ascender + ft_face->descender;
     // reverting ajusted underline position by freetype
-    face.metrics.underline_position = ft_face->underline_position + (ft_face->underline_thickness >> 1);
-    face.metrics.underline_thickness = ft_face->underline_thickness;
+    face.underline_position = ft_face->underline_position + (ft_face->underline_thickness >> 1);
+    face.underline_thickness = ft_face->underline_thickness;
 
     *oface = face;
     return oc_error_ok;
@@ -408,8 +228,8 @@ oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
         return oc__unexpected(err);
     }
 
-    face->metrics.ppem = ft_face->size->metrics.y_ppem;
-    face->metrics.scale = ft_face->size->metrics.y_scale;
+    face->size.scale = ft_face->size->metrics.y_scale;
+    face->size.ppem = ft_face->size->metrics.y_ppem;
 
     return oc_error_ok;
 }

@@ -5,8 +5,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// todo: add _t suffix
-
 typedef uint32_t oc_tag;
 typedef uint32_t oc_load_flags;
 typedef int32_t oc_16p16;
@@ -22,11 +20,11 @@ typedef int32_t oc_26p6;
 
 #define OC_LOAD_DEFAULT 0x0
 #define OC_LOAD_NO_SCALE (1l << 0)
+// todo: add these flags
+// todo: fit to grid
 // #define OC_LOAD_VERTICAL (1l << 1)
 // #define OC_LOAD_COLOR (1l << 2)
-// #define OC_LOAD_NO_HINTING (1l << 3)
-// todo: add hinting https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L861 (grid fitting)
-//       hintign it self is a hard problem to solve
+// #define OC_LOAD_NO_FITTING (1l << 3)
 
 #define OC_ERROR_LIST                                      \
     X(oc_error_ok, "no error")                             \
@@ -63,18 +61,10 @@ typedef struct {
     uint16_t dpi;
 } oc_open_params;
 
-// todo: add height which is just ascept + descent + leading
-// todo: rename to oc_face_metrics
 typedef struct {
-    uint16_t upem;
-    uint16_t ppem; // todo: put this into some oc_scale struct
-    oc_16p16 scale; // todo: put this into some oc_scale struct
-    uint16_t ascent;
-    uint16_t descent;
-    int16_t leading;
-    int16_t underline_position;
-    uint16_t underline_thickness;
-} oc_font_metrics;
+    uint16_t ppem;
+    oc_16p16 scale;
+} oc_size;
 
 typedef struct {
     oc_26p6 width;
@@ -85,8 +75,8 @@ typedef struct {
 } oc_glyph_metrics;
 
 typedef struct {
-    uint32_t rows; // uint16_t??
-    uint32_t cols; // uint16_t??
+    uint32_t rows;
+    uint32_t cols;
 } oc_extent;
 
 typedef struct {
@@ -133,7 +123,14 @@ typedef struct {
 
 typedef struct {
     oc_face_impl* impl;
-    oc_font_metrics metrics;
+
+    oc_size size;
+    uint16_t upem;
+    uint16_t ascent;
+    uint16_t descent;
+    int16_t leading;
+    int16_t underline_position;
+    uint16_t underline_thickness;
 } oc_face;
 
 typedef struct {
@@ -142,10 +139,6 @@ typedef struct {
     oc_font** fonts;
     uint32_t nfonts;
 } oc_collection;
-
-// todo: we need better naming as now we have two seperate project in one lib:
-// * discovery
-// * loader/parser
 
 OC_PUBLIC oc_error
 oc_init_library(oc_library* olibrary);
@@ -213,6 +206,10 @@ oc_get_glyph_cbox(
 // todo: now we're rendering these glyphs from [0;0] position which is convenient, but it does lose some extra draw data
 //       make so an user could specify how to draw this glyph mb allow to pass matricies and origins mb just some flags??
 // todo: it is needed to make this method more complicated, now we cannot pass origin where to draw or matricies, nothing
+//
+// roadmap:
+// dwrite and coretext knows how to draw bezier curves hence theoretically hinting can be achieved with manual shapes rasterization,
+// essentially onecore would become freetype, but with native font file parsing and rendering engine
 OC_PUBLIC oc_error
 oc_render_glyph(
     const oc_face* face,
@@ -221,6 +218,7 @@ oc_render_glyph(
     uint8_t* buffer,
     size_t buffer_size);
 
+// todo: renew this impl
 OC_PUBLIC bool
 oc_get_outline(
     const oc_face* face,
@@ -257,22 +255,30 @@ oc_mul_16p16(oc_16p16 a, oc_16p16 b);
 /*                                                                                                    */
 /******************************************************************************************************/
 
-// these defines should work fine
-// but should we even allow this?
-// if someone would be using them it would just defeat the purpose of this lib
-// ONECORE_FORCE_FREETYPE
-// ONECORE_FORCE_FONTCONFIG
 
-#ifdef ONECORE_IMPLEMENTATION
-
+#ifdef ONECORE_LOADER_IMPLEMENTATION
+#define ONECORE_SHARED_IMPLEMENTATION
 #if defined(_MSC_VER) || defined(__MINGW32__)
-#define ONECORE_DIRECTWRITE_IMPLEMENTATION
+#define ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
 #elif defined(__APPLE__)
-#define ONECORE_CORETEXT_IMPLEMENTATION
+#define ONECORE_CORETEXT_LOADER_IMPLEMENTATION
 #else
-#define ONECORE_FREETYPE_IMPLEMENTATION
+#define ONECORE_FREETYPE_LOADER_IMPLEMENTATION
 #endif
+#endif /* ONECORE_LOADER_IMPLEMENTATION */
 
+#ifdef ONECORE_FINDER_IMPLEMENTATION
+#define ONECORE_SHARED_IMPLEMENTATION
+#if defined(_MSC_VER) || defined(__MINGW32__)
+#define ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
+#elif defined(__APPLE__)
+#define ONECORE_CORETEXT_FINDER_IMPLEMENTATION
+#else
+#define ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION
+#endif
+#endif /* ONECORE_FINDER_IMPLEMENTATION */
+
+#ifdef ONECORE_SHARED_IMPLEMENTATION
 #ifdef NDEBUG
 #define oc__unexpected(e) oc_error_unexpected
 #else
@@ -308,6 +314,12 @@ const char* oc_strerror(oc_error err) {
     }
 #endif /* ONECORE_NO_ERROR_STRINGS */
 }
+
+#define oc__exit(e) \
+    do {            \
+        err = (e);  \
+        goto exit;  \
+    } while (0)
 
 #define OC__MOVE_SIGN(utype, ix, ux, s) \
     do {                                \
@@ -357,14 +369,22 @@ static inline oc_open_params oc__open_params_defaults(const oc_open_params* upar
 
     return params;
 }
+#endif /* ONECORE_SHARED_IMPLEMENTATION */
 
-#ifdef ONECORE_FREETYPE_IMPLEMENTATION
-#endif /* ONECORE_FREETYPE_IMPLEMENTATION */
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+#endif /* ONECORE_FREETYPE_LOADER_IMPLEMENTATION */
 
-#ifdef ONECORE_CORETEXT_IMPLEMENTATION
-#endif /* ONECORE_CORETEXT_IMPLEMENTATION */
+#ifdef ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION
+#endif /* ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION */
 
-#ifdef ONECORE_DIRECTWRITE_IMPLEMENTATION
-#endif /* ONECORE_DIRECTWRITE_IMPLEMENTATION */
+#ifdef ONECORE_CORETEXT_LOADER_IMPLEMENTATION
+#endif /* ONECORE_CORETEXT_LOADER_IMPLEMENTATION */
 
-#endif /* ONECORE_IMPLEMENTATION */
+#ifdef ONECORE_CORETEXT_FINDER_IMPLEMENTATION
+#endif /* ONECORE_CORETEXT_LINDER_IMPLEMENTATION */
+
+#ifdef ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
+#endif /* ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION */
+
+#ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
+#endif /* ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION */
