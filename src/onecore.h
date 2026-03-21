@@ -20,11 +20,11 @@ typedef int32_t oc_26p6;
 
 #define OC_LOAD_DEFAULT 0x0
 #define OC_LOAD_NO_SCALE (1l << 0)
+#define OC_LOAD_NO_HINTING (1l << 1)
 // todo: add these flags
-// todo: fit to grid
-// #define OC_LOAD_VERTICAL (1l << 1)
-// #define OC_LOAD_COLOR (1l << 2)
-// #define OC_LOAD_NO_FITTING (1l << 3)
+// #define OC_LOAD_VERTICAL (1l << 2)
+// #define OC_LOAD_COLOR (1l << 3)
+#define OC_LOAD_NO_FITTING (1l << 4)
 
 #define OC_ERROR_LIST                                      \
     X(oc_error_ok, "no error")                             \
@@ -368,6 +368,19 @@ static inline oc_open_params oc__open_params_defaults(const oc_open_params* upar
     }
 
     return params;
+}
+
+static inline void oc__fit_metrics(oc_glyph_metrics* pmetrics) {
+    oc_26p6 right = OC_26P6_CEIL(OC_26P6_ADD(pmetrics->bearing_x, pmetrics->width));
+    oc_26p6 bottom = OC_26P6_FLOOR(OC_26P6_SUB(pmetrics->bearing_y, pmetrics->height));
+
+    pmetrics->bearing_x = OC_26P6_FLOOR(pmetrics->bearing_x);
+    pmetrics->bearing_y = OC_26P6_CEIL(pmetrics->bearing_y);
+
+    pmetrics->width = OC_26P6_SUB(right, pmetrics->bearing_x);
+    pmetrics->height = OC_26P6_SUB(pmetrics->bearing_y, bottom);
+
+    pmetrics->advance = OC_26P6_ROUND(pmetrics->advance);
 }
 #endif /* ONECORE_SHARED_IMPLEMENTATION */
 

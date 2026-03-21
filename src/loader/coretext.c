@@ -1,4 +1,4 @@
-#define ONECORE_IMPLEMENTATION
+#define ONECORE_SHARED_IMPLEMENTATION
 #include "../onecore.h"
 
 /* ONECORE_CORETEXT_LOADER_IMPLEMENTATION */
@@ -308,6 +308,11 @@ void oc_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fla
     metrics.bearing_y = oc_mul_16p16(metrics.bearing_y, scale);
     metrics.advance = oc_mul_16p16(metrics.advance, scale);
 
+    if (flags & OC_LOAD_NO_FITTING) {
+        goto exit;
+    }
+
+    oc__fit_metrics(&metrics);
 exit:
     if (ometrics) *ometrics = metrics;
 }

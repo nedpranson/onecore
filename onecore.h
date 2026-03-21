@@ -20,11 +20,11 @@ typedef int32_t oc_26p6;
 
 #define OC_LOAD_DEFAULT 0x0
 #define OC_LOAD_NO_SCALE (1l << 0)
+#define OC_LOAD_NO_HINTING (1l << 1)
 // todo: add these flags
-// todo: fit to grid
-// #define OC_LOAD_VERTICAL (1l << 1)
-// #define OC_LOAD_COLOR (1l << 2)
-// #define OC_LOAD_NO_FITTING (1l << 3)
+// #define OC_LOAD_VERTICAL (1l << 2)
+// #define OC_LOAD_COLOR (1l << 3)
+#define OC_LOAD_NO_FITTING (1l << 4)
 
 #define OC_ERROR_LIST                                      \
     X(oc_error_ok, "no error")                             \
@@ -369,6 +369,19 @@ static inline oc_open_params oc__open_params_defaults(const oc_open_params* upar
 
     return params;
 }
+
+static inline void oc__fit_metrics(oc_glyph_metrics* pmetrics) {
+    oc_26p6 right = OC_26P6_CEIL(OC_26P6_ADD(pmetrics->bearing_x, pmetrics->width));
+    oc_26p6 bottom = OC_26P6_FLOOR(OC_26P6_SUB(pmetrics->bearing_y, pmetrics->height));
+
+    pmetrics->bearing_x = OC_26P6_FLOOR(pmetrics->bearing_x);
+    pmetrics->bearing_y = OC_26P6_CEIL(pmetrics->bearing_y);
+
+    pmetrics->width = OC_26P6_SUB(right, pmetrics->bearing_x);
+    pmetrics->height = OC_26P6_SUB(pmetrics->bearing_y, bottom);
+
+    pmetrics->advance = OC_26P6_ROUND(pmetrics->advance);
+}
 #endif /* ONECORE_SHARED_IMPLEMENTATION */
 
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
@@ -669,6 +682,7 @@ void oc_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fla
     lock = &face->impl->lock;
 
     if (flags & OC_LOAD_NO_SCALE) {
+        flags |= OC_LOAD_NO_FITTING;
         ft_load_flags |= FT_LOAD_NO_SCALE;
     }
 
@@ -691,6 +705,12 @@ void oc_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fla
     metrics.bearing_x = ft_metrics.horiBearingX;
     metrics.bearing_y = ft_metrics.horiBearingY;
     metrics.advance = ft_metrics.horiAdvance;
+
+    if (flags & OC_LOAD_NO_FITTING) {
+        goto exit;
+    }
+
+    oc__fit_metrics(&metrics);
 exit:
     if (ometrics) *ometrics = metrics;
 }
@@ -1439,6 +1459,11 @@ void oc_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fla
     metrics.bearing_y = oc_mul_16p16(metrics.bearing_y, scale);
     metrics.advance = oc_mul_16p16(metrics.advance, scale);
 
+    if (flags & OC_LOAD_NO_FITTING) {
+        goto exit;
+    }
+
+    oc__fit_metrics(&metrics);
 exit:
     if (ometrics) *ometrics = metrics;
 }
@@ -2588,19 +2613,6 @@ oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, voi
     return oc_error_ok;
 }
 
-// static void fit_metrics(oc_glyph_metrics* pmetrics) {
-//     oc_26p6 right = OC_26P6_CEIL(OC_26P6_ADD(pmetrics->bearing_x, pmetrics->width));
-//     oc_26p6 bottom = OC_26P6_FLOOR(OC_26P6_SUB(pmetrics->bearing_y, pmetrics->height));
-//
-//     pmetrics->bearing_x = OC_26P6_FLOOR(pmetrics->bearing_x);
-//     pmetrics->bearing_y = OC_26P6_CEIL(pmetrics->bearing_y);
-//
-//     pmetrics->width = OC_26P6_SUB(right, pmetrics->bearing_x);
-//     pmetrics->height = OC_26P6_SUB(pmetrics->bearing_y, bottom);
-//
-//     pmetrics->advance = OC_26P6_ROUND(pmetrics->advance);
-// }
-
 void oc_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
     HRESULT err;
     DWRITE_GLYPH_METRICS dw_metrics;
@@ -2649,12 +2661,11 @@ void oc_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fla
     metrics.bearing_y = oc_mul_16p16(metrics.bearing_y, scale);
     metrics.advance = oc_mul_16p16(metrics.advance, scale);
 
-    // if (flags & OC_LOAD_NO_HINTING) {
-    // goto done;
-    //}
+    if (flags & OC_LOAD_NO_FITTING) {
+        goto exit;
+    }
 
-    // fit_metrics(&metrics);
-
+    oc__fit_metrics(&metrics);
 exit:
     if (ometrics) *ometrics = metrics;
 }

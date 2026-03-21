@@ -299,6 +299,7 @@ void oc_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fla
     lock = &face->impl->lock;
 
     if (flags & OC_LOAD_NO_SCALE) {
+        flags |= OC_LOAD_NO_FITTING;
         ft_load_flags |= FT_LOAD_NO_SCALE;
     }
 
@@ -321,6 +322,12 @@ void oc_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fla
     metrics.bearing_x = ft_metrics.horiBearingX;
     metrics.bearing_y = ft_metrics.horiBearingY;
     metrics.advance = ft_metrics.horiAdvance;
+
+    if (flags & OC_LOAD_NO_FITTING) {
+        goto exit;
+    }
+
+    oc__fit_metrics(&metrics);
 exit:
     if (ometrics) *ometrics = metrics;
 }

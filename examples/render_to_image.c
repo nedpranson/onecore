@@ -16,7 +16,10 @@ int main() {
     }
 
     oc_face face;
-    if ((err = oc_open_face(&library, "test/files/arial.ttf", NULL, &face))) {
+    oc_open_params params = { 0 };
+    params.dpi = 96;
+
+    if ((err = oc_open_face(&library, "test/files/arial.ttf", &params, &face))) {
         oc_free_library(&library);
         printf("oc_open_face: %s\n", oc_strerror(err));
         return 1;
@@ -35,7 +38,7 @@ int main() {
             continue;
 
         oc_glyph_metrics metrics;
-        oc_get_glyph_metrics(&face, index, 0, &metrics);
+        oc_get_glyph_metrics(&face, index, OC_LOAD_DEFAULT, &metrics);
 
         oc_extent extent;
         uint8_t bitmap[32 * 32];
