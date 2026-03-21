@@ -1,4 +1,4 @@
-#define ONECORE_IMPLEMENTATION
+#define ONECORE_SHARED_IMPLEMENTATION
 #include "../onecore.h"
 
 /* ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION */
@@ -817,7 +817,6 @@ bool oc_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs*
 
 // todo: check this rendering thingy as smth is a bit off with dwrite
 //       it seems dwrite does hard edges, idk if we can change that
-// todo: fix rows * cols overflow
 oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
     oc_error err = oc_error_ok;
     HRESULT dw_err = S_OK;
@@ -834,9 +833,10 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
 
     IDWriteGlyphRunAnalysis* analysis = NULL;
     DWRITE_GLYPH_RUN glyph_run = { 0 };
+    oc_extent extent = { 0 };
 
     uint8_t* bitmap = NULL;
-    oc_extent extent = { 0 };
+    size_t length;
 
     if (!(face && oextent)) {
         oc__exit(oc_error_invalid_param);
@@ -874,7 +874,8 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
         goto exit;
     }
 
-    if (buffer_size < extent.rows * extent.cols) {
+    length = (size_t)extent.rows * (size_t)extent.cols;
+    if (buffer_size < length) {
         oc__exit(oc_error_insufficient_buffer);
     }
 
@@ -909,7 +910,7 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
         oc__exit(oc__unexpected(err));
     }
 
-    bitmap = malloc(extent.rows * extent.cols * 3);
+    bitmap = malloc(length * 3);
     if (bitmap == NULL) {
         oc__exit(oc_error_out_of_memory);
     }
@@ -918,20 +919,20 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
     bounds.bottom = 0;
 
     bounds.top = -(int32_t)extent.rows;
-    bounds.right = extent.cols;
+    bounds.right = (int32_t)extent.cols;
 
     err = analysis->lpVtbl->CreateAlphaTexture(
         analysis,
         DWRITE_TEXTURE_CLEARTYPE_3x1,
         &bounds,
         bitmap,
-        extent.rows * extent.cols * 3);
+        length * 3);
 
     if (err != S_OK) {
         oc__exit(oc__unexpected(err));
     }
 
-    for (uint32_t i = 0; i < extent.rows * extent.cols; i++) {
+    for (uint32_t i = 0; i < length; i++) {
         uint8_t r = bitmap[i * 3 + 0];
         uint8_t g = bitmap[i * 3 + 1];
         uint8_t b = bitmap[i * 3 + 2];

@@ -545,6 +545,13 @@ void test_oc_get_glyph_metrics_scaled(void) {
     TEST_ASSERT_EQUAL_INT32(-139, metrics.bearing_y);
     TEST_ASSERT_EQUAL_INT32(570, metrics.advance);
 
+    oc_get_glyph_metrics(&g_arial_ttf, idx, OC_LOAD_DEFAULT, &metrics);
+    TEST_ASSERT_EQUAL_INT32(704, metrics.width);
+    TEST_ASSERT_EQUAL_INT32(128, metrics.height);
+    TEST_ASSERT_EQUAL_INT32(-64, metrics.bearing_x);
+    TEST_ASSERT_EQUAL_INT32(-128, metrics.bearing_y);
+    TEST_ASSERT_EQUAL_INT32(576, metrics.advance);
+
     idx = oc_get_char_index(&g_arial_ttf, 'M');
     TEST_ASSERT_EQUAL_INT16(48, idx);
 
@@ -555,22 +562,19 @@ void test_oc_get_glyph_metrics_scaled(void) {
     TEST_ASSERT_EQUAL_INT32(733, metrics.bearing_y);
     TEST_ASSERT_EQUAL_INT32(853, metrics.advance);
 
+    oc_get_glyph_metrics(&g_arial_ttf, idx, OC_LOAD_DEFAULT, &metrics);
+    TEST_ASSERT_EQUAL_INT32(768, metrics.width);
+    TEST_ASSERT_EQUAL_INT32(768, metrics.height);
+    TEST_ASSERT_EQUAL_INT32(64, metrics.bearing_x);
+    TEST_ASSERT_EQUAL_INT32(768, metrics.bearing_y);
+    TEST_ASSERT_EQUAL_INT32(832, metrics.advance);
+
     oc_get_glyph_metrics(&g_arial_ttf, 4444, OC_LOAD_NO_FITTING, &metrics);
     TEST_ASSERT_EQUAL_INT32(0, metrics.width);
     TEST_ASSERT_EQUAL_INT32(0, metrics.height);
     TEST_ASSERT_EQUAL_INT32(0, metrics.bearing_x);
     TEST_ASSERT_EQUAL_INT32(0, metrics.bearing_y);
     TEST_ASSERT_EQUAL_INT32(0, metrics.advance);
-
-    idx = oc_get_char_index(&g_arial_ttf, '_');
-    TEST_ASSERT_EQUAL_INT16(66, idx);
-
-    oc_get_glyph_metrics(&g_arial_ttf, idx, OC_LOAD_DEFAULT, &metrics);
-    TEST_ASSERT_EQUAL_INT32(704, metrics.width);
-    TEST_ASSERT_EQUAL_INT32(128, metrics.height);
-    TEST_ASSERT_EQUAL_INT32(-64, metrics.bearing_x);
-    TEST_ASSERT_EQUAL_INT32(-128, metrics.bearing_y);
-    TEST_ASSERT_EQUAL_INT32(576, metrics.advance);
 }
 
 // void test_oc_get_glyph_metrics_hinted(void) {

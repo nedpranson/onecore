@@ -485,6 +485,7 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
     CGPoint pos;
 
     oc_extent extent = { 0 };
+    size_t length;
 
     if (!(face && oextent)) {
         err = oc_error_invalid_param;
@@ -522,7 +523,8 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
         goto exit;
     }
 
-    if (buffer_size < extent.rows * extent.cols) {
+    length = (size_t)extent.rows * (size_t)extent.cols;
+    if (buffer_size < length) {
         err = oc_error_insufficient_buffer;
         goto exit;
     }
@@ -533,7 +535,7 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
         goto exit;
     }
 
-    memset(buffer, 0, extent.rows * extent.cols);
+    memset(buffer, 0, length);
 
     context = CGBitmapContextCreate(
         buffer,
