@@ -88,12 +88,11 @@ oc_error oc_load_fonts(oc_collection* collection) {
     UINT32 family_count;
     UINT32 font_count;
 
-    UINT32 nfamilies = 0;
-
     union {
         char*  str;
         UINT32 len;
     }* families = NULL;
+    UINT32 nfamilies = 0;
 
     WCHAR* wide_buf = NULL;
     UINT32 wide_buf_len;
@@ -103,9 +102,6 @@ oc_error oc_load_fonts(oc_collection* collection) {
 
     oc_collection tmp_collection;
     oc_collection_impl tmp_impl;
-
-    // on failure collection must stay the same
-    // this function should have no side effects on failure!
 
     if (!collection) {
         oc__exit(oc_error_invalid_param);
@@ -124,9 +120,13 @@ oc_error oc_load_fonts(oc_collection* collection) {
     }
 
     family_count = dw_collection->lpVtbl->GetFontFamilyCount(dw_collection);
-    font_count = 0;
+    if (family_count == 0) {
+        goto done;
+    }
 
+    font_count = 0;
     families = malloc(family_count * sizeof(*families));
+
     if (families == NULL) {
         oc__exit(oc_error_out_of_memory);
     }
@@ -153,6 +153,8 @@ oc_error oc_load_fonts(oc_collection* collection) {
         names->lpVtbl->Release(names);
         family->lpVtbl->Release(family);
     }
+
+    assert(font_count > 0);
 
     wide_buf = malloc((wide_buf_len + 1) * sizeof(WCHAR));
     if (wide_buf == NULL) {
@@ -236,7 +238,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
 
         font_family->lpVtbl->Release(font_family);
     }
-
+done:
     tmp_impl.dw_factory = dw_factory;
     tmp_impl.families = (char**)families;
     tmp_impl.nfamilies = nfamilies;

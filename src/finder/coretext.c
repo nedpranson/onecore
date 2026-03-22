@@ -167,8 +167,11 @@ oc_error oc_load_fonts(oc_collection* collection) {
     }
 
     font_count = CFArrayGetCount(ct_fonts);
+    if (font_count == 0) {
+        goto done;
+    }
+
     fonts = malloc(font_count * sizeof(*fonts));
-    
     if (fonts == NULL) {
         err = oc_error_out_of_memory;
         goto exit;
@@ -184,7 +187,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
 
         fonts[nfonts++] = &impl->font;
     }
-
+done:
     tmp_collection.impl = (oc_collection_impl*)ct_fonts;
     tmp_collection.fonts = fonts;
     tmp_collection.nfonts = nfonts;

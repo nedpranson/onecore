@@ -135,8 +135,11 @@ oc_error oc_load_fonts(oc_collection* collection) {
     assert(fc_fonts != NULL); 
 
     font_count = fc_fonts->nfont;
-    fonts = malloc(font_count * sizeof(*fonts));
+    if (font_count == 0) {
+        goto done;
+    }
 
+    fonts = malloc(font_count * sizeof(*fonts));
     if (fonts == NULL) {
         oc__exit(oc_error_out_of_memory);
     }
@@ -161,7 +164,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
             break;
         }
     }
-
+done:
     tmp_collection.impl = (oc_collection_impl*)fc_config;
     tmp_collection.fonts = fonts;
     tmp_collection.nfonts = nfonts;
