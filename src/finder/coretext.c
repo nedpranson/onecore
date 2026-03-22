@@ -176,7 +176,6 @@ oc_error oc_load_fonts(oc_collection* collection) {
 
     for (CFIndex i = 0; i < font_count; i++) {
         CTFontDescriptorRef ct_font = CFArrayGetValueAtIndex(ct_fonts, i);
-        // todo: there is probably much more wrong can happen than oom
         oc__font_impl* impl = oc__init_font_impl(ct_font);
         if (impl == NULL) {
             err = oc_error_out_of_memory;

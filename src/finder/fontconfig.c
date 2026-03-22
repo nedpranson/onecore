@@ -1,4 +1,4 @@
-#define ONECORE_IMPLEMENTATION
+#define ONECORE_SHARED_IMPLEMENTATION
 #include "../onecore.h"
 
 /* ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION */
@@ -87,7 +87,6 @@ static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
         return oc__status_skip;
     }
 
-    // todo: check if weight can be negative
     weight = FcWeightToOpenType(weight);
     assert(weight >= 0 && weight <= UINT16_MAX);
 
@@ -127,12 +126,13 @@ oc_error oc_load_fonts(oc_collection* collection) {
 
     fc_config = (FcConfig*)collection->impl;
     if (!FcConfigBuildFonts(fc_config)) {
-        oc__exit(oc_error_invalid_param);
+        // todo: test what fontconfig does when cache is corrupted
+        oc__exit(oc_error_out_of_memory);
     }
 
-    // todo: check what it does if there is no system fonts
+    // 'FcConfigGetFonts' will never return NULL; it can only return an empty 'FcFontSet' object if no fonts are found
     fc_fonts = FcConfigGetFonts(fc_config, FcSetSystem);
-    assert(fc_fonts != NULL); // todo: look source code check if this can return NULL
+    assert(fc_fonts != NULL); 
 
     font_count = fc_fonts->nfont;
     fonts = malloc(font_count * sizeof(*fonts));

@@ -22,8 +22,6 @@ static inline void oc__free_font(oc_font* font) {
     free(impl);
 }
 
-// todo: make ocol be **oc_collection
-// and make oc_collection anonymous no internals shaize
 oc_error oc_init_collection(const oc_library* library, oc_collection* ocollection) {
     oc_collection collection = { 0 };
     oc_error err = oc_error_ok;

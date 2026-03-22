@@ -110,6 +110,7 @@ typedef struct oc_collection_impl oc_collection_impl;
 
 // todo: integrate even more fields
 typedef struct {
+    // DOING!!! need slants codepoints
     // todo: make some kind of function to get path
     // const char* path;
     const char* family;
@@ -117,8 +118,8 @@ typedef struct {
 } oc_font;
 
 typedef struct {
-    void* internals;
     // oc_library_impl* impl;
+    void* internals;
 } oc_library;
 
 typedef struct {
@@ -1064,7 +1065,6 @@ static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
         return oc__status_skip;
     }
 
-    // todo: check if weight can be negative
     weight = FcWeightToOpenType(weight);
     assert(weight >= 0 && weight <= UINT16_MAX);
 
@@ -1104,12 +1104,13 @@ oc_error oc_load_fonts(oc_collection* collection) {
 
     fc_config = (FcConfig*)collection->impl;
     if (!FcConfigBuildFonts(fc_config)) {
-        oc__exit(oc_error_invalid_param);
+        // todo: test what fontconfig does when cache is corrupted
+        oc__exit(oc_error_out_of_memory);
     }
 
-    // todo: check what it does if there is no system fonts
+    // 'FcConfigGetFonts' will never return NULL; it can only return an empty 'FcFontSet' object if no fonts are found
     fc_fonts = FcConfigGetFonts(fc_config, FcSetSystem);
-    assert(fc_fonts != NULL); // todo: look source code check if this can return NULL
+    assert(fc_fonts != NULL); 
 
     font_count = fc_fonts->nfont;
     fonts = malloc(font_count * sizeof(*fonts));
@@ -1919,7 +1920,6 @@ oc_error oc_load_fonts(oc_collection* collection) {
 
     for (CFIndex i = 0; i < font_count; i++) {
         CTFontDescriptorRef ct_font = CFArrayGetValueAtIndex(ct_fonts, i);
-        // todo: there is probably much more wrong can happen than oom
         oc__font_impl* impl = oc__init_font_impl(ct_font);
         if (impl == NULL) {
             err = oc_error_out_of_memory;
@@ -2914,8 +2914,6 @@ static inline void oc__free_font(oc_font* font) {
     free(impl);
 }
 
-// todo: make ocol be **oc_collection
-// and make oc_collection anonymous no internals shaize
 oc_error oc_init_collection(const oc_library* library, oc_collection* ocollection) {
     oc_collection collection = { 0 };
     oc_error err = oc_error_ok;

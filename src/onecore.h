@@ -110,6 +110,7 @@ typedef struct oc_collection_impl oc_collection_impl;
 
 // todo: integrate even more fields
 typedef struct {
+    // DOING!!! need slants codepoints
     // todo: make some kind of function to get path
     // const char* path;
     const char* family;
@@ -117,8 +118,8 @@ typedef struct {
 } oc_font;
 
 typedef struct {
-    void* internals;
     // oc_library_impl* impl;
+    void* internals;
 } oc_library;
 
 typedef struct {
