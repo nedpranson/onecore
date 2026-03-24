@@ -1870,13 +1870,16 @@ double oc__convert(double ct_weight) {
 static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     oc__font_impl* impl = NULL;
 
-    CFDictionaryRef ct_traits;
+    CFDictionaryRef ct_traits = NULL;
     CFStringRef ct_family;
 
     const char* family;
 
     CFNumberRef weight_obj;
+    CFNumberRef symbolic_obj;
+
     double ct_weight;
+    uint32_t ct_symbolic;
 
     assert(ct_font != NULL);
 
@@ -1888,8 +1891,11 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     weight_obj = CFDictionaryGetValue(ct_traits, kCTFontWeightTrait);
     assert(weight_obj != NULL);
 
+    symbolic_obj = CFDictionaryGetValue(ct_traits, kCTFontSymbolicTrait);
+    assert(symbolic_obj != NULL);
+
     CFNumberGetValue(weight_obj, kCFNumberDoubleType, &ct_weight);
-    CFRelease(ct_traits);
+    CFNumberGetValue(symbolic_obj, kCFNumberSInt32Type, &ct_symbolic);
 
     ct_family = CTFontDescriptorCopyAttribute(ct_font, kCTFontFamilyNameAttribute);
     assert(ct_family != NULL);
@@ -1908,8 +1914,14 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     impl->ct_family = ct_family;
     impl->font.family = family;
     impl->font.weight = oc__convert(ct_weight) + 0.5;
+    impl->font.slant = oc_slant_roman;
+
+    if (ct_symbolic & kCTFontItalicTrait) {
+        impl->font.slant = oc_slant_italic;
+    }
 
 exit:
+    if (ct_traits) CFRelease(ct_traits);
     return impl;
 }
 
