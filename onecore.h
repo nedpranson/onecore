@@ -55,6 +55,12 @@ typedef enum {
 #undef X
 } oc_error;
 
+typedef enum {
+    oc_slant_roman,
+    oc_slant_italic,
+    oc_slant_oblique,
+} oc_slant;
+
 typedef struct {
     uint32_t face_index;
     oc_26p6 desired_size;
@@ -113,8 +119,16 @@ typedef struct {
     // DOING!!! need slants codepoints
     // todo: make some kind of function to get path
     // const char* path;
+
     const char* family;
+    oc_slant slant;
     uint16_t weight;
+
+    // -> wayt to verify codepoint present
+    // -> langs
+    // -> way to get ?path
+    // -> way to open oc_font
+    // -> monoscope
 } oc_font;
 
 typedef struct {
@@ -1042,9 +1056,12 @@ void oc_free_collection(oc_collection* collection) {
 
 static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
     FcResult result;
+
     FcValue weight_value;
 
     int weight;
+    int slant;
+
     FcChar8* family;
 
     oc__font_impl* impl;
@@ -1068,6 +1085,9 @@ static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
     weight = FcWeightToOpenType(weight);
     assert(weight >= 0 && weight <= UINT16_MAX);
 
+    result = FcPatternGetInteger(fc_pattern, FC_SLANT, 0, &slant);
+    assert(result == FcResultMatch);
+
     result = FcPatternGetString(fc_pattern, FC_FAMILY, 0, &family);
     assert(result == FcResultMatch);
     assert(family != NULL);
@@ -1080,6 +1100,18 @@ static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
     impl->fc_pattern = fc_pattern;
     impl->font.family = (char*)family;
     impl->font.weight = (uint16_t)weight;
+
+    switch (slant) {
+    case FC_SLANT_ROMAN:
+        impl->font.slant = oc_slant_roman;
+        break;
+    case FC_SLANT_ITALIC:
+        impl->font.slant = oc_slant_italic;
+        break;
+    case FC_SLANT_OBLIQUE:
+        impl->font.slant = oc_slant_oblique;
+        break;
+    }
 
     *ofont = &impl->font;
     return oc__status_ok;
@@ -2958,13 +2990,22 @@ void oc_free_collection(oc_collection* collection) {
     }
 }
 
+static const oc_slant oc__slant_map[] = {
+    [DWRITE_FONT_STYLE_NORMAL]  = oc_slant_roman,
+    [DWRITE_FONT_STYLE_OBLIQUE] = oc_slant_oblique,
+    [DWRITE_FONT_STYLE_ITALIC]  = oc_slant_italic,
+};
+
 static oc_font* oc__init_font(IDWriteFont* dw_font, const char* family) {
     DWRITE_FONT_WEIGHT weight;
+    DWRITE_FONT_STYLE style;
+
     oc__font_impl* impl;
 
     weight = dw_font->lpVtbl->GetWeight(dw_font);
-    impl = malloc(sizeof(*impl));
+    style = dw_font->lpVtbl->GetStyle(dw_font);
 
+    impl = malloc(sizeof(*impl));
     if (impl == NULL) {
         return NULL;
     }
@@ -2972,6 +3013,7 @@ static oc_font* oc__init_font(IDWriteFont* dw_font, const char* family) {
     impl->dw_font = dw_font;
     impl->font.family = family;
     impl->font.weight = (uint16_t)weight;
+    impl->font.slant = oc__slant_map[style];
 
     return &impl->font;
 }

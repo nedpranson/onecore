@@ -55,6 +55,12 @@ typedef enum {
 #undef X
 } oc_error;
 
+typedef enum {
+    oc_slant_roman,
+    oc_slant_italic,
+    oc_slant_oblique,
+} oc_slant;
+
 typedef struct {
     uint32_t face_index;
     oc_26p6 desired_size;
@@ -113,8 +119,16 @@ typedef struct {
     // DOING!!! need slants codepoints
     // todo: make some kind of function to get path
     // const char* path;
+
     const char* family;
+    oc_slant slant;
     uint16_t weight;
+
+    // -> wayt to verify codepoint present
+    // -> langs
+    // -> way to get ?path
+    // -> way to open oc_font
+    // -> monoscope
 } oc_font;
 
 typedef struct {

@@ -1,4 +1,4 @@
-#define ONECORE_IMPLEMENTATION
+#define ONECORE_SHARED_IMPLEMENTATION
 #include "../onecore.h"
 
 /* ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION */
@@ -60,13 +60,22 @@ void oc_free_collection(oc_collection* collection) {
     }
 }
 
+static const oc_slant oc__slant_map[] = {
+    [DWRITE_FONT_STYLE_NORMAL]  = oc_slant_roman,
+    [DWRITE_FONT_STYLE_OBLIQUE] = oc_slant_oblique,
+    [DWRITE_FONT_STYLE_ITALIC]  = oc_slant_italic,
+};
+
 static oc_font* oc__init_font(IDWriteFont* dw_font, const char* family) {
     DWRITE_FONT_WEIGHT weight;
+    DWRITE_FONT_STYLE style;
+
     oc__font_impl* impl;
 
     weight = dw_font->lpVtbl->GetWeight(dw_font);
-    impl = malloc(sizeof(*impl));
+    style = dw_font->lpVtbl->GetStyle(dw_font);
 
+    impl = malloc(sizeof(*impl));
     if (impl == NULL) {
         return NULL;
     }
@@ -74,6 +83,7 @@ static oc_font* oc__init_font(IDWriteFont* dw_font, const char* family) {
     impl->dw_font = dw_font;
     impl->font.family = family;
     impl->font.weight = (uint16_t)weight;
+    impl->font.slant = oc__slant_map[style];
 
     return &impl->font;
 }

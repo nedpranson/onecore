@@ -82,11 +82,11 @@ void test_oc_load_fonts(void) {
 
     qsort(col.fonts, col.nfonts, sizeof(oc_font*), cmpr);
 
-    // for (size_t i = 0; i < col.nfonts; i++) {
-    //     oc_font* font = col.fonts[i];
-    //
-    //     printf("%s, %d\n", font->family ,font->weight);
-    // }
+    for (size_t i = 0; i < col.nfonts; i++) {
+        oc_font* font = col.fonts[i];
+
+        printf("%s, %d, %d\n", font->family ,font->weight, font->slant);
+    }
 
     oc_free_collection(&col);
 }

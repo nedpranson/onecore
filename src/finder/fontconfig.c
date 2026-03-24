@@ -64,9 +64,12 @@ void oc_free_collection(oc_collection* collection) {
 
 static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
     FcResult result;
+
     FcValue weight_value;
 
     int weight;
+    int slant;
+
     FcChar8* family;
 
     oc__font_impl* impl;
@@ -90,6 +93,9 @@ static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
     weight = FcWeightToOpenType(weight);
     assert(weight >= 0 && weight <= UINT16_MAX);
 
+    result = FcPatternGetInteger(fc_pattern, FC_SLANT, 0, &slant);
+    assert(result == FcResultMatch);
+
     result = FcPatternGetString(fc_pattern, FC_FAMILY, 0, &family);
     assert(result == FcResultMatch);
     assert(family != NULL);
@@ -102,6 +108,18 @@ static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
     impl->fc_pattern = fc_pattern;
     impl->font.family = (char*)family;
     impl->font.weight = (uint16_t)weight;
+
+    switch (slant) {
+    case FC_SLANT_ROMAN:
+        impl->font.slant = oc_slant_roman;
+        break;
+    case FC_SLANT_ITALIC:
+        impl->font.slant = oc_slant_italic;
+        break;
+    case FC_SLANT_OBLIQUE:
+        impl->font.slant = oc_slant_oblique;
+        break;
+    }
 
     *ofont = &impl->font;
     return oc__status_ok;
