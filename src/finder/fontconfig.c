@@ -197,3 +197,19 @@ exit:
 
     return err;
 }
+
+
+bool ocf_has_character(const oc_font* font, uint32_t character) {
+    oc__font_impl* impl;
+    FcCharSet* charset;
+    FcResult result;
+
+    if (!font) {
+        return false;
+    }
+
+    impl = oc__parentof(oc__font_impl, font, font);
+    result = FcPatternGetCharSet(impl->fc_pattern, FC_CHARSET, 0, &charset);
+
+    return result == FcResultMatch && FcCharSetHasChar(charset, character);
+}

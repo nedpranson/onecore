@@ -170,6 +170,14 @@ oc_free_collection(oc_collection* collection);
 OC_PUBLIC oc_error
 oc_load_fonts(oc_collection* collection);
 
+// we could even split this project into 2 diffrent header files
+// just not sure how would opening fonts from oc_font obj would work
+// ocf_ -> onecore finder
+// ocl_ -> onecore loader
+
+OC_PUBLIC bool
+ocf_has_character(const oc_font* font, uint32_t character);
+
 // OC_PUBLIC oc_error
 // oc_open_font(const oc_font* font, const oc_open_params* uparams, oc_face* oface);
 
@@ -1189,6 +1197,22 @@ exit:
 
     return err;
 }
+
+
+bool ocf_has_character(const oc_font* font, uint32_t character) {
+    oc__font_impl* impl;
+    FcCharSet* charset;
+    FcResult result;
+
+    if (!font) {
+        return false;
+    }
+
+    impl = oc__parentof(oc__font_impl, font, font);
+    result = FcPatternGetCharSet(impl->fc_pattern, FC_CHARSET, 0, &charset);
+
+    return result == FcResultMatch && FcCharSetHasChar(charset, character);
+}
 #endif /* ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION */
 
 #ifdef ONECORE_CORETEXT_LOADER_IMPLEMENTATION
@@ -1916,6 +1940,8 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     impl->font.weight = oc__convert(ct_weight) + 0.5;
     impl->font.slant = oc_slant_roman;
 
+    // tood: implement valid one
+    //       we need crossplatform solution
     if (ct_symbolic & kCTFontItalicTrait) {
         impl->font.slant = oc_slant_italic;
     }

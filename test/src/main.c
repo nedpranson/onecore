@@ -84,8 +84,9 @@ void test_oc_load_fonts(void) {
 
     for (size_t i = 0; i < col.nfonts; i++) {
         oc_font* font = col.fonts[i];
+        bool flag = ocf_has_character(font, 0x0104);
 
-        printf("%s, %d, %d\n", font->family ,font->weight, font->slant);
+        printf("%s, %d, %d, %b\n", font->family ,font->weight, font->slant, flag);
     }
 
     oc_free_collection(&col);

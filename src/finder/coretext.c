@@ -138,6 +138,8 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     impl->font.weight = oc__convert(ct_weight) + 0.5;
     impl->font.slant = oc_slant_roman;
 
+    // tood: implement valid one
+    //       we need crossplatform solution
     if (ct_symbolic & kCTFontItalicTrait) {
         impl->font.slant = oc_slant_italic;
     }

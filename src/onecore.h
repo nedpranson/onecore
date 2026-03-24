@@ -170,6 +170,14 @@ oc_free_collection(oc_collection* collection);
 OC_PUBLIC oc_error
 oc_load_fonts(oc_collection* collection);
 
+// we could even split this project into 2 diffrent header files
+// just not sure how would opening fonts from oc_font obj would work
+// ocf_ -> onecore finder
+// ocl_ -> onecore loader
+
+OC_PUBLIC bool
+ocf_has_character(const oc_font* font, uint32_t character);
+
 // OC_PUBLIC oc_error
 // oc_open_font(const oc_font* font, const oc_open_params* uparams, oc_face* oface);
 
