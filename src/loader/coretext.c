@@ -9,7 +9,8 @@ oc_error oc_init_library(oc_library* olibrary) {
 }
 
 void oc_free_library(oc_library* library) {
-    if (library) memset(library, 0, sizeof(*library));
+    if (library)
+        memset(library, 0, sizeof(*library));
 }
 
 static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_open_params* uparams, oc_face* oface) {
@@ -314,7 +315,8 @@ void oc_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fla
 
     oc__fit_metrics(&metrics);
 exit:
-    if (ometrics) *ometrics = metrics;
+    if (ometrics)
+        *ometrics = metrics;
 }
 
 void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
@@ -360,7 +362,8 @@ void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags,
     cbox.max_y = oc_mul_16p16(cbox.max_y, scale);
 
 exit:
-    if (ocbox) *ocbox = cbox;
+    if (ocbox)
+        *ocbox = cbox;
 }
 
 typedef struct {
@@ -585,6 +588,7 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
     CTFontDrawGlyphs(ct_font, &index, &pos, 1, context);
     CGContextRelease(context);
 exit:
-    if (oextent) *oextent = extent;
+    if (oextent)
+        *oextent = extent;
     return err;
 }

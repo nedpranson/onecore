@@ -3,8 +3,8 @@
 #include "../onecore.h"
 
 /* ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION */
-#include <dwrite.h>
 #include <assert.h>
+#include <dwrite.h>
 
 struct oc_collection_impl {
     IDWriteFactory* dw_factory;
@@ -39,7 +39,8 @@ oc_error oc_init_collection(const oc_library* library, oc_collection* ocollectio
 
     collection.impl->dw_factory = library->internals;
 exit:
-    if (ocollection) *ocollection = collection;
+    if (ocollection)
+        *ocollection = collection;
     return err;
 }
 
@@ -62,9 +63,9 @@ void oc_free_collection(oc_collection* collection) {
 }
 
 static const oc_slant oc__slant_map[] = {
-    [DWRITE_FONT_STYLE_NORMAL]  = oc_slant_roman,
+    [DWRITE_FONT_STYLE_NORMAL] = oc_slant_roman,
     [DWRITE_FONT_STYLE_OBLIQUE] = oc_slant_oblique,
-    [DWRITE_FONT_STYLE_ITALIC]  = oc_slant_italic,
+    [DWRITE_FONT_STYLE_ITALIC] = oc_slant_italic,
 };
 
 static oc_font* oc__init_font(IDWriteFont* dw_font, const char* family) {
@@ -100,7 +101,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
     UINT32 font_count;
 
     union {
-        char*  str;
+        char* str;
         UINT32 len;
     }* families = NULL;
     UINT32 nfamilies = 0;
@@ -266,10 +267,13 @@ done:
     *collection->impl = tmp_impl;
     *collection = tmp_collection;
 exit:
-    while (nfonts--) oc__free_font(fonts[nfonts]);
-    while (nfamilies--) free(families[nfamilies].str);
+    while (nfonts--)
+        oc__free_font(fonts[nfonts]);
+    while (nfamilies--)
+        free(families[nfamilies].str);
 
-    if (dw_collection) dw_collection->lpVtbl->Release(dw_collection);
+    if (dw_collection)
+        dw_collection->lpVtbl->Release(dw_collection);
 
     free(fonts);
     free(families);

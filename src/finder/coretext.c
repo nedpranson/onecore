@@ -15,7 +15,7 @@ typedef struct {
 static inline void oc__free_font_impl(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
     CFRelease(impl->ct_family);
-    CFRelease(impl->ct_font);
+    CFRelease(impl->ct_face);
     free(impl);
 }
 
@@ -29,7 +29,8 @@ oc_error oc_init_collection(const oc_library* library, oc_collection* ocollectio
     }
 
 exit:
-    if (ocollection) *ocollection = collection;
+    if (ocollection)
+        *ocollection = collection;
     return err;
 }
 
@@ -41,16 +42,17 @@ void oc_free_collection(oc_collection* collection) {
 
         free(collection->fonts);
 
-        if (collection->impl) CFRelease(collection->impl);
+        if (collection->impl)
+            CFRelease(collection->impl);
         memset(collection, 0, sizeof(*collection));
     }
 }
 
 static const struct {
-  int ot;
-  double ct;
+    int ot;
+    double ct;
 } oc__weight_map[] = {
-    {   0, -0.8 },
+    { 0, -0.8 },
     { 100, -0.8 },
     { 200, -0.6 },
     { 300, -0.4 },
@@ -63,21 +65,22 @@ static const struct {
     { 700, 0.4 },
     { 800, 0.56 },
     { 900, 0.62 },
-    {1000, 1.0 }, // idk if this correct
+    { 1000, 1.0 }, // idk if this correct
 };
 
 // todo: fix these lerp functioms wtf is this
 static double oc__lerp(double x, double x1, double x2, int y1, int y2) {
     double dx = x2 - x1;
     int dy = y2 - y1;
-    assert (dx > 0 && dy >= 0 && x1 <= x && x <= x2);
-    return y1 + (dy*(x-x1) + dx / 2.0) / dx;
+    assert(dx > 0 && dy >= 0 && x1 <= x && x <= x2);
+    return y1 + (dy * (x - x1) + dx / 2.0) / dx;
 }
 
 double oc__convert(double ct_weight) {
     int i;
 
-    for (i = 1; ct_weight > oc__weight_map[i].ct; i++);
+    for (i = 1; ct_weight > oc__weight_map[i].ct; i++)
+        ;
 
     if (ct_weight == oc__weight_map[i].ct) {
         return oc__weight_map[i].ot;
@@ -85,9 +88,9 @@ double oc__convert(double ct_weight) {
 
     return oc__lerp(
         ct_weight,
-        oc__weight_map[i-1].ct,
+        oc__weight_map[i - 1].ct,
         oc__weight_map[i].ct,
-        oc__weight_map[i-1].ot,
+        oc__weight_map[i - 1].ot,
         oc__weight_map[i].ot);
 }
 
@@ -156,7 +159,8 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     }
 
 exit:
-    if (ct_traits) CFRelease(ct_traits);
+    if (ct_traits)
+        CFRelease(ct_traits);
     return impl;
 }
 
@@ -170,7 +174,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
 
     oc_font** fonts = NULL;
     uint32_t nfonts = 0;
-    
+
     oc_collection tmp_collection;
 
     if (!collection) {
@@ -224,9 +228,11 @@ done:
 
     *collection = tmp_collection;
 exit:
-    while (nfonts--) oc__free_font_impl(fonts[nfonts]);
+    while (nfonts--)
+        oc__free_font_impl(fonts[nfonts]);
     free(fonts);
-    if (ct_fonts) CFRelease(ct_fonts);
+    if (ct_fonts)
+        CFRelease(ct_fonts);
 
     return err;
 }

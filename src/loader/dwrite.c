@@ -667,7 +667,7 @@ oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, voi
     } else {
         memcpy(data, table_data + offset, length);
     }
-    
+
     dw_face->lpVtbl->ReleaseFontTable(dw_face, context);
     return oc_error_ok;
 }
@@ -726,7 +726,8 @@ void oc_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fla
 
     oc__fit_metrics(&metrics);
 exit:
-    if (ometrics) *ometrics = metrics;
+    if (ometrics)
+        *ometrics = metrics;
 }
 
 void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
@@ -775,7 +776,8 @@ void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags,
     cbox.max_y = oc_mul_16p16(cbox.max_y, scale);
 
 exit:
-    if (ocbox) *ocbox = cbox;
+    if (ocbox)
+        *ocbox = cbox;
 }
 
 bool oc_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
@@ -940,8 +942,11 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
         buffer[i] = (r + b + g) / 3.0f;
     }
 exit:
-    if (bitmap) free(bitmap);
-    if (analysis) analysis->lpVtbl->Release(analysis);
-    if (oextent) *oextent = extent;
+    if (bitmap)
+        free(bitmap);
+    if (analysis)
+        analysis->lpVtbl->Release(analysis);
+    if (oextent)
+        *oextent = extent;
     return err;
 }

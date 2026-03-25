@@ -609,7 +609,6 @@ void oc_free_face(oc_face* face) {
     memset(face, 0, sizeof(*face));
 }
 
-
 oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     FT_Error err;
     FT_Face ft_face;
@@ -735,7 +734,8 @@ void oc_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fla
 
     oc__fit_metrics(&metrics);
 exit:
-    if (ometrics) *ometrics = metrics;
+    if (ometrics)
+        *ometrics = metrics;
 }
 
 typedef struct {
@@ -828,7 +828,7 @@ void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags,
     if (!(face && ocbox)) {
         goto exit;
     }
-    
+
     ft_face = face->impl->ft_face;
     lock = &face->impl->lock;
 
@@ -855,7 +855,8 @@ void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags,
     cbox.max_x = ft_cbox.xMax;
     cbox.max_y = ft_cbox.yMax;
 exit:
-    if (ocbox) *ocbox = cbox;
+    if (ocbox)
+        *ocbox = cbox;
 }
 
 bool oc_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
@@ -994,16 +995,18 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
     memcpy(buffer, ((FT_BitmapGlyph)ft_glyph)->bitmap.buffer, length);
 
 exit:
-    if (ft_glyph) FT_Done_Glyph(ft_glyph);
-    if (oextent) *oextent = extent;
+    if (ft_glyph)
+        FT_Done_Glyph(ft_glyph);
+    if (oextent)
+        *oextent = extent;
 
     return err;
 }
 #endif /* ONECORE_FREETYPE_LOADER_IMPLEMENTATION */
 
 #ifdef ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION
-#include <fontconfig/fontconfig.h>
 #include <assert.h>
+#include <fontconfig/fontconfig.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -1041,7 +1044,8 @@ oc_error oc_init_collection(const oc_library* library, oc_collection* ocollectio
 
     collection.impl = (oc_collection_impl*)fc_config;
 exit:
-    if (ocollection) *ocollection = collection;
+    if (ocollection)
+        *ocollection = collection;
     return err;
 }
 
@@ -1075,7 +1079,7 @@ static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
     oc__font_impl* impl;
 
     (void)result;
-    
+
     result = FcPatternGet(fc_pattern, FC_WEIGHT, 0, &weight_value);
     assert(result == FcResultMatch);
 
@@ -1150,7 +1154,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
 
     // 'FcConfigGetFonts' will never return NULL; it can only return an empty 'FcFontSet' object if no fonts are found
     fc_fonts = FcConfigGetFonts(fc_config, FcSetSystem);
-    assert(fc_fonts != NULL); 
+    assert(fc_fonts != NULL);
 
     font_count = fc_fonts->nfont;
     if (font_count == 0) {
@@ -1192,12 +1196,12 @@ done:
 
     *collection = tmp_collection;
 exit:
-    while (nfonts--) oc__free_font(fonts[nfonts]);
+    while (nfonts--)
+        oc__free_font(fonts[nfonts]);
     free(fonts);
 
     return err;
 }
-
 
 bool ocf_has_character(const oc_font* font, uint32_t character) {
     oc__font_impl* impl;
@@ -1223,7 +1227,8 @@ oc_error oc_init_library(oc_library* olibrary) {
 }
 
 void oc_free_library(oc_library* library) {
-    if (library) memset(library, 0, sizeof(*library));
+    if (library)
+        memset(library, 0, sizeof(*library));
 }
 
 static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_open_params* uparams, oc_face* oface) {
@@ -1528,7 +1533,8 @@ void oc_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fla
 
     oc__fit_metrics(&metrics);
 exit:
-    if (ometrics) *ometrics = metrics;
+    if (ometrics)
+        *ometrics = metrics;
 }
 
 void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
@@ -1574,7 +1580,8 @@ void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags,
     cbox.max_y = oc_mul_16p16(cbox.max_y, scale);
 
 exit:
-    if (ocbox) *ocbox = cbox;
+    if (ocbox)
+        *ocbox = cbox;
 }
 
 typedef struct {
@@ -1799,7 +1806,8 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
     CTFontDrawGlyphs(ct_font, &index, &pos, 1, context);
     CGContextRelease(context);
 exit:
-    if (oextent) *oextent = extent;
+    if (oextent)
+        *oextent = extent;
     return err;
 }
 #endif /* ONECORE_CORETEXT_LOADER_IMPLEMENTATION */
@@ -1817,7 +1825,7 @@ typedef struct {
 static inline void oc__free_font_impl(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
     CFRelease(impl->ct_family);
-    CFRelease(impl->ct_font);
+    CFRelease(impl->ct_face);
     free(impl);
 }
 
@@ -1831,7 +1839,8 @@ oc_error oc_init_collection(const oc_library* library, oc_collection* ocollectio
     }
 
 exit:
-    if (ocollection) *ocollection = collection;
+    if (ocollection)
+        *ocollection = collection;
     return err;
 }
 
@@ -1843,16 +1852,17 @@ void oc_free_collection(oc_collection* collection) {
 
         free(collection->fonts);
 
-        if (collection->impl) CFRelease(collection->impl);
+        if (collection->impl)
+            CFRelease(collection->impl);
         memset(collection, 0, sizeof(*collection));
     }
 }
 
 static const struct {
-  int ot;
-  double ct;
+    int ot;
+    double ct;
 } oc__weight_map[] = {
-    {   0, -0.8 },
+    { 0, -0.8 },
     { 100, -0.8 },
     { 200, -0.6 },
     { 300, -0.4 },
@@ -1865,21 +1875,22 @@ static const struct {
     { 700, 0.4 },
     { 800, 0.56 },
     { 900, 0.62 },
-    {1000, 1.0 }, // idk if this correct
+    { 1000, 1.0 }, // idk if this correct
 };
 
 // todo: fix these lerp functioms wtf is this
 static double oc__lerp(double x, double x1, double x2, int y1, int y2) {
     double dx = x2 - x1;
     int dy = y2 - y1;
-    assert (dx > 0 && dy >= 0 && x1 <= x && x <= x2);
-    return y1 + (dy*(x-x1) + dx / 2.0) / dx;
+    assert(dx > 0 && dy >= 0 && x1 <= x && x <= x2);
+    return y1 + (dy * (x - x1) + dx / 2.0) / dx;
 }
 
 double oc__convert(double ct_weight) {
     int i;
 
-    for (i = 1; ct_weight > oc__weight_map[i].ct; i++);
+    for (i = 1; ct_weight > oc__weight_map[i].ct; i++)
+        ;
 
     if (ct_weight == oc__weight_map[i].ct) {
         return oc__weight_map[i].ot;
@@ -1887,9 +1898,9 @@ double oc__convert(double ct_weight) {
 
     return oc__lerp(
         ct_weight,
-        oc__weight_map[i-1].ct,
+        oc__weight_map[i - 1].ct,
         oc__weight_map[i].ct,
-        oc__weight_map[i-1].ot,
+        oc__weight_map[i - 1].ot,
         oc__weight_map[i].ot);
 }
 
@@ -1958,7 +1969,8 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     }
 
 exit:
-    if (ct_traits) CFRelease(ct_traits);
+    if (ct_traits)
+        CFRelease(ct_traits);
     return impl;
 }
 
@@ -1972,7 +1984,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
 
     oc_font** fonts = NULL;
     uint32_t nfonts = 0;
-    
+
     oc_collection tmp_collection;
 
     if (!collection) {
@@ -2026,9 +2038,11 @@ done:
 
     *collection = tmp_collection;
 exit:
-    while (nfonts--) oc__free_font_impl(fonts[nfonts]);
+    while (nfonts--)
+        oc__free_font_impl(fonts[nfonts]);
     free(fonts);
-    if (ct_fonts) CFRelease(ct_fonts);
+    if (ct_fonts)
+        CFRelease(ct_fonts);
 
     return err;
 }
@@ -2740,7 +2754,7 @@ oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, voi
     } else {
         memcpy(data, table_data + offset, length);
     }
-    
+
     dw_face->lpVtbl->ReleaseFontTable(dw_face, context);
     return oc_error_ok;
 }
@@ -2799,7 +2813,8 @@ void oc_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fla
 
     oc__fit_metrics(&metrics);
 exit:
-    if (ometrics) *ometrics = metrics;
+    if (ometrics)
+        *ometrics = metrics;
 }
 
 void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
@@ -2848,7 +2863,8 @@ void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags,
     cbox.max_y = oc_mul_16p16(cbox.max_y, scale);
 
 exit:
-    if (ocbox) *ocbox = cbox;
+    if (ocbox)
+        *ocbox = cbox;
 }
 
 bool oc_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
@@ -3013,16 +3029,19 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
         buffer[i] = (r + b + g) / 3.0f;
     }
 exit:
-    if (bitmap) free(bitmap);
-    if (analysis) analysis->lpVtbl->Release(analysis);
-    if (oextent) *oextent = extent;
+    if (bitmap)
+        free(bitmap);
+    if (analysis)
+        analysis->lpVtbl->Release(analysis);
+    if (oextent)
+        *oextent = extent;
     return err;
 }
 #endif /* ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION */
 
 #ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
-#include <dwrite.h>
 #include <assert.h>
+#include <dwrite.h>
 
 struct oc_collection_impl {
     IDWriteFactory* dw_factory;
@@ -3057,7 +3076,8 @@ oc_error oc_init_collection(const oc_library* library, oc_collection* ocollectio
 
     collection.impl->dw_factory = library->internals;
 exit:
-    if (ocollection) *ocollection = collection;
+    if (ocollection)
+        *ocollection = collection;
     return err;
 }
 
@@ -3080,9 +3100,9 @@ void oc_free_collection(oc_collection* collection) {
 }
 
 static const oc_slant oc__slant_map[] = {
-    [DWRITE_FONT_STYLE_NORMAL]  = oc_slant_roman,
+    [DWRITE_FONT_STYLE_NORMAL] = oc_slant_roman,
     [DWRITE_FONT_STYLE_OBLIQUE] = oc_slant_oblique,
-    [DWRITE_FONT_STYLE_ITALIC]  = oc_slant_italic,
+    [DWRITE_FONT_STYLE_ITALIC] = oc_slant_italic,
 };
 
 static oc_font* oc__init_font(IDWriteFont* dw_font, const char* family) {
@@ -3118,7 +3138,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
     UINT32 font_count;
 
     union {
-        char*  str;
+        char* str;
         UINT32 len;
     }* families = NULL;
     UINT32 nfamilies = 0;
@@ -3284,10 +3304,13 @@ done:
     *collection->impl = tmp_impl;
     *collection = tmp_collection;
 exit:
-    while (nfonts--) oc__free_font(fonts[nfonts]);
-    while (nfamilies--) free(families[nfamilies].str);
+    while (nfonts--)
+        oc__free_font(fonts[nfonts]);
+    while (nfamilies--)
+        free(families[nfamilies].str);
 
-    if (dw_collection) dw_collection->lpVtbl->Release(dw_collection);
+    if (dw_collection)
+        dw_collection->lpVtbl->Release(dw_collection);
 
     free(fonts);
     free(families);

@@ -2,8 +2,8 @@
 #include "../onecore.h"
 
 /* ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION */
-#include <fontconfig/fontconfig.h>
 #include <assert.h>
+#include <fontconfig/fontconfig.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -41,7 +41,8 @@ oc_error oc_init_collection(const oc_library* library, oc_collection* ocollectio
 
     collection.impl = (oc_collection_impl*)fc_config;
 exit:
-    if (ocollection) *ocollection = collection;
+    if (ocollection)
+        *ocollection = collection;
     return err;
 }
 
@@ -75,7 +76,7 @@ static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
     oc__font_impl* impl;
 
     (void)result;
-    
+
     result = FcPatternGet(fc_pattern, FC_WEIGHT, 0, &weight_value);
     assert(result == FcResultMatch);
 
@@ -150,7 +151,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
 
     // 'FcConfigGetFonts' will never return NULL; it can only return an empty 'FcFontSet' object if no fonts are found
     fc_fonts = FcConfigGetFonts(fc_config, FcSetSystem);
-    assert(fc_fonts != NULL); 
+    assert(fc_fonts != NULL);
 
     font_count = fc_fonts->nfont;
     if (font_count == 0) {
@@ -192,12 +193,12 @@ done:
 
     *collection = tmp_collection;
 exit:
-    while (nfonts--) oc__free_font(fonts[nfonts]);
+    while (nfonts--)
+        oc__free_font(fonts[nfonts]);
     free(fonts);
 
     return err;
 }
-
 
 bool ocf_has_character(const oc_font* font, uint32_t character) {
     oc__font_impl* impl;

@@ -203,7 +203,6 @@ void oc_free_face(oc_face* face) {
     memset(face, 0, sizeof(*face));
 }
 
-
 oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     FT_Error err;
     FT_Face ft_face;
@@ -329,7 +328,8 @@ void oc_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fla
 
     oc__fit_metrics(&metrics);
 exit:
-    if (ometrics) *ometrics = metrics;
+    if (ometrics)
+        *ometrics = metrics;
 }
 
 typedef struct {
@@ -422,7 +422,7 @@ void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags,
     if (!(face && ocbox)) {
         goto exit;
     }
-    
+
     ft_face = face->impl->ft_face;
     lock = &face->impl->lock;
 
@@ -449,7 +449,8 @@ void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags,
     cbox.max_x = ft_cbox.xMax;
     cbox.max_y = ft_cbox.yMax;
 exit:
-    if (ocbox) *ocbox = cbox;
+    if (ocbox)
+        *ocbox = cbox;
 }
 
 bool oc_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
@@ -588,8 +589,10 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
     memcpy(buffer, ((FT_BitmapGlyph)ft_glyph)->bitmap.buffer, length);
 
 exit:
-    if (ft_glyph) FT_Done_Glyph(ft_glyph);
-    if (oextent) *oextent = extent;
+    if (ft_glyph)
+        FT_Done_Glyph(ft_glyph);
+    if (oextent)
+        *oextent = extent;
 
     return err;
 }

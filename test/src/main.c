@@ -86,7 +86,7 @@ void test_oc_load_fonts(void) {
         oc_font* font = col.fonts[i];
         bool flag = ocf_has_character(font, 0x0104);
 
-        printf("%s, %d, %d, %b\n", font->family ,font->weight, font->slant, flag);
+        printf("%s, %d, %d, %d\n", font->family, font->weight, font->slant, flag);
     }
 
     oc_free_collection(&col);
@@ -291,17 +291,17 @@ void test_oc_test_sizes(void) {
 
     err = oc_set_size(&face, 65535 << 6, 0);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    TEST_ASSERT_EQUAL_UINT16(65535 , face.size.ppem);
+    TEST_ASSERT_EQUAL_UINT16(65535, face.size.ppem);
     TEST_ASSERT_EQUAL_INT32(134215680, face.size.scale);
 
     err = oc_set_size(&face, 65536 << 6, 0);
     TEST_ASSERT_EQUAL(oc_error_invalid_pixel_size, err);
-    TEST_ASSERT_EQUAL_UINT16(65535 , face.size.ppem);
+    TEST_ASSERT_EQUAL_UINT16(65535, face.size.ppem);
     TEST_ASSERT_EQUAL_INT32(134215680, face.size.scale);
 
     err = oc_set_size(&face, 4194272, 72);
     TEST_ASSERT_EQUAL(oc_error_invalid_pixel_size, err);
-    TEST_ASSERT_EQUAL_UINT16(65535 , face.size.ppem);
+    TEST_ASSERT_EQUAL_UINT16(65535, face.size.ppem);
     TEST_ASSERT_EQUAL_INT32(134215680, face.size.scale);
 
     err = oc_set_size(&face, 12 << 6, 96);
@@ -940,9 +940,9 @@ int main(void) {
     RUN_TEST(test_oc_font_metrics);
     RUN_TEST(test_oc_get_glyph_metrics);
     RUN_TEST(test_oc_get_glyph_metrics_scaled);
-    //RUN_TEST(test_oc_get_glyph_metrics_hinted);
+    // RUN_TEST(test_oc_get_glyph_metrics_hinted);
     RUN_TEST(test_oc_get_glyph_cbox);
-    //RUN_TEST(test_oc_get_glyph_bbox_hinted);
+    // RUN_TEST(test_oc_get_glyph_bbox_hinted);
     RUN_TEST(test_oc_get_outline);
     RUN_TEST(test_oc_render_glyph);
 
