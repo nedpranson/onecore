@@ -1,3 +1,4 @@
+#include "winerror.h"
 #define ONECORE_SHARED_IMPLEMENTATION
 #include "../onecore.h"
 
@@ -275,4 +276,22 @@ exit:
     free(wide_buf);
 
     return err;
+}
+
+bool ocf_has_character(const oc_font* font, uint32_t character) {
+    oc__font_impl* impl;
+    IDWriteFont* dw_font;
+
+    HRESULT result;
+    WINBOOL exists;
+
+    if (!font) {
+        return false;
+    }
+
+    impl = oc__parentof(oc__font_impl, font, font);
+    dw_font = impl->dw_font;
+
+    result = dw_font->lpVtbl->HasCharacter(dw_font, character, &exists);
+    return result == S_OK && exists;
 }

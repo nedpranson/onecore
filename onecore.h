@@ -1809,6 +1809,7 @@ exit:
 
 typedef struct {
     CTFontDescriptorRef ct_font;
+    CTFontRef ct_face;
     CFStringRef ct_family;
     oc_font font;
 } oc__font_impl;
@@ -1816,6 +1817,7 @@ typedef struct {
 static inline void oc__free_font_impl(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
     CFRelease(impl->ct_family);
+    CFRelease(impl->ct_font);
     free(impl);
 }
 
@@ -1896,6 +1898,7 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
 
     CFDictionaryRef ct_traits = NULL;
     CFStringRef ct_family;
+    CTFontRef ct_face;
 
     const char* family;
 
@@ -1928,14 +1931,22 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     // todo: test is it always utf8 and null terminated
     assert(family != NULL);
 
+    ct_face = CTFontCreateWithFontDescriptor(ct_font, 0.0, NULL);
+    if (ct_face == NULL) {
+        CFRelease(ct_family);
+        goto exit;
+    }
+
     impl = malloc(sizeof(*impl));
     if (impl == NULL) {
         CFRelease(ct_family);
+        CFRelease(ct_face);
         goto exit;
     }
 
     impl->ct_font = ct_font;
     impl->ct_family = ct_family;
+    impl->ct_face = ct_face;
     impl->font.family = family;
     impl->font.weight = oc__convert(ct_weight) + 0.5;
     impl->font.slant = oc_slant_roman;
@@ -2020,6 +2031,46 @@ exit:
     if (ct_fonts) CFRelease(ct_fonts);
 
     return err;
+}
+
+bool ocf_has_character(const oc_font* font, uint32_t charcode) {
+    oc__font_impl* impl;
+    CTFontRef ct_face;
+
+    CGGlyph glyphs[2];
+    UniChar chars[2];
+
+    if (!font || charcode > 0x10FFFF) {
+        return false;
+    }
+
+    impl = oc__parentof(oc__font_impl, font, font);
+    ct_face = impl->ct_face;
+
+    // check out CFStringGetSurrogatePairForLongCharacter
+
+    // CTFontGetGlyphsForCharacters writes cg_glyph[1] when the length is 2 (i.e. when encoding a surrogate pair)
+    // in this case it will always be set to 0, but we still need to pass 2 elements
+    // we reuse the second element to store the utf16 character sequence length
+    if (charcode <= 0xFFFF) {
+        chars[0] = charcode;
+        glyphs[1] = 1;
+    } else {
+        uint32_t norm = charcode - 0x10000;
+        chars[0] = (norm >> 10) + 0xD800;
+        chars[1] = (norm & 0x3FF) + 0xDC00;
+        glyphs[1] = 2;
+    }
+
+    // cg_glyph[0] will always be set by Core Text no matter the status
+    // thus we can ignore returned value
+    CTFontGetGlyphsForCharacters(
+        ct_face,
+        chars,
+        glyphs,
+        glyphs[1]);
+
+    return glyphs[0];
 }
 #endif /* ONECORE_CORETEXT_LINDER_IMPLEMENTATION */
 
@@ -3243,5 +3294,23 @@ exit:
     free(wide_buf);
 
     return err;
+}
+
+bool ocf_has_character(const oc_font* font, uint32_t character) {
+    oc__font_impl* impl;
+    IDWriteFont* dw_font;
+
+    HRESULT result;
+    WINBOOL exists;
+
+    if (!font) {
+        return false;
+    }
+
+    impl = oc__parentof(oc__font_impl, font, font);
+    dw_font = impl->dw_font;
+
+    result = dw_font->lpVtbl->HasCharacter(dw_font, character, &exists);
+    return result == S_OK && exists;
 }
 #endif /* ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION */
