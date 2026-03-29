@@ -383,6 +383,51 @@ void oc_free_library(oc_library* library) {
     memset(library, 0, sizeof(oc_library));
 }
 
+static oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_face, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
+    DWRITE_FONT_METRICS metrics;
+    oc_16p16 scaled;
+    oc_16p16 scale;
+    int32_t ppem;
+    oc_face face;
+
+    assert(dpi > 0);
+    assert(desired_size >= 1 << 6);
+    
+    face.impl = malloc(sizeof(face));
+    if (face.impl == NULL) {
+        dw_face->lpVtbl->Release(dw_face);
+        return oc_error_out_of_memory;
+    }
+
+    dw_face->lpVtbl->GetMetrics(dw_face, &metrics);
+
+    // https://github.com/freetype/freetype/blob/85c8efe0afa5ad0df35114e317a065f544943c52/include/freetype/internal/ftobjs.h#L665
+    scaled = (desired_size * dpi + 36) / 72;
+    scale = oc_div_16p16(scaled, metrics.designUnitsPerEm);
+
+    // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L3368
+    ppem = (scaled + 32) >> 6;
+    if (ppem > UINT16_MAX) {
+        dw_face->lpVtbl->Release(dw_face);
+        return oc_error_invalid_pixel_size;
+    }
+
+    face.impl->dw_face = dw_face;
+    face.impl->dw_factory = dw_factory;
+    face.size.scale = scale;
+    face.size.ppem = (uint16_t)ppem;
+    face.upem = metrics.designUnitsPerEm;
+    face.ascent = metrics.ascent;
+    face.descent = metrics.descent;
+    face.leading = metrics.lineGap;
+    face.underline_position = metrics.underlinePosition;
+    face.underline_thickness = metrics.underlineThickness;
+
+    *oface = face;
+    return oc_error_ok;
+
+}
+
 static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWriteFontFile* font_file, const oc_open_params* uparams, oc_face* oface) {
     HRESULT err;
     WINBOOL is_supported_fonttype;
@@ -390,11 +435,6 @@ static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWrite
     DWRITE_FONT_FACE_TYPE face_type;
     IDWriteFontFace* dw_face;
     UINT32 face_num;
-    oc_face face;
-    DWRITE_FONT_METRICS metrics;
-    oc_16p16 scaled;
-    oc_16p16 scale;
-    int32_t ppem;
     oc_open_params params = oc__open_params_defaults(uparams);
 
     err = font_file->lpVtbl->Analyze(
@@ -437,37 +477,7 @@ static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWrite
         return oc__unexpected(err);
     }
 
-    face.impl = malloc(sizeof(face));
-    if (face.impl == NULL) {
-        dw_face->lpVtbl->Release(dw_face);
-        return oc_error_out_of_memory;
-    }
-
-    dw_face->lpVtbl->GetMetrics(dw_face, &metrics);
-
-    // https://github.com/freetype/freetype/blob/85c8efe0afa5ad0df35114e317a065f544943c52/include/freetype/internal/ftobjs.h#L665
-    scaled = (params.desired_size * params.dpi + 36) / 72;
-    scale = oc_div_16p16(scaled, metrics.designUnitsPerEm);
-
-    // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L3368
-    ppem = (scaled + 32) >> 6;
-    if (ppem > UINT16_MAX) {
-        return oc_error_invalid_pixel_size;
-    }
-
-    face.impl->dw_face = dw_face;
-    face.impl->dw_factory = dw_factory;
-    face.size.scale = scale;
-    face.size.ppem = (uint16_t)ppem;
-    face.upem = metrics.designUnitsPerEm;
-    face.ascent = metrics.ascent;
-    face.descent = metrics.descent;
-    face.leading = metrics.lineGap;
-    face.underline_position = metrics.underlinePosition;
-    face.underline_thickness = metrics.underlineThickness;
-
-    *oface = face;
-    return oc_error_ok;
+    return oc__init_face(dw_factory, dw_face, params.desired_size, params.dpi, oface);
 }
 
 oc_error oc_open_face(const oc_library* library, const char* path, const oc_open_params* uparams, oc_face* oface) {

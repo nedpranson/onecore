@@ -115,15 +115,14 @@ typedef struct oc_collection_impl oc_collection_impl;
 //typedef struct oc_font oc_font;
 
 // todo: integrate even more fields
+// todo: need a way to know homy mady glyphs a font has
 typedef struct {
-    // DOING!!! need slants codepoints
-    // todo: make some kind of function to get path
-    // const char* path;
+    // todo: make some kind of function to get path and index at the same time
 
+    // todo: check if family names change on diff locales
     const char* family;
     oc_slant slant;
     uint16_t weight;
-
     // -> wayt to verify codepoint present
     // -> langs
     // -> way to get ?path
@@ -178,8 +177,12 @@ oc_load_fonts(oc_collection* collection);
 OC_PUBLIC bool
 ocf_has_character(const oc_font* font, uint32_t character);
 
-// OC_PUBLIC oc_error
-// oc_open_font(const oc_font* font, const oc_open_params* uparams, oc_face* oface);
+OC_PUBLIC oc_error
+ocf_open_font(
+    const oc_font* font,
+    oc_26p6 desired_size,
+    uint16_t dpi,
+    oc_face* oface);
 
 OC_PUBLIC oc_error
 oc_open_face(

@@ -7,7 +7,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+struct oc_collection_impl {
+    const oc_library* oc_library;
+    FcConfig* fc_config;
+};
+
 typedef struct {
+    const oc_library* oc_library;
     FcPattern* fc_pattern;
     oc_font font;
 } oc__font_impl;
@@ -26,20 +32,28 @@ static inline void oc__free_font(oc_font* font) {
 oc_error oc_init_collection(const oc_library* library, oc_collection* ocollection) {
     oc_error err = oc_error_ok;
     FcConfig* fc_config;
+    oc_collection_impl* impl;
     oc_collection collection = { 0 };
 
     if (!(library && ocollection)) {
-        err = oc_error_invalid_param;
-        goto exit;
+        oc__exit(oc_error_invalid_param);
     }
 
     fc_config = FcInitLoadConfig();
     if (fc_config == NULL) {
-        err = oc_error_out_of_memory;
-        goto exit;
+        oc__exit(oc_error_out_of_memory);
     }
 
-    collection.impl = (oc_collection_impl*)fc_config;
+    impl = malloc(sizeof(*impl));
+    if (impl == NULL) {
+        FcConfigDestroy(fc_config);
+        oc__exit(oc_error_out_of_memory);
+    }
+
+    impl->oc_library = library;
+    impl->fc_config = fc_config;
+
+    collection.impl = impl;
 exit:
     if (ocollection)
         *ocollection = collection;
@@ -58,12 +72,13 @@ void oc_free_collection(oc_collection* collection) {
         free(collection->fonts);
 
         FcConfigDestroy(fc_config);
+        free(collection->impl);
 
         memset(collection, 0, sizeof(*collection));
     }
 }
 
-static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
+static oc__status oc__init_font(const oc_library* library, FcPattern* fc_pattern, oc_font** ofont) {
     FcResult result;
 
     FcValue weight_value;
@@ -106,6 +121,7 @@ static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
         return oc__status_memory;
     }
 
+    impl->oc_library = library;
     impl->fc_pattern = fc_pattern;
     impl->font.family = (char*)family;
     impl->font.weight = (uint16_t)weight;
@@ -128,6 +144,7 @@ static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
 
 oc_error oc_load_fonts(oc_collection* collection) {
     oc_error err = oc_error_ok;
+    const oc_library* oc_library;
 
     FcConfig* fc_config;
     FcFontSet* fc_fonts;
@@ -143,7 +160,9 @@ oc_error oc_load_fonts(oc_collection* collection) {
         oc__exit(oc_error_invalid_param);
     }
 
-    fc_config = (FcConfig*)collection->impl;
+    oc_library = collection->impl->oc_library;
+    fc_config = collection->impl->fc_config;
+
     if (!FcConfigBuildFonts(fc_config)) {
         // todo: test what fontconfig does when cache is corrupted
         oc__exit(oc_error_out_of_memory);
@@ -170,7 +189,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
         oc_font* font;
 
         pattern = fc_fonts->fonts[i];
-        status = oc__init_font(pattern, &font);
+        status = oc__init_font(oc_library, pattern, &font);
 
         switch (status) {
         case oc__status_ok:
@@ -184,7 +203,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
         }
     }
 done:
-    tmp_collection.impl = (oc_collection_impl*)fc_config;
+    tmp_collection.impl = collection->impl;
     tmp_collection.fonts = fonts;
     tmp_collection.nfonts = nfonts;
 
@@ -213,4 +232,39 @@ bool ocf_has_character(const oc_font* font, uint32_t character) {
     result = FcPatternGetCharSet(impl->fc_pattern, FC_CHARSET, 0, &charset);
 
     return result == FcResultMatch && FcCharSetHasChar(charset, character);
+}
+
+oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
+    oc__font_impl* impl;
+
+    FcPattern* pattern;
+    FcResult result;
+
+    FcChar8* file;
+    int index;
+
+    oc_open_params params;
+
+    if (!font) {
+        return oc_error_invalid_param;
+    }
+
+    impl  = oc__parentof(oc__font_impl, font, font);
+    pattern = impl->fc_pattern;
+
+    result = FcPatternGetString(pattern, FC_FILE, 0, &file);
+    if (result != FcResultMatch) {
+        return oc__unexpected(result);
+    }
+
+    result = FcPatternGetInteger(pattern, FC_INDEX, 0, &index);
+    if (result != FcResultMatch) {
+        return oc__unexpected(result);
+    }
+
+    params.face_index = index;
+    params.desired_size = desired_size;
+    params.dpi = dpi;
+
+    return oc_open_face(impl->oc_library, (char*)file, &params, oface);
 }

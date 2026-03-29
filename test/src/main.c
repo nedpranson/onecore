@@ -9,6 +9,8 @@
 oc_library g_library;
 oc_face g_arial_ttf;
 
+// todo: test emoji fonts
+
 void setUp(void) { }
 
 void tearDown(void) { }
@@ -84,9 +86,22 @@ void test_oc_load_fonts(void) {
 
     for (size_t i = 0; i < col.nfonts; i++) {
         oc_font* font = col.fonts[i];
-        bool flag = ocf_has_character(font, 0x0104);
+        oc_face face;
+        oc_error err;
 
-        printf("%s, %d, %d, %d\n", font->family, font->weight, font->slant, flag);
+        bool flag = ocf_has_character(font, 0x0104);
+        printf("%s, %d, %d, %d", font->family, font->weight, font->slant, flag);
+
+        err = ocf_open_font(font, 0, 0, &face);
+        if (err == oc_error_invalid_pixel_size) {
+            printf(" (fixed size)");
+        } else {
+            TEST_ASSERT_EQUAL(oc_error_ok, err);
+            TEST_ASSERT_EQUAL(flag, !!oc_get_char_index(&face, 0x0104));
+
+            oc_free_face(&face);
+        }
+        printf("\n");
     }
 
     oc_free_collection(&col);

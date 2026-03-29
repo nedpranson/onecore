@@ -2,6 +2,9 @@
 #define ONECORE_SHARED_IMPLEMENTATION
 #include "../onecore.h"
 
+#include <dwrite.h>
+extern oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_face, oc_26p6 desired_size, uint16_t dpi, oc_face* oface);
+
 /* ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION */
 #include <assert.h>
 #include <dwrite.h>
@@ -13,6 +16,7 @@ struct oc_collection_impl {
 };
 
 typedef struct {
+    IDWriteFactory* dw_factory;
     IDWriteFont* dw_font;
     oc_font font;
 } oc__font_impl;
@@ -68,7 +72,7 @@ static const oc_slant oc__slant_map[] = {
     [DWRITE_FONT_STYLE_ITALIC] = oc_slant_italic,
 };
 
-static oc_font* oc__init_font(IDWriteFont* dw_font, const char* family) {
+static oc_font* oc__init_font(IDWriteFactory* dw_factory, IDWriteFont* dw_font, const char* family) {
     DWRITE_FONT_WEIGHT weight;
     DWRITE_FONT_STYLE style;
 
@@ -82,6 +86,7 @@ static oc_font* oc__init_font(IDWriteFont* dw_font, const char* family) {
         return NULL;
     }
 
+    impl->dw_factory = dw_factory;
     impl->dw_font = dw_font;
     impl->font.family = family;
     impl->font.weight = (uint16_t)weight;
@@ -239,7 +244,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
             hr = font_family->lpVtbl->GetFont(font_family, font_index, &dw_font);
             assert(hr == S_OK);
 
-            font = oc__init_font(dw_font, family);
+            font = oc__init_font(dw_factory, dw_font, family);
             if (font == NULL) {
                 font_family->lpVtbl->Release(font_family);
                 oc__exit(oc_error_out_of_memory);
@@ -298,4 +303,36 @@ bool ocf_has_character(const oc_font* font, uint32_t character) {
 
     result = dw_font->lpVtbl->HasCharacter(dw_font, character, &exists);
     return result == S_OK && exists;
+}
+
+oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
+    oc__font_impl* impl;
+    IDWriteFontFace* face;
+    HRESULT result;
+
+    if (!font) {
+        return oc_error_invalid_param;
+    }
+
+    impl = oc__parentof(oc__font_impl, font, font);
+    result = impl->dw_font->lpVtbl->CreateFontFace(impl->dw_font, &face);
+
+    switch (result) {
+    case S_OK:
+        break;
+    default:
+        return oc__unexpected(result);
+    }
+
+    if (desired_size == 0) {
+        desired_size = 12 << 6;
+    } else if (desired_size < 1 << 6) {
+        desired_size = 1 << 6;
+    }
+
+    if (dpi == 0) {
+        dpi = 72;
+    }
+    
+    return oc__init_face(impl->dw_factory, face, desired_size, dpi, oface);
 }

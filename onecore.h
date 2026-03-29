@@ -115,15 +115,14 @@ typedef struct oc_collection_impl oc_collection_impl;
 //typedef struct oc_font oc_font;
 
 // todo: integrate even more fields
+// todo: need a way to know homy mady glyphs a font has
 typedef struct {
-    // DOING!!! need slants codepoints
-    // todo: make some kind of function to get path
-    // const char* path;
+    // todo: make some kind of function to get path and index at the same time
 
+    // todo: check if family names change on diff locales
     const char* family;
     oc_slant slant;
     uint16_t weight;
-
     // -> wayt to verify codepoint present
     // -> langs
     // -> way to get ?path
@@ -178,8 +177,12 @@ oc_load_fonts(oc_collection* collection);
 OC_PUBLIC bool
 ocf_has_character(const oc_font* font, uint32_t character);
 
-// OC_PUBLIC oc_error
-// oc_open_font(const oc_font* font, const oc_open_params* uparams, oc_face* oface);
+OC_PUBLIC oc_error
+ocf_open_font(
+    const oc_font* font,
+    oc_26p6 desired_size,
+    uint16_t dpi,
+    oc_face* oface);
 
 OC_PUBLIC oc_error
 oc_open_face(
@@ -1010,7 +1013,13 @@ exit:
 #include <stdlib.h>
 #include <string.h>
 
+struct oc_collection_impl {
+    const oc_library* oc_library;
+    FcConfig* fc_config;
+};
+
 typedef struct {
+    const oc_library* oc_library;
     FcPattern* fc_pattern;
     oc_font font;
 } oc__font_impl;
@@ -1029,20 +1038,28 @@ static inline void oc__free_font(oc_font* font) {
 oc_error oc_init_collection(const oc_library* library, oc_collection* ocollection) {
     oc_error err = oc_error_ok;
     FcConfig* fc_config;
+    oc_collection_impl* impl;
     oc_collection collection = { 0 };
 
     if (!(library && ocollection)) {
-        err = oc_error_invalid_param;
-        goto exit;
+        oc__exit(oc_error_invalid_param);
     }
 
     fc_config = FcInitLoadConfig();
     if (fc_config == NULL) {
-        err = oc_error_out_of_memory;
-        goto exit;
+        oc__exit(oc_error_out_of_memory);
     }
 
-    collection.impl = (oc_collection_impl*)fc_config;
+    impl = malloc(sizeof(*impl));
+    if (impl == NULL) {
+        FcConfigDestroy(fc_config);
+        oc__exit(oc_error_out_of_memory);
+    }
+
+    impl->oc_library = library;
+    impl->fc_config = fc_config;
+
+    collection.impl = impl;
 exit:
     if (ocollection)
         *ocollection = collection;
@@ -1061,12 +1078,13 @@ void oc_free_collection(oc_collection* collection) {
         free(collection->fonts);
 
         FcConfigDestroy(fc_config);
+        free(collection->impl);
 
         memset(collection, 0, sizeof(*collection));
     }
 }
 
-static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
+static oc__status oc__init_font(const oc_library* library, FcPattern* fc_pattern, oc_font** ofont) {
     FcResult result;
 
     FcValue weight_value;
@@ -1109,6 +1127,7 @@ static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
         return oc__status_memory;
     }
 
+    impl->oc_library = library;
     impl->fc_pattern = fc_pattern;
     impl->font.family = (char*)family;
     impl->font.weight = (uint16_t)weight;
@@ -1131,6 +1150,7 @@ static oc__status oc__init_font(FcPattern* fc_pattern, oc_font** ofont) {
 
 oc_error oc_load_fonts(oc_collection* collection) {
     oc_error err = oc_error_ok;
+    const oc_library* oc_library;
 
     FcConfig* fc_config;
     FcFontSet* fc_fonts;
@@ -1146,7 +1166,9 @@ oc_error oc_load_fonts(oc_collection* collection) {
         oc__exit(oc_error_invalid_param);
     }
 
-    fc_config = (FcConfig*)collection->impl;
+    oc_library = collection->impl->oc_library;
+    fc_config = collection->impl->fc_config;
+
     if (!FcConfigBuildFonts(fc_config)) {
         // todo: test what fontconfig does when cache is corrupted
         oc__exit(oc_error_out_of_memory);
@@ -1173,7 +1195,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
         oc_font* font;
 
         pattern = fc_fonts->fonts[i];
-        status = oc__init_font(pattern, &font);
+        status = oc__init_font(oc_library, pattern, &font);
 
         switch (status) {
         case oc__status_ok:
@@ -1187,7 +1209,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
         }
     }
 done:
-    tmp_collection.impl = (oc_collection_impl*)fc_config;
+    tmp_collection.impl = collection->impl;
     tmp_collection.fonts = fonts;
     tmp_collection.nfonts = nfonts;
 
@@ -1217,6 +1239,41 @@ bool ocf_has_character(const oc_font* font, uint32_t character) {
 
     return result == FcResultMatch && FcCharSetHasChar(charset, character);
 }
+
+oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
+    oc__font_impl* impl;
+
+    FcPattern* pattern;
+    FcResult result;
+
+    FcChar8* file;
+    int index;
+
+    oc_open_params params;
+
+    if (!font) {
+        return oc_error_invalid_param;
+    }
+
+    impl  = oc__parentof(oc__font_impl, font, font);
+    pattern = impl->fc_pattern;
+
+    result = FcPatternGetString(pattern, FC_FILE, 0, &file);
+    if (result != FcResultMatch) {
+        return oc__unexpected(result);
+    }
+
+    result = FcPatternGetInteger(pattern, FC_INDEX, 0, &index);
+    if (result != FcResultMatch) {
+        return oc__unexpected(result);
+    }
+
+    params.face_index = index;
+    params.desired_size = desired_size;
+    params.dpi = dpi;
+
+    return oc_open_face(impl->oc_library, (char*)file, &params, oface);
+}
 #endif /* ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION */
 
 #ifdef ONECORE_CORETEXT_LOADER_IMPLEMENTATION
@@ -1231,14 +1288,9 @@ void oc_free_library(oc_library* library) {
         memset(library, 0, sizeof(*library));
 }
 
-static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_open_params* uparams, oc_face* oface) {
-    oc_face face;
-
+static oc_error oc__init_face(CTFontDescriptorRef  descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     CTFontRef ct_font;
-    CTFontDescriptorRef descriptor;
-
-    CFIndex count = CFArrayGetCount(descriptors);
-    oc_open_params params = oc__open_params_defaults(uparams);
+    oc_face face;
 
     oc_16p16 scaled;
     CGFloat size;
@@ -1246,20 +1298,7 @@ static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_
     oc_16p16 ppem;
     uint16_t upem;
 
-    if (count == 0) {
-        return oc_error_failed_to_open;
-    }
-
-    if (params.face_index >= count) {
-        return oc_error_invalid_param;
-    }
-
-    descriptor = (CTFontDescriptorRef)CFArrayGetValueAtIndex(descriptors, params.face_index);
-    if (descriptor == NULL) {
-        return oc_error_out_of_memory;
-    }
-
-    scaled = (params.desired_size * params.dpi + 36) / 72;
+    scaled = (desired_size * dpi + 36) / 72;
     ct_font = CTFontCreateWithFontDescriptor(descriptor, scaled / 64.0, NULL);
 
     if (ct_font == NULL) {
@@ -1268,6 +1307,7 @@ static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_
 
     ppem = (scaled + 32) >> 6;
     if (ppem > UINT16_MAX) {
+        CFRelease(ct_font);
         return oc_error_invalid_pixel_size;
     }
 
@@ -1286,6 +1326,28 @@ static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_
 
     *oface = face;
     return oc_error_ok;
+}
+
+static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_open_params* uparams, oc_face* oface) {
+    CTFontDescriptorRef descriptor;
+
+    CFIndex count = CFArrayGetCount(descriptors);
+    oc_open_params params = oc__open_params_defaults(uparams);
+
+    if (count == 0) {
+        return oc_error_failed_to_open;
+    }
+
+    if (params.face_index >= count) {
+        return oc_error_invalid_param;
+    }
+
+    descriptor = (CTFontDescriptorRef)CFArrayGetValueAtIndex(descriptors, params.face_index);
+    if (descriptor == NULL) {
+        return oc_error_out_of_memory;
+    }
+
+    return oc__init_face(descriptor, params.desired_size, params.dpi, oface);
 }
 
 oc_error oc_open_face(const oc_library* library, const char* path, const oc_open_params* uparams, oc_face* oface) {
@@ -2086,6 +2148,29 @@ bool ocf_has_character(const oc_font* font, uint32_t charcode) {
 
     return glyphs[0];
 }
+
+
+oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
+    oc__font_impl* impl;
+
+    if (!font) {
+        return oc_error_invalid_param;
+    }
+
+    impl = oc__parentof(oc__font_impl, font, font);
+
+    if (desired_size == 0) {
+        desired_size = 12 << 6;
+    } else if (desired_size < 1 << 6) {
+        desired_size = 1 << 6;
+    }
+
+    if (dpi == 0) {
+        dpi = 72;
+    }
+
+    return oc__init_face(impl->ct_font, desired_size, dpi, oface);
+}
 #endif /* ONECORE_CORETEXT_LINDER_IMPLEMENTATION */
 
 #ifdef ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
@@ -2470,6 +2555,51 @@ void oc_free_library(oc_library* library) {
     memset(library, 0, sizeof(oc_library));
 }
 
+static oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_face, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
+    DWRITE_FONT_METRICS metrics;
+    oc_16p16 scaled;
+    oc_16p16 scale;
+    int32_t ppem;
+    oc_face face;
+
+    assert(dpi > 0);
+    assert(desired_size >= 1 << 6);
+    
+    face.impl = malloc(sizeof(face));
+    if (face.impl == NULL) {
+        dw_face->lpVtbl->Release(dw_face);
+        return oc_error_out_of_memory;
+    }
+
+    dw_face->lpVtbl->GetMetrics(dw_face, &metrics);
+
+    // https://github.com/freetype/freetype/blob/85c8efe0afa5ad0df35114e317a065f544943c52/include/freetype/internal/ftobjs.h#L665
+    scaled = (desired_size * dpi + 36) / 72;
+    scale = oc_div_16p16(scaled, metrics.designUnitsPerEm);
+
+    // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L3368
+    ppem = (scaled + 32) >> 6;
+    if (ppem > UINT16_MAX) {
+        dw_face->lpVtbl->Release(dw_face);
+        return oc_error_invalid_pixel_size;
+    }
+
+    face.impl->dw_face = dw_face;
+    face.impl->dw_factory = dw_factory;
+    face.size.scale = scale;
+    face.size.ppem = (uint16_t)ppem;
+    face.upem = metrics.designUnitsPerEm;
+    face.ascent = metrics.ascent;
+    face.descent = metrics.descent;
+    face.leading = metrics.lineGap;
+    face.underline_position = metrics.underlinePosition;
+    face.underline_thickness = metrics.underlineThickness;
+
+    *oface = face;
+    return oc_error_ok;
+
+}
+
 static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWriteFontFile* font_file, const oc_open_params* uparams, oc_face* oface) {
     HRESULT err;
     WINBOOL is_supported_fonttype;
@@ -2477,11 +2607,6 @@ static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWrite
     DWRITE_FONT_FACE_TYPE face_type;
     IDWriteFontFace* dw_face;
     UINT32 face_num;
-    oc_face face;
-    DWRITE_FONT_METRICS metrics;
-    oc_16p16 scaled;
-    oc_16p16 scale;
-    int32_t ppem;
     oc_open_params params = oc__open_params_defaults(uparams);
 
     err = font_file->lpVtbl->Analyze(
@@ -2524,37 +2649,7 @@ static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWrite
         return oc__unexpected(err);
     }
 
-    face.impl = malloc(sizeof(face));
-    if (face.impl == NULL) {
-        dw_face->lpVtbl->Release(dw_face);
-        return oc_error_out_of_memory;
-    }
-
-    dw_face->lpVtbl->GetMetrics(dw_face, &metrics);
-
-    // https://github.com/freetype/freetype/blob/85c8efe0afa5ad0df35114e317a065f544943c52/include/freetype/internal/ftobjs.h#L665
-    scaled = (params.desired_size * params.dpi + 36) / 72;
-    scale = oc_div_16p16(scaled, metrics.designUnitsPerEm);
-
-    // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L3368
-    ppem = (scaled + 32) >> 6;
-    if (ppem > UINT16_MAX) {
-        return oc_error_invalid_pixel_size;
-    }
-
-    face.impl->dw_face = dw_face;
-    face.impl->dw_factory = dw_factory;
-    face.size.scale = scale;
-    face.size.ppem = (uint16_t)ppem;
-    face.upem = metrics.designUnitsPerEm;
-    face.ascent = metrics.ascent;
-    face.descent = metrics.descent;
-    face.leading = metrics.lineGap;
-    face.underline_position = metrics.underlinePosition;
-    face.underline_thickness = metrics.underlineThickness;
-
-    *oface = face;
-    return oc_error_ok;
+    return oc__init_face(dw_factory, dw_face, params.desired_size, params.dpi, oface);
 }
 
 oc_error oc_open_face(const oc_library* library, const char* path, const oc_open_params* uparams, oc_face* oface) {
@@ -3050,6 +3145,7 @@ struct oc_collection_impl {
 };
 
 typedef struct {
+    IDWriteFactory* dw_factory;
     IDWriteFont* dw_font;
     oc_font font;
 } oc__font_impl;
@@ -3105,7 +3201,7 @@ static const oc_slant oc__slant_map[] = {
     [DWRITE_FONT_STYLE_ITALIC] = oc_slant_italic,
 };
 
-static oc_font* oc__init_font(IDWriteFont* dw_font, const char* family) {
+static oc_font* oc__init_font(IDWriteFactory* dw_factory, IDWriteFont* dw_font, const char* family) {
     DWRITE_FONT_WEIGHT weight;
     DWRITE_FONT_STYLE style;
 
@@ -3119,6 +3215,7 @@ static oc_font* oc__init_font(IDWriteFont* dw_font, const char* family) {
         return NULL;
     }
 
+    impl->dw_factory = dw_factory;
     impl->dw_font = dw_font;
     impl->font.family = family;
     impl->font.weight = (uint16_t)weight;
@@ -3276,7 +3373,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
             hr = font_family->lpVtbl->GetFont(font_family, font_index, &dw_font);
             assert(hr == S_OK);
 
-            font = oc__init_font(dw_font, family);
+            font = oc__init_font(dw_factory, dw_font, family);
             if (font == NULL) {
                 font_family->lpVtbl->Release(font_family);
                 oc__exit(oc_error_out_of_memory);
@@ -3335,5 +3432,37 @@ bool ocf_has_character(const oc_font* font, uint32_t character) {
 
     result = dw_font->lpVtbl->HasCharacter(dw_font, character, &exists);
     return result == S_OK && exists;
+}
+
+oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
+    oc__font_impl* impl;
+    IDWriteFontFace* face;
+    HRESULT result;
+
+    if (!font) {
+        return oc_error_invalid_param;
+    }
+
+    impl = oc__parentof(oc__font_impl, font, font);
+    result = impl->dw_font->lpVtbl->CreateFontFace(impl->dw_font, &face);
+
+    switch (result) {
+    case S_OK:
+        break;
+    default:
+        return oc__unexpected(result);
+    }
+
+    if (desired_size == 0) {
+        desired_size = 12 << 6;
+    } else if (desired_size < 1 << 6) {
+        desired_size = 1 << 6;
+    }
+
+    if (dpi == 0) {
+        dpi = 72;
+    }
+    
+    return oc__init_face(impl->dw_factory, face, desired_size, dpi, oface);
 }
 #endif /* ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION */

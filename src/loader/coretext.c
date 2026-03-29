@@ -13,14 +13,9 @@ void oc_free_library(oc_library* library) {
         memset(library, 0, sizeof(*library));
 }
 
-static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_open_params* uparams, oc_face* oface) {
-    oc_face face;
-
+static oc_error oc__init_face(CTFontDescriptorRef  descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     CTFontRef ct_font;
-    CTFontDescriptorRef descriptor;
-
-    CFIndex count = CFArrayGetCount(descriptors);
-    oc_open_params params = oc__open_params_defaults(uparams);
+    oc_face face;
 
     oc_16p16 scaled;
     CGFloat size;
@@ -28,20 +23,7 @@ static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_
     oc_16p16 ppem;
     uint16_t upem;
 
-    if (count == 0) {
-        return oc_error_failed_to_open;
-    }
-
-    if (params.face_index >= count) {
-        return oc_error_invalid_param;
-    }
-
-    descriptor = (CTFontDescriptorRef)CFArrayGetValueAtIndex(descriptors, params.face_index);
-    if (descriptor == NULL) {
-        return oc_error_out_of_memory;
-    }
-
-    scaled = (params.desired_size * params.dpi + 36) / 72;
+    scaled = (desired_size * dpi + 36) / 72;
     ct_font = CTFontCreateWithFontDescriptor(descriptor, scaled / 64.0, NULL);
 
     if (ct_font == NULL) {
@@ -50,6 +32,7 @@ static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_
 
     ppem = (scaled + 32) >> 6;
     if (ppem > UINT16_MAX) {
+        CFRelease(ct_font);
         return oc_error_invalid_pixel_size;
     }
 
@@ -68,6 +51,28 @@ static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_
 
     *oface = face;
     return oc_error_ok;
+}
+
+static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_open_params* uparams, oc_face* oface) {
+    CTFontDescriptorRef descriptor;
+
+    CFIndex count = CFArrayGetCount(descriptors);
+    oc_open_params params = oc__open_params_defaults(uparams);
+
+    if (count == 0) {
+        return oc_error_failed_to_open;
+    }
+
+    if (params.face_index >= count) {
+        return oc_error_invalid_param;
+    }
+
+    descriptor = (CTFontDescriptorRef)CFArrayGetValueAtIndex(descriptors, params.face_index);
+    if (descriptor == NULL) {
+        return oc_error_out_of_memory;
+    }
+
+    return oc__init_face(descriptor, params.desired_size, params.dpi, oface);
 }
 
 oc_error oc_open_face(const oc_library* library, const char* path, const oc_open_params* uparams, oc_face* oface) {

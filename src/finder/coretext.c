@@ -2,6 +2,9 @@
 #define ONECORE_SHARED_IMPLEMENTATION
 #include "../onecore.h"
 
+#include <CoreText/CoreText.h>
+extern oc_error oc__init_face(CTFontDescriptorRef  descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface);
+
 /* ONECORE_CORETEXT_FINDER_IMPLEMENTATION */
 #include <CoreText/CoreText.h>
 
@@ -275,4 +278,27 @@ bool ocf_has_character(const oc_font* font, uint32_t charcode) {
         glyphs[1]);
 
     return glyphs[0];
+}
+
+
+oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
+    oc__font_impl* impl;
+
+    if (!font) {
+        return oc_error_invalid_param;
+    }
+
+    impl = oc__parentof(oc__font_impl, font, font);
+
+    if (desired_size == 0) {
+        desired_size = 12 << 6;
+    } else if (desired_size < 1 << 6) {
+        desired_size = 1 << 6;
+    }
+
+    if (dpi == 0) {
+        dpi = 72;
+    }
+
+    return oc__init_face(impl->ct_font, desired_size, dpi, oface);
 }
