@@ -3556,4 +3556,121 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     
     return oc__init_face(impl->dw_factory, face, desired_size, dpi, oface);
 }
+
+size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
+    oc__font_impl* impl;
+    HRESULT result; 
+
+    IDWriteFontFace* face;
+    IDWriteFontFile* file;
+
+    UINT32 nfiles;
+
+    const void* key;
+    UINT32 key_size;
+
+    IDWriteFontFileLoader* loader;
+    IDWriteLocalFontFileLoader* local_loader;
+
+    WCHAR* wide_path;
+    UINT32 wide_len;
+
+    int path_len;
+    size_t copy_len;
+
+    if (!font) {
+        return 0;
+    }
+
+    impl = oc__parentof(oc__font_impl, font, font);
+    result = impl->dw_font->lpVtbl->CreateFontFace(impl->dw_font, &face);
+
+    if (result != S_OK) {
+        return 0;
+    }
+
+    nfiles = 1;
+    result = face->lpVtbl->GetFiles(face, &nfiles, &file);
+    face->lpVtbl->Release(face);
+
+    if (result != S_OK || nfiles == 0) {
+        return 0;
+    }
+
+    result = file->lpVtbl->GetReferenceKey(file, &key, &key_size);
+    assert(result == S_OK);
+    
+    result = file->lpVtbl->GetLoader(file, &loader);
+    file->lpVtbl->Release(file);
+
+    assert(result == S_OK);
+
+    result = loader->lpVtbl->QueryInterface(
+        loader,
+        &IID_IDWriteLocalFontFileLoader,
+        (void**)&local_loader);
+    loader->lpVtbl->Release(loader);
+
+    if (result != S_OK) {
+        return 0;
+    }
+
+    result = local_loader->lpVtbl->GetFilePathLengthFromKey(
+        local_loader,
+        key,
+        key_size,
+        &wide_len);
+
+    assert(result == S_OK);
+    if (wide_len == 0) {
+        local_loader->lpVtbl->Release(local_loader);
+        return 0;
+    }
+
+    wide_path = malloc((wide_len + 1) * sizeof(WCHAR));
+    if (wide_path == NULL) {
+        local_loader->lpVtbl->Release(local_loader);
+        return 0;
+    }
+
+    result = local_loader->lpVtbl->GetFilePathFromKey(
+        local_loader,
+        key,
+        key_size,
+        wide_path,
+        wide_len + 1);
+
+    local_loader->lpVtbl->Release(local_loader);
+    assert(result == S_OK);
+
+    path_len = WideCharToMultiByte(
+        CP_UTF8,
+        0,
+        wide_path,
+        wide_len,
+        NULL,
+        0,
+        NULL,
+        NULL);
+
+    assert(path_len > 0);
+    if (len == 0) {
+        free(wide_path);
+        return path_len;
+    }
+
+    copy_len = len < (size_t)path_len ? len : (size_t)path_len;
+    WideCharToMultiByte(
+        CP_UTF8,
+        0,
+        wide_path,
+        wide_len,
+        buf,
+        (int)copy_len,
+        NULL,
+        NULL);
+
+    free(wide_path);
+    return copy_len;
+}
 #endif /* ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION */
