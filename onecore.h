@@ -1951,54 +1951,6 @@ void oc_free_collection(oc_collection* collection) {
     }
 }
 
-static const struct {
-    int ot;
-    double ct;
-} oc__weight_map[] = {
-    { 0, -0.8 },
-    { 100, -0.8 },
-    { 200, -0.6 },
-    // todo (stage 2): reverse how coretext converts
-    // these weights as none of this makes sence
-    // { 290, -0.247 },
-    { 300, -0.4 },
-    { 350, -0.115 },
-    // todo: find this 380 weight font and found out
-    // { 380, FC_WEIGHT_BOOK },
-    { 400, 0.0 },
-    { 500, 0.23 },
-    { 600, 0.3 },
-    { 700, 0.4 },
-    { 800, 0.56 },
-    { 900, 0.62 },
-    { 1000, 1.0 }, // idk if this correct
-};
-
-// todo: fix these lerp functioms wtf is this
-static double oc__lerp(double x, double x1, double x2, int y1, int y2) {
-    double dx = x2 - x1;
-    int dy = y2 - y1;
-    assert(dx > 0 && dy >= 0 && x1 <= x && x <= x2);
-    return y1 + (dy * (x - x1) + dx / 2.0) / dx;
-}
-
-double oc__convert(double ct_weight) {
-    int i;
-
-    for (i = 1; ct_weight > oc__weight_map[i].ct; i++);
-
-    if (ct_weight == oc__weight_map[i].ct) {
-        return oc__weight_map[i].ot;
-    }
-
-    return oc__lerp(
-        ct_weight,
-        oc__weight_map[i - 1].ct,
-        oc__weight_map[i].ct,
-        oc__weight_map[i - 1].ot,
-        oc__weight_map[i].ot);
-}
-
 static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     oc__font_impl* impl = NULL;
 
@@ -2008,26 +1960,30 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
 
     const char* family;
 
-    CFNumberRef weight_obj;
     CFNumberRef symbolic_obj;
+    CFNumberRef weight_obj;
 
-    double ct_weight;
+    int weight;
     uint32_t ct_symbolic;
 
     assert(ct_font != NULL);
+
+    weight_obj = CTFontDescriptorCopyAttribute(ct_font, CFSTR("CTFontCSSWeightAttribute"));
+    if (weight_obj == NULL) {
+        goto exit;
+    }
+
+    CFNumberGetValue(weight_obj, kCFNumberIntType, &weight);
+    CFRelease(weight_obj);
 
     ct_traits = CTFontDescriptorCopyAttribute(ct_font, kCTFontTraitsAttribute);
     if (ct_traits == NULL) {
         goto exit;
     }
 
-    weight_obj = CFDictionaryGetValue(ct_traits, kCTFontWeightTrait);
-    assert(weight_obj != NULL);
-
     symbolic_obj = CFDictionaryGetValue(ct_traits, kCTFontSymbolicTrait);
     assert(symbolic_obj != NULL);
 
-    CFNumberGetValue(weight_obj, kCFNumberDoubleType, &ct_weight);
     CFNumberGetValue(symbolic_obj, kCFNumberSInt32Type, &ct_symbolic);
 
     ct_family = CTFontDescriptorCopyAttribute(ct_font, kCTFontFamilyNameAttribute);
@@ -2054,7 +2010,7 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     impl->ct_family = ct_family;
     impl->ct_face = ct_face;
     impl->font.family = family;
-    impl->font.weight = oc__convert(ct_weight) + 0.5;
+    impl->font.weight = (uint16_t)weight;
     impl->font.slant = oc_slant_roman;
 
     // tood: implement valid one
