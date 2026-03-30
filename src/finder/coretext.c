@@ -1,3 +1,4 @@
+#include <CoreFoundation/CFBase.h>
 #include <CoreText/CTFontTraits.h>
 #define ONECORE_SHARED_IMPLEMENTATION
 #include "../onecore.h"
@@ -281,6 +282,7 @@ bool ocf_has_character(const oc_font* font, uint32_t charcode) {
 }
 
 
+// todo: ensure that every backends set oface to 0 on failure
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     oc__font_impl* impl;
 
@@ -301,4 +303,63 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     }
 
     return oc__init_face(impl->ct_font, desired_size, dpi, oface);
+}
+
+size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
+    oc__font_impl* impl;
+    CFURLRef url;
+
+    CFStringRef path;
+    CFIndex path_len;
+
+    size_t copy_len;
+
+    if (!font) {
+        return 0;
+    }
+
+    impl = oc__parentof(oc__font_impl, font, font);
+    url = CTFontDescriptorCopyAttribute(impl->ct_font, kCTFontURLAttribute);
+
+    // todo: check if this is a shared object
+    if (url == NULL) {
+        return 0;
+    }
+
+    path = CFURLCopyFileSystemPath(url, kCFURLPOSIXPathStyle);
+    CFRelease(url);
+
+    if (path == NULL) {
+        return 0;
+    }
+
+    // todo: check if path is already utf8
+    path_len = CFStringGetBytes(
+        path,
+        CFRangeMake(0, CFStringGetLength(path)),
+        kCFStringEncodingUTF8,
+        0,
+        false,
+        NULL,
+        0,
+        NULL);
+
+    copy_len = len < (size_t)path_len ? len : (size_t)path_len;
+    if (copy_len == 0) {
+        CFRelease(path);
+        return (size_t)path_len;
+    }
+
+    CFStringGetBytes(
+        path,
+        CFRangeMake(0, CFStringGetLength(path)),
+        kCFStringEncodingUTF8,
+        0,
+        false,
+        (UInt8*)buf,
+        copy_len,
+        NULL);
+
+    CFRelease(path);
+    return copy_len;
 }

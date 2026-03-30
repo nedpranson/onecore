@@ -15,13 +15,10 @@ typedef int32_t oc_26p6;
 #define OC_PUBLIC
 #endif /* OC_PUBLIC */
 
-// todo: add some font collections FontConfig, DWRITE, CORETEXT
-//       add ability to filter and sort fonts, say by codepoints, families, sizes
-
 #define OC_LOAD_DEFAULT 0x0
 #define OC_LOAD_NO_SCALE (1l << 0)
 #define OC_LOAD_NO_HINTING (1l << 1)
-// todo: add these flags
+// todo (stage 2): add these flags
 // #define OC_LOAD_VERTICAL (1l << 2)
 // #define OC_LOAD_COLOR (1l << 3)
 #define OC_LOAD_NO_FITTING (1l << 4)
@@ -114,16 +111,13 @@ typedef struct oc_face_impl oc_face_impl;
 typedef struct oc_collection_impl oc_collection_impl;
 //typedef struct oc_font oc_font;
 
-// todo: integrate even more fields
-// todo: need a way to know homy mady glyphs a font has
+// todo (stage 2): integrate even more fields
+// todo (stage 2): need a way to know homy mady glyphs a font has
 typedef struct {
-    // todo: make some kind of function to get path and index at the same time
-
     // todo: check if family names change on diff locales
     const char* family;
     oc_slant slant;
     uint16_t weight;
-    // -> wayt to verify codepoint present
     // -> langs
     // -> way to get ?path
     // -> way to open oc_font
@@ -176,6 +170,9 @@ oc_load_fonts(oc_collection* collection);
 
 OC_PUBLIC bool
 ocf_has_character(const oc_font* font, uint32_t character);
+
+OC_PUBLIC size_t 
+ocf_copy_path(const oc_font* font, char* buf, size_t len);
 
 OC_PUBLIC oc_error
 ocf_open_font(

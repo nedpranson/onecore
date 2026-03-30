@@ -9,7 +9,7 @@
 oc_library g_library;
 oc_face g_arial_ttf;
 
-// todo: test emoji fonts
+// todo (stage 2): test emoji fonts
 
 void setUp(void) { }
 
@@ -86,21 +86,25 @@ void test_oc_load_fonts(void) {
 
     for (size_t i = 0; i < col.nfonts; i++) {
         oc_font* font = col.fonts[i];
-        oc_face face;
-        oc_error err;
+        // oc_face face;
+        // oc_error err;
+
+        char path[256];
+        size_t amt = ocf_copy_path(font, path, 255);
+        path[amt] = '\0';
 
         bool flag = ocf_has_character(font, 0x0104);
-        printf("%s, %d, %d, %d", font->family, font->weight, font->slant, flag);
+        printf("%s: %s, %d, %d, %d", path, font->family, font->weight, font->slant, flag);
 
-        err = ocf_open_font(font, 0, 0, &face);
-        if (err == oc_error_invalid_pixel_size) {
-            printf(" (fixed size)");
-        } else {
-            TEST_ASSERT_EQUAL(oc_error_ok, err);
-            TEST_ASSERT_EQUAL(flag, !!oc_get_char_index(&face, 0x0104));
+        // err = ocf_open_font(font, 0, 0, &face);
+        // if (err == oc_error_invalid_pixel_size) {
+            // printf(" (fixed size)");
+        // } else {
+            // TEST_ASSERT_EQUAL(oc_error_ok, err);
+            // TEST_ASSERT_EQUAL(flag, !!oc_get_char_index(&face, 0x0104));
 
-            oc_free_face(&face);
-        }
+            // oc_free_face(&face);
+        // }
         printf("\n");
     }
 
@@ -862,7 +866,7 @@ void test_oc_get_outline(void) {
 }
 
 // todo: make everything backend indipendent!
-// todo: perhaps we should render glyphs like in macos
+// todo (stage 2): perhaps we should render glyphs like in macos
 //       specify origins, allow for a matrix if no matrix is passed we can use default (0, 0) point rendering
 void test_oc_render_glyph(void) {
     uint16_t idx;

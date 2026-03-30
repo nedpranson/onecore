@@ -1,3 +1,4 @@
+#include "_string.h"
 #define ONECORE_SHARED_IMPLEMENTATION
 #include "../onecore.h"
 
@@ -164,7 +165,7 @@ oc_error oc_load_fonts(oc_collection* collection) {
     fc_config = collection->impl->fc_config;
 
     if (!FcConfigBuildFonts(fc_config)) {
-        // todo: test what fontconfig does when cache is corrupted
+        // 'FcConfigBuildFonts' returns FcFalse on oom
         oc__exit(oc_error_out_of_memory);
     }
 
@@ -234,6 +235,9 @@ bool ocf_has_character(const oc_font* font, uint32_t character) {
     return result == FcResultMatch && FcCharSetHasChar(charset, character);
 }
 
+// todo (stage 2): make this stuff crossplatform
+// upper 16 means instance
+// lower 16 means index
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     oc__font_impl* impl;
 
@@ -267,4 +271,35 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     params.dpi = dpi;
 
     return oc_open_face(impl->oc_library, (char*)file, &params, oface);
+}
+
+size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
+    oc__font_impl* impl;
+    FcResult result;
+
+    FcChar8* file;
+    size_t file_len;
+
+    size_t copy_len;
+
+    if (!font) {
+        return 0;
+    }
+
+    impl = oc__parentof(oc__font_impl, font, font);
+    result = FcPatternGetString(impl->fc_pattern, FC_FILE, 0, &file);
+
+    if (result != FcResultMatch) {
+        return 0;
+    }
+
+    file_len = strlen((char*)file);
+    copy_len = len < file_len ? len : file_len;
+
+    if (copy_len == 0) {
+        return file_len;
+    }
+
+    memcpy(buf, file, copy_len);
+    return copy_len;
 }
