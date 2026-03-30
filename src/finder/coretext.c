@@ -59,9 +59,12 @@ static const struct {
     { 0, -0.8 },
     { 100, -0.8 },
     { 200, -0.6 },
+    // todo (stage 2): reverse how coretext converts
+    // these weights as none of this makes sence
+    // { 290, -0.247 },
     { 300, -0.4 },
-    // todo: check what these are equal to
-    // { 350, FC_WEIGHT_DEMILIGHT },
+    { 350, -0.115 },
+    // todo: find this 380 weight font and found out
     // { 380, FC_WEIGHT_BOOK },
     { 400, 0.0 },
     { 500, 0.23 },
@@ -83,8 +86,7 @@ static double oc__lerp(double x, double x1, double x2, int y1, int y2) {
 double oc__convert(double ct_weight) {
     int i;
 
-    for (i = 1; ct_weight > oc__weight_map[i].ct; i++)
-        ;
+    for (i = 1; ct_weight > oc__weight_map[i].ct; i++);
 
     if (ct_weight == oc__weight_map[i].ct) {
         return oc__weight_map[i].ot;
