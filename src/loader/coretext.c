@@ -14,7 +14,7 @@ void oc_free_library(oc_library* library) {
         memset(library, 0, sizeof(*library));
 }
 
-static oc_error oc__init_face(CTFontDescriptorRef  descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
+static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     CTFontRef ct_font;
     oc_face face;
 
@@ -76,7 +76,7 @@ static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_
     return oc__init_face(descriptor, params.desired_size, params.dpi, oface);
 }
 
-oc_error oc_open_face(const oc_library* library, const char* path, const oc_open_params* uparams, oc_face* oface) {
+oc_error ocl_open_face(const oc_library* library, const char* path, const oc_open_params* uparams, oc_face* oface) {
     CFStringRef ct_path;
     CFURLRef url_path;
 
@@ -114,7 +114,7 @@ oc_error oc_open_face(const oc_library* library, const char* path, const oc_open
     return err;
 }
 
-oc_error oc_open_memory_face(const oc_library* library, const void* data, size_t size, const oc_open_params* uparams, oc_face* oface) {
+oc_error ocl_open_memory_face(const oc_library* library, const void* data, size_t size, const oc_open_params* uparams, oc_face* oface) {
     CFDataRef ct_data;
     CFArrayRef descriptors;
     oc_error err;
@@ -141,14 +141,14 @@ oc_error oc_open_memory_face(const oc_library* library, const void* data, size_t
     return err;
 }
 
-void oc_free_face(oc_face* face) {
+void ocl_free_face(oc_face* face) {
     if (face) {
         CFRelease(face->impl);
         memset(face, 0, sizeof(*face));
     }
 }
 
-uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
+uint16_t ocl_get_char_index(const oc_face* face, uint32_t charcode) {
     CTFontRef ct_font;
 
     CGGlyph glyphs[2];
@@ -186,7 +186,7 @@ uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
     return glyphs[0];
 }
 
-oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
+oc_error ocl_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     oc_16p16 scaled;
     oc_16p16 scale;
     int32_t ppem;
@@ -230,7 +230,7 @@ oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     return oc_error_ok;
 }
 
-oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, void* data, uint32_t* size) {
+oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, void* data, uint32_t* size) {
     CTFontRef ct_font;
     CFDataRef ct_table;
 
@@ -265,7 +265,7 @@ oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, voi
     return oc_error_ok;
 }
 
-void oc_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
+void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
     CTFontRef ct_font;
     CFIndex count;
 
@@ -323,7 +323,7 @@ exit:
         *ometrics = metrics;
 }
 
-void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
+void ocl_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
     CTFontRef ct_font;
     CGRect rect;
 
@@ -450,7 +450,7 @@ static void oc__path_applier(void* info, const CGPathElement* element) {
     }
 }
 
-bool oc_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
+bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
     CTFontRef ct_font;
     CGPathRef outline;
     oc__outline_context context = { 0 };
@@ -477,7 +477,7 @@ bool oc_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs*
     return true;
 }
 
-oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
+oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
     oc_error err = oc_error_ok;
 
     CTFontRef ct_font;
@@ -508,7 +508,7 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
     }
 
     // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L414
-    oc_get_glyph_cbox(face, index, OC_LOAD_DEFAULT, &cbox);
+    ocl_get_glyph_cbox(face, index, OC_LOAD_DEFAULT, &cbox);
 
     pbox.min_x = cbox.min_x >> 6;
     pbox.min_y = cbox.min_y >> 6;

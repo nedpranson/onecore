@@ -19,9 +19,9 @@ int main() {
     oc_open_params params = { 0 };
     params.dpi = 96;
 
-    if ((err = oc_open_face(&library, "test/files/arial.ttf", &params, &face))) {
+    if ((err = ocl_open_face(&library, "test/files/arial.ttf", &params, &face))) {
         oc_free_library(&library);
-        printf("oc_open_face: %s\n", oc_strerror(err));
+        printf("ocl_open_face: %s\n", oc_strerror(err));
         return 1;
     }
 
@@ -33,19 +33,19 @@ int main() {
 
     const char* ch = message;
     for (; *ch; ch++) {
-        uint16_t index = oc_get_char_index(&face, *ch);
+        uint16_t index = ocl_get_char_index(&face, *ch);
         if (index == 0)
             continue;
 
         oc_glyph_metrics metrics;
-        oc_get_glyph_metrics(&face, index, OC_LOAD_DEFAULT, &metrics);
+        ocl_get_glyph_metrics(&face, index, OC_LOAD_DEFAULT, &metrics);
 
         oc_extent extent;
         uint8_t bitmap[32 * 32];
-        if ((err = oc_render_glyph(&face, index, &extent, bitmap, sizeof(bitmap)))) {
-            oc_free_face(&face);
+        if ((err = ocl_render_glyph(&face, index, &extent, bitmap, sizeof(bitmap)))) {
+            ocl_free_face(&face);
             oc_free_library(&library);
-            printf("oc_render_glyph: %s\n", oc_strerror(err));
+            printf("ocl_render_glyph: %s\n", oc_strerror(err));
             return 1;
         }
 
@@ -66,7 +66,7 @@ int main() {
 
     stbi_write_png("output.png", 128, 64, 1, canvas, 128);
 
-    oc_free_face(&face);
+    ocl_free_face(&face);
     oc_free_library(&library);
 
     return 0;

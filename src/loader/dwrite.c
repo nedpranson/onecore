@@ -392,7 +392,7 @@ static oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_fa
 
     assert(dpi > 0);
     assert(desired_size >= 1 << 6);
-    
+
     face.impl = malloc(sizeof(face));
     if (face.impl == NULL) {
         dw_face->lpVtbl->Release(dw_face);
@@ -425,7 +425,6 @@ static oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_fa
 
     *oface = face;
     return oc_error_ok;
-
 }
 
 static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWriteFontFile* font_file, const oc_open_params* uparams, oc_face* oface) {
@@ -480,7 +479,7 @@ static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWrite
     return oc__init_face(dw_factory, dw_face, params.desired_size, params.dpi, oface);
 }
 
-oc_error oc_open_face(const oc_library* library, const char* path, const oc_open_params* uparams, oc_face* oface) {
+oc_error ocl_open_face(const oc_library* library, const char* path, const oc_open_params* uparams, oc_face* oface) {
     int32_t err;
     int size;
     wchar_t* dw_path;
@@ -529,7 +528,7 @@ oc_error oc_open_face(const oc_library* library, const char* path, const oc_open
     return err;
 }
 
-oc_error oc_open_memory_face(const oc_library* library, const void* data, size_t size, const oc_open_params* uparams, oc_face* oface) {
+oc_error ocl_open_memory_face(const oc_library* library, const void* data, size_t size, const oc_open_params* uparams, oc_face* oface) {
     int32_t err;
     IDWriteFontFile* font_file;
     IDWriteFactory* dw_factory;
@@ -570,13 +569,13 @@ oc_error oc_open_memory_face(const oc_library* library, const void* data, size_t
     return err;
 }
 
-void oc_free_face(oc_face* face) {
+void ocl_free_face(oc_face* face) {
     face->impl->dw_face->lpVtbl->Release(face->impl->dw_face);
     free(face->impl);
     memset(face, 0, sizeof(*face));
 }
 
-uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
+uint16_t ocl_get_char_index(const oc_face* face, uint32_t charcode) {
     HRESULT err;
     IDWriteFontFace* dw_face;
     UINT16 index;
@@ -598,7 +597,7 @@ uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
     return index;
 }
 
-oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
+oc_error ocl_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     oc_16p16 scaled;
     oc_16p16 scale;
     int32_t ppem;
@@ -629,7 +628,7 @@ oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     return oc_error_ok;
 }
 
-oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, void* data, uint32_t* size) {
+oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, void* data, uint32_t* size) {
     HRESULT err;
     IDWriteFontFace* dw_face;
 
@@ -682,7 +681,7 @@ oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, voi
     return oc_error_ok;
 }
 
-void oc_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
+void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
     HRESULT err;
     DWRITE_GLYPH_METRICS dw_metrics;
     IDWriteFontFace* dw_face;
@@ -740,7 +739,7 @@ exit:
         *ometrics = metrics;
 }
 
-void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
+void ocl_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
     HRESULT err;
     DWRITE_GLYPH_METRICS metrics;
     IDWriteFontFace* dw_face;
@@ -790,7 +789,7 @@ exit:
         *ocbox = cbox;
 }
 
-bool oc_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
+bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
     HRESULT err;
     ULONG refs;
     OC__ID2D1SimplifiedGeometrySink geometry_sink = { 0 };
@@ -829,7 +828,7 @@ bool oc_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs*
 
 // todo: check this rendering thingy as smth is a bit off with dwrite
 //       it seems dwrite does hard edges, idk if we can change that
-oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
+oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
     oc_error err = oc_error_ok;
     HRESULT dw_err = S_OK;
 
@@ -864,7 +863,7 @@ oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent
     }
 
     // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L414
-    oc_get_glyph_cbox(face, index, OC_LOAD_DEFAULT, &cbox);
+    ocl_get_glyph_cbox(face, index, OC_LOAD_DEFAULT, &cbox);
 
     pbox.min_x = cbox.min_x >> 6;
     pbox.min_y = cbox.min_y >> 6;

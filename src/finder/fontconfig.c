@@ -253,7 +253,7 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
         return oc_error_invalid_param;
     }
 
-    impl  = oc__parentof(oc__font_impl, font, font);
+    impl = oc__parentof(oc__font_impl, font, font);
     pattern = impl->fc_pattern;
 
     result = FcPatternGetString(pattern, FC_FILE, 0, &file);
@@ -270,7 +270,7 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     params.desired_size = desired_size;
     params.dpi = dpi;
 
-    return oc_open_face(impl->oc_library, (char*)file, &params, oface);
+    return ocl_open_face(impl->oc_library, (char*)file, &params, oface);
 }
 
 size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {

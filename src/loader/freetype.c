@@ -108,7 +108,7 @@ static oc_error oc__init_face(FT_Face ft_face, const oc_open_params* params, oc_
     return oc_error_ok;
 }
 
-oc_error oc_open_face(const oc_library* library, const char* path, const oc_open_params* uparams, oc_face* oface) {
+oc_error ocl_open_face(const oc_library* library, const char* path, const oc_open_params* uparams, oc_face* oface) {
     int32_t err;
     FT_Face ft_face;
     FT_Library ft_library;
@@ -151,7 +151,7 @@ oc_error oc_open_face(const oc_library* library, const char* path, const oc_open
     return err;
 }
 
-oc_error oc_open_memory_face(const oc_library* library, const void* data, size_t size, const oc_open_params* uparams, oc_face* oface) {
+oc_error ocl_open_memory_face(const oc_library* library, const void* data, size_t size, const oc_open_params* uparams, oc_face* oface) {
     int32_t err;
     FT_Face ft_face;
     FT_Library ft_library;
@@ -188,7 +188,7 @@ oc_error oc_open_memory_face(const oc_library* library, const void* data, size_t
     return err;
 }
 
-void oc_free_face(oc_face* face) {
+void ocl_free_face(oc_face* face) {
     oc_face_impl* impl;
     if (!face) {
         return;
@@ -203,7 +203,7 @@ void oc_free_face(oc_face* face) {
     memset(face, 0, sizeof(*face));
 }
 
-oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
+oc_error ocl_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     FT_Error err;
     FT_Face ft_face;
 
@@ -233,11 +233,11 @@ oc_error oc_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     return oc_error_ok;
 }
 
-uint16_t oc_get_char_index(const oc_face* face, uint32_t charcode) {
+uint16_t ocl_get_char_index(const oc_face* face, uint32_t charcode) {
     return face ? FT_Get_Char_Index(face->impl->ft_face, charcode) : 0;
 }
 
-oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, void* data, uint32_t* size) {
+oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, void* data, uint32_t* size) {
     FT_Error err;
     FT_Face ft_face;
 
@@ -282,7 +282,7 @@ oc_error oc_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, voi
 }
 
 // todo: add option for verticals and maybe load both hori and vert bearings, advances
-void oc_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
+void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
     FT_Error err;
     FT_Face ft_face;
     oc__mutex_impl_t* lock;
@@ -411,7 +411,7 @@ static int oc__cubic_to(const FT_Vector* x2c1, const FT_Vector* x2c2, const FT_V
     return 0;
 }
 
-void oc_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
+void ocl_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
     FT_Error err;
     FT_Face ft_face;
     oc__mutex_impl_t* lock;
@@ -453,7 +453,7 @@ exit:
         *ocbox = cbox;
 }
 
-bool oc_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
+bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
     FT_Error err;
     FT_Face ft_face;
     oc__mutex_impl_t* lock;
@@ -512,7 +512,7 @@ exit:
     return false;
 }
 
-oc_error oc_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
+oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
     FT_Face ft_face;
     oc__mutex_impl_t* lock;
     FT_Error ft_err;
