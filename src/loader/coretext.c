@@ -87,6 +87,11 @@ oc_error ocl_open_face(const oc_library* library, const char* path, const oc_ope
         return oc_error_invalid_param;
     }
 
+    // CFURLCreateWithFileSystemPath returns NULL when allocating empty string
+    if (*path == '\0') {
+        return oc_error_failed_to_open;
+    }
+
     // todo (stage 2): validate utf8 so ct_path would only fail on oom
     ct_path = CFStringCreateWithCString(NULL, path, kCFStringEncodingUTF8);
     if (ct_path == NULL) {
@@ -97,7 +102,7 @@ oc_error ocl_open_face(const oc_library* library, const char* path, const oc_ope
     CFRelease(ct_path);
 
     if (url_path == NULL) {
-        return oc_error_failed_to_open; // or oom
+        return oc_error_out_of_memory;
     }
 
     descriptors = CTFontManagerCreateFontDescriptorsFromURL(url_path);
