@@ -306,22 +306,26 @@ bool ocf_has_character(const oc_font* font, uint32_t character) {
 }
 
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
-    oc__font_impl* impl;
-    IDWriteFontFace* face;
+    oc_error err;
     HRESULT result;
+
+    oc__font_impl* impl;
+    IDWriteFontFace* dw_face;
+
+    oc_face face = { 0 };
 
     if (!font) {
         return oc_error_invalid_param;
     }
 
     impl = oc__parentof(oc__font_impl, font, font);
-    result = impl->dw_font->lpVtbl->CreateFontFace(impl->dw_font, &face);
+    result = impl->dw_font->lpVtbl->CreateFontFace(impl->dw_font, &dw_face);
 
     switch (result) {
     case S_OK:
         break;
     default:
-        return oc__unexpected(result);
+        oc__exit(oc__unexpected(result));
     }
 
     if (desired_size == 0) {
@@ -334,7 +338,10 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
         dpi = 72;
     }
     
-    return oc__init_face(impl->dw_factory, face, desired_size, dpi, oface);
+    err = oc__init_face(impl->dw_factory, dw_face, desired_size, dpi, &face);
+exit:
+    *oface = face;
+    return err;
 }
 
 size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {

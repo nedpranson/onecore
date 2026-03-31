@@ -10,6 +10,7 @@ oc_library g_library;
 oc_face g_arial_ttf;
 
 // todo (stage 2): test emoji fonts
+// todo (stage 2): test how every backend validates utf8
 
 void setUp(void) { }
 

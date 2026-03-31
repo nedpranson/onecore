@@ -71,6 +71,7 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     assert(ct_font != NULL);
 
     // Cheers to AI it has found private api to 'CTFontCSSWeightAttribute'
+    // todo: on debug builds assert on 'CTFontCSSWeightAttribute' existing
     weight_obj = CTFontDescriptorCopyAttribute(ct_font, CFSTR("CTFontCSSWeightAttribute"));
     if (weight_obj == NULL) {
         goto exit;
@@ -241,10 +242,10 @@ bool ocf_has_character(const oc_font* font, uint32_t charcode) {
     return glyphs[0];
 }
 
-
-// todo: ensure that every backends set oface to 0 on failure
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     oc__font_impl* impl;
+    oc_error err;
+    oc_face face = { 0 };
 
     if (!font) {
         return oc_error_invalid_param;
@@ -262,7 +263,10 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
         dpi = 72;
     }
 
-    return oc__init_face(impl->ct_font, desired_size, dpi, oface);
+    err = oc__init_face(impl->ct_font, desired_size, dpi, &face);
+    *oface = face;
+
+    return err;
 }
 
 size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
@@ -293,7 +297,6 @@ size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
         return 0;
     }
 
-    // todo: check if path is already utf8
     path_len = CFStringGetBytes(
         path,
         CFRangeMake(0, CFStringGetLength(path)),
