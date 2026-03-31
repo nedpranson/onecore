@@ -5,7 +5,7 @@
 #include "../onecore.h"
 
 #include <CoreText/CoreText.h>
-extern oc_error oc__init_face(CTFontDescriptorRef  descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface);
+extern oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface);
 
 /* ONECORE_CORETEXT_FINDER_IMPLEMENTATION */
 #include <CoreText/CoreText.h>

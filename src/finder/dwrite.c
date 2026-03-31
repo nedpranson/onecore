@@ -337,7 +337,7 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     if (dpi == 0) {
         dpi = 72;
     }
-    
+
     err = oc__init_face(impl->dw_factory, dw_face, desired_size, dpi, &face);
 exit:
     *oface = face;
@@ -346,7 +346,7 @@ exit:
 
 size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
     oc__font_impl* impl;
-    HRESULT result; 
+    HRESULT result;
 
     IDWriteFontFace* face;
     IDWriteFontFile* file;
@@ -386,7 +386,7 @@ size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
 
     result = file->lpVtbl->GetReferenceKey(file, &key, &key_size);
     assert(result == S_OK);
-    
+
     result = file->lpVtbl->GetLoader(file, &loader);
     file->lpVtbl->Release(file);
 

@@ -281,7 +281,7 @@ oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, vo
     return oc_error_ok;
 }
 
-// todo: add option for verticals and maybe load both hori and vert bearings, advances
+// todo (stage 2): add option for verticals and maybe load both hori and vert bearings, advances
 void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
     FT_Error err;
     FT_Face ft_face;
@@ -545,7 +545,7 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
 
     ft_bitmap = ft_face->glyph->bitmap;
     if (ft_bitmap.width != (FT_UInt)ft_bitmap.pitch) {
-        // todo: implement diffrent types
+        // todo (stage 2): implement diffrent types
         oc__exit_critical(oc_error_unexpected);
     }
 

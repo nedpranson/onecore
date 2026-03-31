@@ -723,7 +723,7 @@ oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, vo
     return oc_error_ok;
 }
 
-// todo: add option for verticals and maybe load both hori and vert bearings, advances
+// todo (stage 2): add option for verticals and maybe load both hori and vert bearings, advances
 void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
     FT_Error err;
     FT_Face ft_face;
@@ -987,7 +987,7 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
 
     ft_bitmap = ft_face->glyph->bitmap;
     if (ft_bitmap.width != (FT_UInt)ft_bitmap.pitch) {
-        // todo: implement diffrent types
+        // todo (stage 2): implement diffrent types
         oc__exit_critical(oc_error_unexpected);
     }
 
@@ -3550,7 +3550,7 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     if (dpi == 0) {
         dpi = 72;
     }
-    
+
     err = oc__init_face(impl->dw_factory, dw_face, desired_size, dpi, &face);
 exit:
     *oface = face;
@@ -3559,7 +3559,7 @@ exit:
 
 size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
     oc__font_impl* impl;
-    HRESULT result; 
+    HRESULT result;
 
     IDWriteFontFace* face;
     IDWriteFontFile* file;
@@ -3599,7 +3599,7 @@ size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
 
     result = file->lpVtbl->GetReferenceKey(file, &key, &key_size);
     assert(result == S_OK);
-    
+
     result = file->lpVtbl->GetLoader(file, &loader);
     file->lpVtbl->Release(file);
 
