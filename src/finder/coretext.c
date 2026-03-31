@@ -93,8 +93,8 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     ct_family = CTFontDescriptorCopyAttribute(ct_font, kCTFontFamilyNameAttribute);
     assert(ct_family != NULL);
 
+    // family seems to always be utf8 and null terminated
     family = CFStringGetCStringPtr(ct_family, kCFStringEncodingUTF8);
-    // todo: test is it always utf8 and null terminated
     assert(family != NULL);
 
     ct_face = CTFontCreateWithFontDescriptor(ct_font, 0.0, NULL);
@@ -285,7 +285,6 @@ size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
     impl = oc__parentof(oc__font_impl, font, font);
     url = CTFontDescriptorCopyAttribute(impl->ct_font, kCTFontURLAttribute);
 
-    // todo: check if this is a shared object
     if (url == NULL) {
         return 0;
     }

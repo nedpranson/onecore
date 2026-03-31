@@ -46,6 +46,8 @@ typedef int32_t oc_26p6;
 extern "C" {
 #endif
 
+// todo: document every struct field and method
+
 typedef enum {
 #define X(e, s) e,
     OC_ERROR_LIST
@@ -148,23 +150,38 @@ typedef struct {
     uint32_t nfonts;
 } oc_collection;
 
+/* 
+ * Initializes a new onecore library instance.
+ * Call `oc_free_library` to release retrieved resource.
+ */
 OC_PUBLIC oc_error
 oc_init_library(oc_library* olibrary);
 
+/* 
+ * Releases given library object.
+ */
 OC_PUBLIC void
 oc_free_library(oc_library* library);
 
+/* 
+ * Initializes a new onecore collection instance.
+ * Call `oc_free_collection` to release retrieved resource.
+ */
 OC_PUBLIC oc_error
 oc_init_collection(const oc_library* library, oc_collection* ocollection);
 
+/* 
+ * Releases given collection object.
+ */
 OC_PUBLIC void
 oc_free_collection(oc_collection* collection);
 
 OC_PUBLIC oc_error
 oc_load_fonts(oc_collection* collection);
 
-// we could even split this project into 2 diffrent header files
+// todo: we could even split this project into 2 diffrent header files
 // just not sure how would opening fonts from oc_font obj would work
+// oc_ -> only for library it self
 // ocf_ -> onecore finder
 // ocl_ -> onecore loader
 
@@ -174,6 +191,10 @@ ocf_has_character(const oc_font* font, uint32_t character);
 OC_PUBLIC size_t 
 ocf_copy_path(const oc_font* font, char* buf, size_t len);
 
+/* 
+ * Opens a font.
+ * Call `oc_free_face` to release retrieved resource.
+ */
 OC_PUBLIC oc_error
 ocf_open_font(
     const oc_font* font,
@@ -181,16 +202,23 @@ ocf_open_font(
     uint16_t dpi,
     oc_face* oface);
 
+/* 
+ * Opens a font by its pathname.
+ * Call `oc_free_face` to release retrieved resource.
+ */
 OC_PUBLIC oc_error
 oc_open_face(
     const oc_library* library,
     const char* path,
     const oc_open_params* uparams,
-    oc_face* face);
+    oc_face* oface);
 
-/*
- * @note:
- *   You must not deallocate the memory before calling @oc_free_face.
+/* 
+ * Opens a font that has been loaded into memory.
+ * Call `oc_free_face` to release retrieved resource.
+ *
+ * Note the caller still owns the memory
+ * do not deallocate it before calling `oc_free_face`.
  */
 OC_PUBLIC oc_error
 oc_open_memory_face(
@@ -200,6 +228,9 @@ oc_open_memory_face(
     const oc_open_params* uparams,
     oc_face* oface);
 
+/* 
+ * Releases given face object.
+ */
 OC_PUBLIC void
 oc_free_face(oc_face* face);
 
@@ -207,6 +238,9 @@ oc_free_face(oc_face* face);
 OC_PUBLIC oc_error
 oc_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi);
 
+/* 
+ * Returns the glyph index of a given character code.
+ */
 OC_PUBLIC uint16_t
 oc_get_char_index(const oc_face* face, uint32_t charcode);
 
@@ -257,12 +291,21 @@ oc_get_sfnt_table(
     void* data,
     uint32_t* size);
 
-OC_PUBLIC
-const char* oc_strerror(oc_error err);
+/* 
+ * Retrieves the description of a valid onecore error.
+ */
+OC_PUBLIC const char*
+oc_strerror(oc_error err);
 
+/* 
+ * Computes `(a*b)/0x10000` with maximum accuracy.
+ */
 OC_PUBLIC oc_16p16
 oc_div_16p16(oc_16p16 a, oc_16p16 b);
 
+/* 
+ * Computes `(a*0x10000)/b` with maximum accuracy.
+ */
 OC_PUBLIC oc_16p16
 oc_mul_16p16(oc_16p16 a, oc_16p16 b);
 
