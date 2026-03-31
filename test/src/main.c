@@ -165,6 +165,15 @@ void test_ocl_open_face(void) {
     err = ocl_open_face(&g_library, "", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
 
+    err = ocl_open_face(&g_library, " ", NULL, &face);
+    TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
+
+    err = ocl_open_face(&g_library, "  ", NULL, &face);
+    TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
+
+    err = ocl_open_face(&g_library, "  test/files/arial.ttf", NULL, &face);
+    TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
+
     params.face_index = 0;
     params.desired_size = 4194271;
     params.dpi = 72;

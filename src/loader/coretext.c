@@ -97,7 +97,7 @@ oc_error ocl_open_face(const oc_library* library, const char* path, const oc_ope
     CFRelease(ct_path);
 
     if (url_path == NULL) {
-        return oc_error_failed_to_open;
+        return oc_error_failed_to_open; // or oom
     }
 
     descriptors = CTFontManagerCreateFontDescriptorsFromURL(url_path);
