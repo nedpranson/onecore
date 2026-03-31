@@ -168,22 +168,16 @@ oc_free_library(oc_library* library);
  * Call `oc_free_collection` to release retrieved resource.
  */
 OC_PUBLIC oc_error
-oc_init_collection(const oc_library* library, oc_collection* ocollection);
+ocf_init_collection(const oc_library* library, oc_collection* ocollection);
 
 /*
  * Releases given collection object.
  */
 OC_PUBLIC void
-oc_free_collection(oc_collection* collection);
+ocf_free_collection(oc_collection* collection);
 
 OC_PUBLIC oc_error
-oc_load_fonts(oc_collection* collection);
-
-// todo: we could even split this project into 2 diffrent header files
-// just not sure how would opening fonts from oc_font obj would work
-// oc_ -> only for library it self
-// ocf_ -> onecore finder
-// ocl_ -> onecore loader
+ocf_load_fonts(oc_collection* collection);
 
 OC_PUBLIC bool
 ocf_has_character(const oc_font* font, uint32_t character);
@@ -260,9 +254,9 @@ ocl_get_glyph_cbox(
 
 // todo: add comments here explaining that every backend will generate diffrent glyph textures
 //       so if u want it modified by every backend it would be recomended to raster it using glyph outlines
-// todo: now we're rendering these glyphs from [0;0] position which is convenient, but it does lose some extra draw data
+// todo (stage 2): now we're rendering these glyphs from [0;0] position which is convenient, but it does lose some extra draw data
 //       make so an user could specify how to draw this glyph mb allow to pass matricies and origins mb just some flags??
-// todo: it is needed to make this method more complicated, now we cannot pass origin where to draw or matricies, nothing
+// todo (stage 2): it is needed to make this method more complicated, now we cannot pass origin where to draw or matricies, nothing
 //
 // roadmap:
 // dwrite and coretext knows how to draw bezier curves hence theoretically hinting can be achieved with manual shapes rasterization,
@@ -275,7 +269,7 @@ ocl_render_glyph(
     uint8_t* buffer,
     size_t buffer_size);
 
-// todo: renew this impl
+// todo (stage 2): renew this impl
 OC_PUBLIC bool
 ocl_get_outline(
     const oc_face* face,
@@ -1071,10 +1065,11 @@ typedef enum {
 
 static inline void oc__free_font(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
+    // impl->fc_pattern should not be freed as it is owned by FcConfig
     free(impl);
 }
 
-oc_error oc_init_collection(const oc_library* library, oc_collection* ocollection) {
+oc_error ocf_init_collection(const oc_library* library, oc_collection* ocollection) {
     oc_error err = oc_error_ok;
     FcConfig* fc_config;
     oc_collection_impl* impl;
@@ -1105,7 +1100,7 @@ exit:
     return err;
 }
 
-void oc_free_collection(oc_collection* collection) {
+void ocf_free_collection(oc_collection* collection) {
     FcConfig* fc_config;
 
     if (collection) {
@@ -1187,7 +1182,7 @@ static oc__status oc__init_font(const oc_library* library, FcPattern* fc_pattern
     return oc__status_ok;
 }
 
-oc_error oc_load_fonts(oc_collection* collection) {
+oc_error ocf_load_fonts(oc_collection* collection) {
     oc_error err = oc_error_ok;
     const oc_library* oc_library;
 
@@ -1962,7 +1957,7 @@ static inline void oc__free_font_impl(oc_font* font) {
     free(impl);
 }
 
-oc_error oc_init_collection(const oc_library* library, oc_collection* ocollection) {
+oc_error ocf_init_collection(const oc_library* library, oc_collection* ocollection) {
     oc_error err = oc_error_ok;
     oc_collection collection = { 0 };
 
@@ -1977,7 +1972,7 @@ exit:
     return err;
 }
 
-void oc_free_collection(oc_collection* collection) {
+void ocf_free_collection(oc_collection* collection) {
     if (collection) {
         while (collection->nfonts--) {
             oc__free_font_impl(collection->fonts[collection->nfonts]);
@@ -2067,7 +2062,7 @@ exit:
     return impl;
 }
 
-oc_error oc_load_fonts(oc_collection* collection) {
+oc_error ocf_load_fonts(oc_collection* collection) {
     oc_error err = oc_error_ok;
 
     CTFontCollectionRef ct_collection;
@@ -3090,8 +3085,6 @@ bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs
     return true;
 }
 
-// todo: check this rendering thingy as smth is a bit off with dwrite
-//       it seems dwrite does hard edges, idk if we can change that
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
     oc_error err = oc_error_ok;
     HRESULT dw_err = S_OK;
@@ -3247,7 +3240,7 @@ static inline void oc__free_font(oc_font* font) {
     free(impl);
 }
 
-oc_error oc_init_collection(const oc_library* library, oc_collection* ocollection) {
+oc_error ocf_init_collection(const oc_library* library, oc_collection* ocollection) {
     oc_collection collection = { 0 };
     oc_error err = oc_error_ok;
 
@@ -3268,7 +3261,7 @@ exit:
     return err;
 }
 
-void oc_free_collection(oc_collection* collection) {
+void ocf_free_collection(oc_collection* collection) {
     if (collection) {
         while (collection->nfonts--) {
             oc__free_font(collection->fonts[collection->nfonts]);
@@ -3315,7 +3308,7 @@ static oc_font* oc__init_font(IDWriteFactory* dw_factory, IDWriteFont* dw_font, 
     return &impl->font;
 }
 
-oc_error oc_load_fonts(oc_collection* collection) {
+oc_error ocf_load_fonts(oc_collection* collection) {
     oc_error err = oc_error_ok;
     HRESULT hr;
 

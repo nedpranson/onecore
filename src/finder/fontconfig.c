@@ -27,10 +27,11 @@ typedef enum {
 
 static inline void oc__free_font(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
+    // impl->fc_pattern should not be freed as it is owned by FcConfig
     free(impl);
 }
 
-oc_error oc_init_collection(const oc_library* library, oc_collection* ocollection) {
+oc_error ocf_init_collection(const oc_library* library, oc_collection* ocollection) {
     oc_error err = oc_error_ok;
     FcConfig* fc_config;
     oc_collection_impl* impl;
@@ -61,7 +62,7 @@ exit:
     return err;
 }
 
-void oc_free_collection(oc_collection* collection) {
+void ocf_free_collection(oc_collection* collection) {
     FcConfig* fc_config;
 
     if (collection) {
@@ -143,7 +144,7 @@ static oc__status oc__init_font(const oc_library* library, FcPattern* fc_pattern
     return oc__status_ok;
 }
 
-oc_error oc_load_fonts(oc_collection* collection) {
+oc_error ocf_load_fonts(oc_collection* collection) {
     oc_error err = oc_error_ok;
     const oc_library* oc_library;
 

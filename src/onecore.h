@@ -168,22 +168,16 @@ oc_free_library(oc_library* library);
  * Call `oc_free_collection` to release retrieved resource.
  */
 OC_PUBLIC oc_error
-oc_init_collection(const oc_library* library, oc_collection* ocollection);
+ocf_init_collection(const oc_library* library, oc_collection* ocollection);
 
 /*
  * Releases given collection object.
  */
 OC_PUBLIC void
-oc_free_collection(oc_collection* collection);
+ocf_free_collection(oc_collection* collection);
 
 OC_PUBLIC oc_error
-oc_load_fonts(oc_collection* collection);
-
-// todo: we could even split this project into 2 diffrent header files
-// just not sure how would opening fonts from oc_font obj would work
-// oc_ -> only for library it self
-// ocf_ -> onecore finder
-// ocl_ -> onecore loader
+ocf_load_fonts(oc_collection* collection);
 
 OC_PUBLIC bool
 ocf_has_character(const oc_font* font, uint32_t character);
@@ -260,9 +254,9 @@ ocl_get_glyph_cbox(
 
 // todo: add comments here explaining that every backend will generate diffrent glyph textures
 //       so if u want it modified by every backend it would be recomended to raster it using glyph outlines
-// todo: now we're rendering these glyphs from [0;0] position which is convenient, but it does lose some extra draw data
+// todo (stage 2): now we're rendering these glyphs from [0;0] position which is convenient, but it does lose some extra draw data
 //       make so an user could specify how to draw this glyph mb allow to pass matricies and origins mb just some flags??
-// todo: it is needed to make this method more complicated, now we cannot pass origin where to draw or matricies, nothing
+// todo (stage 2): it is needed to make this method more complicated, now we cannot pass origin where to draw or matricies, nothing
 //
 // roadmap:
 // dwrite and coretext knows how to draw bezier curves hence theoretically hinting can be achieved with manual shapes rasterization,
@@ -275,7 +269,7 @@ ocl_render_glyph(
     uint8_t* buffer,
     size_t buffer_size);
 
-// todo: renew this impl
+// todo (stage 2): renew this impl
 OC_PUBLIC bool
 ocl_get_outline(
     const oc_face* face,

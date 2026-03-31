@@ -47,20 +47,20 @@ void test_oc_init_collection(void) {
 
     oc_collection nil_col = { 0 };
 
-    err = oc_init_collection(NULL, &col);
+    err = ocf_init_collection(NULL, &col);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
     TEST_ASSERT_EQUAL_MEMORY(&nil_col, &col, sizeof(oc_collection));
 
-    err = oc_init_collection(&g_library, &col);
+    err = ocf_init_collection(&g_library, &col);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
-    oc_free_collection(&col);
+    ocf_free_collection(&col);
     TEST_ASSERT_EQUAL_MEMORY(&nil_col, &col, sizeof(oc_collection));
 
-    err = oc_init_collection(&g_library, NULL);
+    err = ocf_init_collection(&g_library, NULL);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
-    oc_free_collection(NULL);
+    ocf_free_collection(NULL);
 }
 
 static int cmpr(const void* a, const void* b) {
@@ -74,13 +74,13 @@ void test_oc_load_fonts(void) {
     oc_collection col;
     oc_error err;
 
-    err = oc_init_collection(&g_library, &col);
+    err = ocf_init_collection(&g_library, &col);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
-    err = oc_load_fonts(&col);
+    err = ocf_load_fonts(&col);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
-    err = oc_load_fonts(&col);
+    err = ocf_load_fonts(&col);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
     qsort(col.fonts, col.nfonts, sizeof(oc_font*), cmpr);
@@ -109,7 +109,7 @@ void test_oc_load_fonts(void) {
         printf("\n");
     }
 
-    oc_free_collection(&col);
+    ocf_free_collection(&col);
 }
 
 void test_ocl_open_face(void) {

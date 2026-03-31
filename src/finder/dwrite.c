@@ -27,7 +27,7 @@ static inline void oc__free_font(oc_font* font) {
     free(impl);
 }
 
-oc_error oc_init_collection(const oc_library* library, oc_collection* ocollection) {
+oc_error ocf_init_collection(const oc_library* library, oc_collection* ocollection) {
     oc_collection collection = { 0 };
     oc_error err = oc_error_ok;
 
@@ -48,7 +48,7 @@ exit:
     return err;
 }
 
-void oc_free_collection(oc_collection* collection) {
+void ocf_free_collection(oc_collection* collection) {
     if (collection) {
         while (collection->nfonts--) {
             oc__free_font(collection->fonts[collection->nfonts]);
@@ -95,7 +95,7 @@ static oc_font* oc__init_font(IDWriteFactory* dw_factory, IDWriteFont* dw_font, 
     return &impl->font;
 }
 
-oc_error oc_load_fonts(oc_collection* collection) {
+oc_error ocf_load_fonts(oc_collection* collection) {
     oc_error err = oc_error_ok;
     HRESULT hr;
 

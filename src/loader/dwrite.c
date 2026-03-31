@@ -826,8 +826,6 @@ bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs
     return true;
 }
 
-// todo: check this rendering thingy as smth is a bit off with dwrite
-//       it seems dwrite does hard edges, idk if we can change that
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
     oc_error err = oc_error_ok;
     HRESULT dw_err = S_OK;
