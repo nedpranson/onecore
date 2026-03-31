@@ -147,6 +147,9 @@ void test_ocl_open_face(void) {
     err = ocl_open_face(&g_library, "non_existing.ttf", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
 
+    err = ocl_open_face(&g_library, "test/files/corrupt.ttf", NULL, &face);
+    TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
+
     char path[8192 + 1];
     memset(path, 'a', sizeof(path));
     path[8188] = '.';
