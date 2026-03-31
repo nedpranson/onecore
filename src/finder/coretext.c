@@ -1,5 +1,6 @@
 #include <CoreFoundation/CFBase.h>
 #include <CoreText/CTFontTraits.h>
+#include <assert.h>
 #include <stdint.h>
 #define ONECORE_SHARED_IMPLEMENTATION
 #include "../onecore.h"
@@ -70,12 +71,14 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
 
     assert(ct_font != NULL);
 
+    // todo (stage 2): do some assumptions based on this assumption
+    // is_immortal = CFGetRetainCount(obj) == 0x7FFFFFFFFFFFFFFF
+
     // Cheers to AI it has found private api to 'CTFontCSSWeightAttribute'
-    // todo: on debug builds assert on 'CTFontCSSWeightAttribute' existing
     weight_obj = CTFontDescriptorCopyAttribute(ct_font, CFSTR("CTFontCSSWeightAttribute"));
-    if (weight_obj == NULL) {
-        goto exit;
-    }
+    // Notify developer on GitHub if this assertion ever fails:
+    // https://github.com/nedpranson/onecore/issues
+    assert(weight_obj != NULL); 
 
     CFNumberGetValue(weight_obj, kCFNumberIntType, &weight);
     CFRelease(weight_obj);
@@ -117,8 +120,8 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     impl->font.weight = (uint16_t)weight;
     impl->font.slant = oc_slant_roman;
 
-    // tood: implement valid one
-    //       we need crossplatform solution
+    // todo (stage 2): implement valid one
+    // we need crossplatform solution
     if (ct_symbolic & kCTFontItalicTrait) {
         impl->font.slant = oc_slant_italic;
     }

@@ -1450,9 +1450,12 @@ oc_error ocl_open_face(const oc_library* library, const char* path, const oc_ope
     descriptors = CTFontManagerCreateFontDescriptorsFromURL(url_path);
     CFRelease(url_path);
 
-    // todo: think how to reliably handle this err
+    // todo (stage 2): think how to reliably handle this err
     if (descriptors == NULL) {
-        return oc_error_failed_to_open; // or oom
+        // file not found
+        // invalid file
+        // oom
+        return oc_error_failed_to_open; 
     }
 
     err = oc__open_face_from_descriptors(descriptors, uparams, oface);
@@ -1479,6 +1482,8 @@ oc_error ocl_open_memory_face(const oc_library* library, const void* data, size_
     CFRelease(ct_data);
 
     if (descriptors == NULL) {
+        // invalid file
+        // oom
         return oc_error_failed_to_open;
     }
 
@@ -2008,12 +2013,14 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
 
     assert(ct_font != NULL);
 
+    // todo (stage 2): do some assumptions based on this assumption
+    // is_immortal = CFGetRetainCount(obj) == 0x7FFFFFFFFFFFFFFF
+
     // Cheers to AI it has found private api to 'CTFontCSSWeightAttribute'
-    // todo: on debug builds assert on 'CTFontCSSWeightAttribute' existing
     weight_obj = CTFontDescriptorCopyAttribute(ct_font, CFSTR("CTFontCSSWeightAttribute"));
-    if (weight_obj == NULL) {
-        goto exit;
-    }
+    // Notify developer on GitHub if this assertion ever fails:
+    // https://github.com/nedpranson/onecore/issues
+    assert(weight_obj != NULL); 
 
     CFNumberGetValue(weight_obj, kCFNumberIntType, &weight);
     CFRelease(weight_obj);
@@ -2055,8 +2062,8 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     impl->font.weight = (uint16_t)weight;
     impl->font.slant = oc_slant_roman;
 
-    // tood: implement valid one
-    //       we need crossplatform solution
+    // todo (stage 2): implement valid one
+    // we need crossplatform solution
     if (ct_symbolic & kCTFontItalicTrait) {
         impl->font.slant = oc_slant_italic;
     }

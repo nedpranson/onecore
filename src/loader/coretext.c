@@ -108,9 +108,12 @@ oc_error ocl_open_face(const oc_library* library, const char* path, const oc_ope
     descriptors = CTFontManagerCreateFontDescriptorsFromURL(url_path);
     CFRelease(url_path);
 
-    // todo: think how to reliably handle this err
+    // todo (stage 2): think how to reliably handle this err
     if (descriptors == NULL) {
-        return oc_error_failed_to_open; // or oom
+        // file not found
+        // invalid file
+        // oom
+        return oc_error_failed_to_open; 
     }
 
     err = oc__open_face_from_descriptors(descriptors, uparams, oface);
@@ -137,6 +140,8 @@ oc_error ocl_open_memory_face(const oc_library* library, const void* data, size_
     CFRelease(ct_data);
 
     if (descriptors == NULL) {
+        // invalid file
+        // oom
         return oc_error_failed_to_open;
     }
 
