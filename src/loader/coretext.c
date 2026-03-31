@@ -1,3 +1,4 @@
+#include <stdint.h>
 #define ONECORE_SHARED_IMPLEMENTATION
 #include "../onecore.h"
 
@@ -86,9 +87,7 @@ oc_error oc_open_face(const oc_library* library, const char* path, const oc_open
         return oc_error_invalid_param;
     }
 
-    // DOING!!!
-    // todo: validate utf8 so ct_path would only fail on oom
-
+    // todo (stage 2): validate utf8 so ct_path would only fail on oom
     ct_path = CFStringCreateWithCString(NULL, path, kCFStringEncodingUTF8);
     if (ct_path == NULL) {
         return oc_error_failed_to_open; // or oom

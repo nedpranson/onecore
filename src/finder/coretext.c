@@ -70,6 +70,7 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
 
     assert(ct_font != NULL);
 
+    // Cheers to AI it has found private api to 'CTFontCSSWeightAttribute'
     weight_obj = CTFontDescriptorCopyAttribute(ct_font, CFSTR("CTFontCSSWeightAttribute"));
     if (weight_obj == NULL) {
         goto exit;
