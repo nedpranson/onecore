@@ -11,14 +11,14 @@ extern oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_fa
 
 struct oc_collection_impl {
     IDWriteFactory* dw_factory;
-    char** families;
-    UINT32 nfamilies;
+    char**          families;
+    UINT32          nfamilies;
 };
 
 typedef struct {
     IDWriteFactory* dw_factory;
-    IDWriteFont* dw_font;
-    oc_font font;
+    IDWriteFont*    dw_font;
+    oc_font         font;
 } oc__font_impl;
 
 static inline void oc__free_font(oc_font* font) {
@@ -29,7 +29,7 @@ static inline void oc__free_font(oc_font* font) {
 
 oc_error ocf_init_collection(const oc_library* library, oc_collection* ocollection) {
     oc_collection collection = { 0 };
-    oc_error err = oc_error_ok;
+    oc_error      err = oc_error_ok;
 
     if (!(library && ocollection)) {
         err = oc_error_invalid_param;
@@ -74,7 +74,7 @@ static const oc_slant oc__slant_map[] = {
 
 static oc_font* oc__init_font(IDWriteFactory* dw_factory, IDWriteFont* dw_font, const char* family) {
     DWRITE_FONT_WEIGHT weight;
-    DWRITE_FONT_STYLE style;
+    DWRITE_FONT_STYLE  style;
 
     oc__font_impl* impl;
 
@@ -97,27 +97,27 @@ static oc_font* oc__init_font(IDWriteFactory* dw_factory, IDWriteFont* dw_font, 
 
 oc_error ocf_load_fonts(oc_collection* collection) {
     oc_error err = oc_error_ok;
-    HRESULT hr;
+    HRESULT  hr;
 
-    IDWriteFactory* dw_factory;
+    IDWriteFactory*        dw_factory;
     IDWriteFontCollection* dw_collection = NULL;
 
     UINT32 family_count;
     UINT32 font_count;
 
     union {
-        char* str;
+        char*  str;
         UINT32 len;
-    }* families = NULL;
+    }*     families = NULL;
     UINT32 nfamilies = 0;
 
     WCHAR* wide_buf = NULL;
     UINT32 wide_buf_len;
 
     oc_font** fonts = NULL;
-    uint32_t nfonts = 0;
+    uint32_t  nfonts = 0;
 
-    oc_collection tmp_collection;
+    oc_collection      tmp_collection;
     oc_collection_impl tmp_impl;
 
     if (!collection) {
@@ -149,9 +149,9 @@ oc_error ocf_load_fonts(oc_collection* collection) {
     }
 
     for (UINT32 i = 0; i < family_count; i++) {
-        IDWriteFontFamily* family;
+        IDWriteFontFamily*       family;
         IDWriteLocalizedStrings* names;
-        UINT32 length;
+        UINT32                   length;
 
         hr = dw_collection->lpVtbl->GetFontFamily(dw_collection, i, &family);
         assert(hr == S_OK);
@@ -184,14 +184,14 @@ oc_error ocf_load_fonts(oc_collection* collection) {
     }
 
     for (UINT32 i = 0; i < family_count; i++) {
-        IDWriteFontFamily* font_family;
+        IDWriteFontFamily*       font_family;
         IDWriteLocalizedStrings* names;
 
         UINT32 wide_length = families[i].len;
         UINT32 font_index;
 
         char* family;
-        int length;
+        int   length;
 
         hr = dw_collection->lpVtbl->GetFontFamily(dw_collection, i, &font_family);
         assert(hr == S_OK);
@@ -239,7 +239,7 @@ oc_error ocf_load_fonts(oc_collection* collection) {
 
         while (font_index--) {
             IDWriteFont* dw_font;
-            oc_font* font;
+            oc_font*     font;
 
             hr = font_family->lpVtbl->GetFont(font_family, font_index, &dw_font);
             assert(hr == S_OK);
@@ -289,7 +289,7 @@ exit:
 
 bool ocf_has_character(const oc_font* font, uint32_t character) {
     oc__font_impl* impl;
-    IDWriteFont* dw_font;
+    IDWriteFont*   dw_font;
 
     HRESULT result;
     WINBOOL exists;
@@ -307,9 +307,9 @@ bool ocf_has_character(const oc_font* font, uint32_t character) {
 
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     oc_error err;
-    HRESULT result;
+    HRESULT  result;
 
-    oc__font_impl* impl;
+    oc__font_impl*   impl;
     IDWriteFontFace* dw_face;
 
     oc_face face = { 0 };
@@ -346,7 +346,7 @@ exit:
 
 size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
     oc__font_impl* impl;
-    HRESULT result;
+    HRESULT        result;
 
     IDWriteFontFace* face;
     IDWriteFontFile* file;
@@ -354,15 +354,15 @@ size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
     UINT32 nfiles;
 
     const void* key;
-    UINT32 key_size;
+    UINT32      key_size;
 
-    IDWriteFontFileLoader* loader;
+    IDWriteFontFileLoader*      loader;
     IDWriteLocalFontFileLoader* local_loader;
 
     WCHAR* wide_path;
     UINT32 wide_len;
 
-    int path_len;
+    int    path_len;
     size_t copy_len;
 
     if (!font) {

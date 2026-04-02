@@ -1,4 +1,4 @@
-#define ONECORE_IMPLEMENTATION
+#define ONECORE_SHARED_IMPLEMENTATION
 #include "../onecore.h"
 
 /* ONECORE_FREETYPE_LOADER_IMPLEMENTATION */
@@ -35,13 +35,13 @@ typedef pthread_mutex_t oc__mutex_impl_t;
     } while (0)
 
 struct oc_face_impl {
-    FT_Face ft_face;
+    FT_Face          ft_face;
     oc__mutex_impl_t lock;
 };
 
 oc_error oc_init_library(oc_library* plibrary) {
     FT_Library library;
-    FT_Error err;
+    FT_Error   err;
 
     if (plibrary == NULL) {
         return oc_error_invalid_param;
@@ -74,7 +74,7 @@ void oc_free_library(oc_library* library) {
 
 static oc_error oc__init_face(FT_Face ft_face, const oc_open_params* params, oc_face* oface) {
     FT_Error err;
-    oc_face face;
+    oc_face  face;
 
     err = FT_Set_Char_Size(ft_face, 0, params->desired_size, params->dpi, params->dpi);
     switch (err) {
@@ -109,11 +109,11 @@ static oc_error oc__init_face(FT_Face ft_face, const oc_open_params* params, oc_
 }
 
 oc_error ocl_open_face(const oc_library* library, const char* path, const oc_open_params* uparams, oc_face* oface) {
-    int32_t err;
-    FT_Face ft_face;
-    FT_Library ft_library;
+    int32_t        err;
+    FT_Face        ft_face;
+    FT_Library     ft_library;
     oc_open_params params;
-    FT_Open_Args ft_open_args = { 0 };
+    FT_Open_Args   ft_open_args = { 0 };
 
     if (!(library && path && oface)) {
         return oc_error_invalid_param;
@@ -152,9 +152,9 @@ oc_error ocl_open_face(const oc_library* library, const char* path, const oc_ope
 }
 
 oc_error ocl_open_memory_face(const oc_library* library, const void* data, size_t size, const oc_open_params* uparams, oc_face* oface) {
-    int32_t err;
-    FT_Face ft_face;
-    FT_Library ft_library;
+    int32_t        err;
+    FT_Face        ft_face;
+    FT_Library     ft_library;
     oc_open_params params;
 
     if (!(library && oface)) {
@@ -205,7 +205,7 @@ void ocl_free_face(oc_face* face) {
 
 oc_error ocl_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     FT_Error err;
-    FT_Face ft_face;
+    FT_Face  ft_face;
 
     if (!face) {
         return oc_error_invalid_param;
@@ -239,7 +239,7 @@ uint16_t ocl_get_char_index(const oc_face* face, uint32_t charcode) {
 
 oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, void* data, uint32_t* size) {
     FT_Error err;
-    FT_Face ft_face;
+    FT_Face  ft_face;
 
     FT_ULong length;
 
@@ -283,12 +283,12 @@ oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, vo
 
 // todo (stage 2): add option for verticals and maybe load both hori and vert bearings, advances
 void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
-    FT_Error err;
-    FT_Face ft_face;
+    FT_Error          err;
+    FT_Face           ft_face;
     oc__mutex_impl_t* lock;
-    FT_Glyph_Metrics ft_metrics;
-    oc_glyph_metrics metrics = { 0 };
-    FT_Int32 ft_load_flags = FT_LOAD_NO_AUTOHINT | FT_LOAD_BITMAP_METRICS_ONLY | FT_LOAD_NO_HINTING;
+    FT_Glyph_Metrics  ft_metrics;
+    oc_glyph_metrics  metrics = { 0 };
+    FT_Int32          ft_load_flags = FT_LOAD_NO_AUTOHINT | FT_LOAD_BITMAP_METRICS_ONLY | FT_LOAD_NO_HINTING;
 
     if (!(face && ometrics)) {
         goto exit;
@@ -334,15 +334,15 @@ exit:
 
 typedef struct {
     const oc_outline_funcs* funcs;
-    void* ctx;
+    void*                   ctx;
 
     FT_Vector x2origin;
-    bool figure_started;
+    bool      figure_started;
 } oc__outline_context;
 
 static int oc__move_to(const FT_Vector* to, void* user) {
     oc__outline_context* ctx = (oc__outline_context*)user;
-    oc_point point = { (int32_t)(to->x >> 1), (int32_t)(to->y >> 1) };
+    oc_point             point = { (int32_t)(to->x >> 1), (int32_t)(to->y >> 1) };
 
     if (ctx->figure_started) {
         ctx->funcs->end_figure(ctx->ctx);
@@ -357,7 +357,7 @@ static int oc__move_to(const FT_Vector* to, void* user) {
 
 static int oc__line_to(const FT_Vector* x2to, void* user) {
     oc__outline_context* ctx = (oc__outline_context*)user;
-    oc_point point = { (int32_t)(x2to->x >> 1), (int32_t)(x2to->y >> 1) };
+    oc_point             point = { (int32_t)(x2to->x >> 1), (int32_t)(x2to->y >> 1) };
 
     ctx->funcs->line_to(point, ctx->ctx);
     ctx->x2origin = *x2to;
@@ -412,12 +412,12 @@ static int oc__cubic_to(const FT_Vector* x2c1, const FT_Vector* x2c2, const FT_V
 }
 
 void ocl_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
-    FT_Error err;
-    FT_Face ft_face;
+    FT_Error          err;
+    FT_Face           ft_face;
     oc__mutex_impl_t* lock;
-    FT_BBox ft_cbox;
-    oc_bbox cbox = { 0 };
-    FT_Int32 ft_load_flags = FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING;
+    FT_BBox           ft_cbox;
+    oc_bbox           cbox = { 0 };
+    FT_Int32          ft_load_flags = FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING;
 
     if (!(face && ocbox)) {
         goto exit;
@@ -454,11 +454,11 @@ exit:
 }
 
 bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
-    FT_Error err;
-    FT_Face ft_face;
-    oc__mutex_impl_t* lock;
-    FT_GlyphSlot glyph;
-    FT_Outline outline;
+    FT_Error            err;
+    FT_Face             ft_face;
+    oc__mutex_impl_t*   lock;
+    FT_GlyphSlot        glyph;
+    FT_Outline          outline;
     oc__outline_context context = { 0 };
 
     if (!(face && funcs)) {
@@ -513,13 +513,13 @@ exit:
 }
 
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
-    FT_Face ft_face;
+    FT_Face           ft_face;
     oc__mutex_impl_t* lock;
-    FT_Error ft_err;
-    FT_Bitmap ft_bitmap;
-    FT_Glyph ft_glyph = NULL;
-    oc_error err = oc_error_ok;
-    oc_extent extent = { 0 };
+    FT_Error          ft_err;
+    FT_Bitmap         ft_bitmap;
+    FT_Glyph          ft_glyph = NULL;
+    oc_error          err = oc_error_ok;
+    oc_extent         extent = { 0 };
 
     size_t length;
 

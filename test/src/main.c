@@ -7,7 +7,7 @@
 #include <onecore.h>
 
 oc_library g_library;
-oc_face g_arial_ttf;
+oc_face    g_arial_ttf;
 
 // todo (stage 2): test emoji fonts
 // todo (stage 2): test how every backend validates utf8
@@ -30,7 +30,7 @@ void test_math(void) {
 
 void test_oc_init_library(void) {
     oc_library lib;
-    oc_error err;
+    oc_error   err;
 
     err = oc_init_library(&lib);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
@@ -43,7 +43,7 @@ void test_oc_init_library(void) {
 
 void test_oc_init_collection(void) {
     oc_collection col;
-    oc_error err;
+    oc_error      err;
 
     oc_collection nil_col = { 0 };
 
@@ -72,7 +72,7 @@ static int cmpr(const void* a, const void* b) {
 
 void test_oc_load_fonts(void) {
     oc_collection col;
-    oc_error err;
+    oc_error      err;
 
     err = ocf_init_collection(&g_library, &col);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
@@ -90,7 +90,7 @@ void test_oc_load_fonts(void) {
         // oc_face face;
         // oc_error err;
 
-        char path[256];
+        char   path[256];
         size_t amt = ocf_copy_path(font, path, 255);
         path[amt] = '\0';
 
@@ -113,7 +113,7 @@ void test_oc_load_fonts(void) {
 }
 
 void test_ocl_open_face(void) {
-    oc_face face;
+    oc_face  face;
     oc_error err;
 
     err = ocl_open_face(&g_library, "test/files/arial.ttf", NULL, &face);
@@ -194,7 +194,7 @@ void test_ocl_open_face(void) {
 }
 
 void test_ocl_open_memory_face(void) {
-    oc_face face;
+    oc_face  face;
     oc_error err;
 
     err = ocl_open_memory_face(&g_library, NULL, 0, NULL, &face);
@@ -268,12 +268,12 @@ void test_ocl_open_memory_face(void) {
 
 // todo: test if metric stuff changes after set sizes
 void test_oc_test_sizes(void) {
-    oc_error err;
-    oc_face face;
-    uint16_t idx;
+    oc_error  err;
+    oc_face   face;
+    uint16_t  idx;
     oc_extent extent;
-    uint8_t bitmap_a[13 * 12];
-    uint8_t bitmap_b[13 * 12];
+    uint8_t   bitmap_a[13 * 12];
+    uint8_t   bitmap_b[13 * 12];
 
     err = ocl_open_face(&g_library, "test/files/arial.otf", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
@@ -361,7 +361,7 @@ void test_oc_test_sizes(void) {
 }
 
 void test_ocl_get_char_index(void) {
-    oc_face face;
+    oc_face  face;
     oc_error err;
     uint16_t idx;
 
@@ -395,7 +395,7 @@ void test_ocl_get_char_index(void) {
 
 uint32_t fnv1a_hash(const void* data, size_t len) {
     const uint8_t* bytes = (const uint8_t*)data;
-    uint32_t hash = 2166136261U;
+    uint32_t       hash = 2166136261U;
 
     for (size_t i = 0; i < len; i++) {
         hash ^= bytes[i];
@@ -408,7 +408,7 @@ uint32_t fnv1a_hash(const void* data, size_t len) {
 void test_ocl_get_sfnt_table(void) {
     oc_error err;
 
-    uint8_t buf[5994];
+    uint8_t  buf[5994];
     uint32_t len;
 
     oc_tag cmap = OC_MAKE_TAG('c', 'm', 'a', 'p');
@@ -462,7 +462,7 @@ void test_ocl_get_sfnt_table(void) {
 }
 
 void test_oc_font_metrics(void) {
-    oc_face face;
+    oc_face  face;
     oc_error err;
 
     err = ocl_open_face(&g_library, "test/files/arial.ttf", 0, &face);
@@ -500,7 +500,7 @@ void test_oc_font_metrics(void) {
 }
 
 void test_ocl_get_glyph_metrics(void) {
-    uint16_t idx;
+    uint16_t         idx;
     oc_glyph_metrics metrics;
 
     idx = ocl_get_char_index(&g_arial_ttf, 'y');
@@ -545,7 +545,7 @@ void test_ocl_get_glyph_metrics(void) {
     TEST_ASSERT_EQUAL_INT32(0, metrics.bearing_y);
     TEST_ASSERT_EQUAL_UINT32(0, metrics.advance);
 
-    oc_face face;
+    oc_face        face;
     oc_open_params face_params = { 0 };
     face_params.desired_size = 16 << 6;
     face_params.dpi = 96;
@@ -565,7 +565,7 @@ void test_ocl_get_glyph_metrics(void) {
 }
 
 void test_ocl_get_glyph_metrics_scaled(void) {
-    uint16_t idx;
+    uint16_t         idx;
     oc_glyph_metrics metrics;
 
     idx = ocl_get_char_index(&g_arial_ttf, '_');
@@ -644,7 +644,7 @@ void test_ocl_get_glyph_metrics_scaled(void) {
 
 void test_ocl_get_glyph_cbox(void) {
     uint16_t idx;
-    oc_bbox bbox;
+    oc_bbox  bbox;
 
     idx = ocl_get_char_index(&g_arial_ttf, '_');
     TEST_ASSERT_EQUAL_INT16(66, idx);
@@ -764,8 +764,8 @@ void test_ocl_get_outline(void) {
         cubic_to
     };
 
-    uint16_t idx;
-    bool ok;
+    uint16_t        idx;
+    bool            ok;
     outline_context ctx;
 
     idx = ocl_get_char_index(&g_arial_ttf, 'i');
@@ -882,9 +882,9 @@ void test_ocl_get_outline(void) {
 // todo (stage 2): perhaps we should render glyphs like in macos
 //       specify origins, allow for a matrix if no matrix is passed we can use default (0, 0) point rendering
 void test_ocl_render_glyph(void) {
-    uint16_t idx;
+    uint16_t  idx;
     oc_extent size;
-    oc_error err;
+    oc_error  err;
 
     uint8_t buffer[12 * 3];
 

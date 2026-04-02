@@ -10,32 +10,32 @@
 
 struct oc_face_impl {
     IDWriteFontFace* dw_face;
-    IDWriteFactory* dw_factory;
+    IDWriteFactory*  dw_factory;
 };
 
 typedef struct {
     const void* data;
-    size_t size;
+    size_t      size;
 } oc__memory_view;
 
 typedef struct {
     const IDWriteFontFileStreamVtbl* lpVtbl;
-    LONG ref_count;
-    oc__memory_view memory_view;
+    LONG                             ref_count;
+    oc__memory_view                  memory_view;
 } OC__IDWriteFontFileStream;
 
 typedef struct {
     const IDWriteFontFileLoaderVtbl* lpVtbl;
-    LONG ref_count;
+    LONG                             ref_count;
 } OC__IDWriteFontFileLoader;
 
 typedef struct {
     const ID2D1SimplifiedGeometrySinkVtbl* lpVtbl;
-    const oc_outline_funcs* funcs;
-    D2D1_POINT_2F start;
-    D2D1_POINT_2F origin;
-    void* ctx;
-    LONG ref_count;
+    const oc_outline_funcs*                funcs;
+    D2D1_POINT_2F                          start;
+    D2D1_POINT_2F                          origin;
+    void*                                  ctx;
+    LONG                                   ref_count;
 } OC__ID2D1SimplifiedGeometrySink;
 
 static HRESULT STDMETHODCALLTYPE
@@ -70,10 +70,10 @@ OC__IDWriteFontFileStream_ReleaseFileFragment(IDWriteFontFileStream* This, void*
 static HRESULT STDMETHODCALLTYPE
 OC__IDWriteFontFileStream_ReadFileFragment(
     IDWriteFontFileStream* This,
-    const void** fragment_start,
-    UINT64 offset,
-    UINT64 fragment_size,
-    void** fragment_context) {
+    const void**           fragment_start,
+    UINT64                 offset,
+    UINT64                 fragment_size,
+    void**                 fragment_context) {
 
     OC__IDWriteFontFileStream* this = (OC__IDWriteFontFileStream*)This;
 
@@ -337,10 +337,10 @@ static const ID2D1SimplifiedGeometrySinkVtbl OC__ID2D1SimplifiedGeometrySinkVtbl
 };
 
 OC__IDWriteFontFileLoader oc__file_loader = { &OC__IDWriteFontFileLoaderVtbl, 0 };
-IDWriteFontFileLoader* oc__dw_file_loader = (IDWriteFontFileLoader*)&oc__file_loader;
+IDWriteFontFileLoader*    oc__dw_file_loader = (IDWriteFontFileLoader*)&oc__file_loader;
 
 oc_error oc_init_library(oc_library* olibrary) {
-    HRESULT err;
+    HRESULT         err;
     IDWriteFactory* dw_factory;
 
     if (olibrary == NULL) {
@@ -385,10 +385,10 @@ void oc_free_library(oc_library* library) {
 
 static oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_face, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     DWRITE_FONT_METRICS metrics;
-    oc_16p16 scaled;
-    oc_16p16 scale;
-    int32_t ppem;
-    oc_face face;
+    oc_16p16            scaled;
+    oc_16p16            scale;
+    int32_t             ppem;
+    oc_face             face;
 
     assert(dpi > 0);
     assert(desired_size >= 1 << 6);
@@ -428,13 +428,13 @@ static oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_fa
 }
 
 static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWriteFontFile* font_file, const oc_open_params* uparams, oc_face* oface) {
-    HRESULT err;
-    WINBOOL is_supported_fonttype;
+    HRESULT               err;
+    WINBOOL               is_supported_fonttype;
     DWRITE_FONT_FILE_TYPE file_type;
     DWRITE_FONT_FACE_TYPE face_type;
-    IDWriteFontFace* dw_face;
-    UINT32 face_num;
-    oc_open_params params = oc__open_params_defaults(uparams);
+    IDWriteFontFace*      dw_face;
+    UINT32                face_num;
+    oc_open_params        params = oc__open_params_defaults(uparams);
 
     err = font_file->lpVtbl->Analyze(
         font_file,
@@ -480,10 +480,10 @@ static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWrite
 }
 
 oc_error ocl_open_face(const oc_library* library, const char* path, const oc_open_params* uparams, oc_face* oface) {
-    int32_t err;
-    int size;
-    wchar_t* dw_path;
-    IDWriteFactory* dw_factory;
+    int32_t          err;
+    int              size;
+    wchar_t*         dw_path;
+    IDWriteFactory*  dw_factory;
     IDWriteFontFile* dw_font_file;
 
     if (!(library && path && oface)) {
@@ -529,10 +529,10 @@ oc_error ocl_open_face(const oc_library* library, const char* path, const oc_ope
 }
 
 oc_error ocl_open_memory_face(const oc_library* library, const void* data, size_t size, const oc_open_params* uparams, oc_face* oface) {
-    int32_t err;
+    int32_t          err;
     IDWriteFontFile* font_file;
-    IDWriteFactory* dw_factory;
-    oc__memory_view key;
+    IDWriteFactory*  dw_factory;
+    oc__memory_view  key;
 
     if (!(library && data && oface)) {
         return oc_error_invalid_param;
@@ -576,9 +576,9 @@ void ocl_free_face(oc_face* face) {
 }
 
 uint16_t ocl_get_char_index(const oc_face* face, uint32_t charcode) {
-    HRESULT err;
+    HRESULT          err;
     IDWriteFontFace* dw_face;
-    UINT16 index;
+    UINT16           index;
 
     if (face == NULL) {
         return 0;
@@ -600,7 +600,7 @@ uint16_t ocl_get_char_index(const oc_face* face, uint32_t charcode) {
 oc_error ocl_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     oc_16p16 scaled;
     oc_16p16 scale;
-    int32_t ppem;
+    int32_t  ppem;
 
     if (!face) {
         return oc_error_invalid_param;
@@ -629,13 +629,13 @@ oc_error ocl_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
 }
 
 oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, void* data, uint32_t* size) {
-    HRESULT err;
+    HRESULT          err;
     IDWriteFontFace* dw_face;
 
     const void* table_data;
-    UINT32 table_size;
+    UINT32      table_size;
 
-    void* context;
+    void*   context;
     WINBOOL exists;
 
     uint32_t length;
@@ -682,12 +682,12 @@ oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, vo
 }
 
 void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
-    HRESULT err;
+    HRESULT              err;
     DWRITE_GLYPH_METRICS dw_metrics;
-    IDWriteFontFace* dw_face;
-    oc_16p16 scale;
-    UINT16 count;
-    oc_glyph_metrics metrics = { 0 };
+    IDWriteFontFace*     dw_face;
+    oc_16p16             scale;
+    UINT16               count;
+    oc_glyph_metrics     metrics = { 0 };
 
     if (!(face && ometrics)) {
         goto exit;
@@ -740,12 +740,12 @@ exit:
 }
 
 void ocl_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
-    HRESULT err;
+    HRESULT              err;
     DWRITE_GLYPH_METRICS metrics;
-    IDWriteFontFace* dw_face;
-    UINT16 count;
-    oc_16p16 scale;
-    oc_bbox cbox = { 0 };
+    IDWriteFontFace*     dw_face;
+    UINT16               count;
+    oc_16p16             scale;
+    oc_bbox              cbox = { 0 };
 
     if (!(face && ocbox)) {
         goto exit;
@@ -790,8 +790,8 @@ exit:
 }
 
 bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
-    HRESULT err;
-    ULONG refs;
+    HRESULT                         err;
+    ULONG                           refs;
     OC__ID2D1SimplifiedGeometrySink geometry_sink = { 0 };
 
     if (!(face && funcs)) {
@@ -828,24 +828,24 @@ bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs
 
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
     oc_error err = oc_error_ok;
-    HRESULT dw_err = S_OK;
+    HRESULT  dw_err = S_OK;
 
     IDWriteFontFace* dw_face;
-    IDWriteFactory* dw_factory;
+    IDWriteFactory*  dw_factory;
 
     oc_bbox cbox;
     oc_bbox pbox;
 
     DWRITE_MATRIX transform;
-    UINT16 count;
-    RECT bounds;
+    UINT16        count;
+    RECT          bounds;
 
     IDWriteGlyphRunAnalysis* analysis = NULL;
-    DWRITE_GLYPH_RUN glyph_run = { 0 };
-    oc_extent extent = { 0 };
+    DWRITE_GLYPH_RUN         glyph_run = { 0 };
+    oc_extent                extent = { 0 };
 
     uint8_t* bitmap = NULL;
-    size_t length;
+    size_t   length;
 
     if (!(face && oextent)) {
         oc__exit(oc_error_invalid_param);

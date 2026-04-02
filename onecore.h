@@ -7,13 +7,13 @@
 
 typedef uint32_t oc_tag;
 typedef uint32_t oc_load_flags;
-typedef int32_t oc_16p16;
-typedef int32_t oc_26p6;
+typedef int32_t  oc_16p16;
+typedef int32_t  oc_26p6;
 // typedef int16_t oc_10p6;
 
-#ifndef OC_PUBLIC
-#define OC_PUBLIC
-#endif /* OC_PUBLIC */
+#ifndef OCDEF
+#define OCDEF
+#endif
 
 #define OC_LOAD_DEFAULT 0x0
 #define OC_LOAD_NO_SCALE (1l << 0)
@@ -62,33 +62,33 @@ typedef enum {
 
 typedef struct {
     uint32_t face_index;
-    oc_26p6 desired_size;
+    oc_26p6  desired_size;
     uint16_t dpi;
 } oc_open_params;
 
 typedef struct {
-    uint16_t ppem;
-    oc_16p16 scale;
+    uint16_t ppem;  /* pixels per EM */
+    oc_16p16 scale; /* scaling value used to convert font units to 26.6 pixels */
 } oc_size;
 
 typedef struct {
-    oc_26p6 width;
-    oc_26p6 height;
-    oc_26p6 bearing_x;
-    oc_26p6 bearing_y;
-    oc_26p6 advance;
+    oc_26p6 width;     /* glyph's width */
+    oc_26p6 height;    /* glyph's height */
+    oc_26p6 bearing_x; /* left side bearing */
+    oc_26p6 bearing_y; /* top side bearing */
+    oc_26p6 advance;   /* advance width */
 } oc_glyph_metrics;
 
 typedef struct {
-    uint32_t rows;
-    uint32_t cols;
+    uint32_t rows; /* number of extent rows */
+    uint32_t cols; /* number of pixels in extent row */
 } oc_extent;
 
 typedef struct {
-    oc_26p6 min_x;
-    oc_26p6 min_y;
-    oc_26p6 max_x;
-    oc_26p6 max_y;
+    oc_26p6 min_x; /* horizontal minimum (left-most) */
+    oc_26p6 min_y; /* vertical minimum (bottom-most) */
+    oc_26p6 max_x; /* horizontal maximum (right-most) */
+    oc_26p6 max_y; /* vertical maximum (top-most) */
 } oc_bbox;
 
 typedef struct {
@@ -103,13 +103,13 @@ typedef void (*oc_outline_cubic_to)(oc_point c1, oc_point c2, oc_point to, void*
 
 typedef struct {
     oc_outline_start_figure start_figure;
-    oc_outline_end_figure end_figure;
-    oc_outline_line_to line_to;
-    oc_outline_cubic_to cubic_to;
+    oc_outline_end_figure   end_figure;
+    oc_outline_line_to      line_to;
+    oc_outline_cubic_to     cubic_to;
 } oc_outline_funcs;
 
 // typedef struct oc_library_impl oc_library_impl;
-typedef struct oc_face_impl oc_face_impl;
+typedef struct oc_face_impl       oc_face_impl;
 typedef struct oc_collection_impl oc_collection_impl;
 // typedef struct oc_font oc_font;
 
@@ -118,8 +118,8 @@ typedef struct oc_collection_impl oc_collection_impl;
 typedef struct {
     // todo: check if family names change on diff locales
     const char* family;
-    oc_slant slant;
-    uint16_t weight;
+    oc_slant    slant;
+    uint16_t    weight;
     // -> langs
     // -> way to get ?path
     // -> way to open oc_font
@@ -134,12 +134,12 @@ typedef struct {
 typedef struct {
     oc_face_impl* impl;
 
-    oc_size size;
-    uint16_t upem;
+    oc_size  size;
+    uint16_t upem; /* units per EM */
     uint16_t ascent;
     uint16_t descent;
-    int16_t leading;
-    int16_t underline_position;
+    int16_t  leading;
+    int16_t  underline_position;
     uint16_t underline_thickness;
 } oc_face;
 
@@ -147,65 +147,65 @@ typedef struct {
     oc_collection_impl* impl;
 
     oc_font** fonts;
-    uint32_t nfonts;
+    uint32_t  nfonts;
 } oc_collection;
 
 /*
  * Initializes a new onecore library instance.
  * Call `oc_free_library` to release retrieved resource.
  */
-OC_PUBLIC oc_error
+OCDEF oc_error
 oc_init_library(oc_library* olibrary);
 
 /*
  * Releases given library object.
  */
-OC_PUBLIC void
+OCDEF void
 oc_free_library(oc_library* library);
 
 /*
  * Initializes a new onecore collection instance.
  * Call `oc_free_collection` to release retrieved resource.
  */
-OC_PUBLIC oc_error
+OCDEF oc_error
 ocf_init_collection(const oc_library* library, oc_collection* ocollection);
 
 /*
  * Releases given collection object.
  */
-OC_PUBLIC void
+OCDEF void
 ocf_free_collection(oc_collection* collection);
 
-OC_PUBLIC oc_error
+OCDEF oc_error
 ocf_load_fonts(oc_collection* collection);
 
-OC_PUBLIC bool
+OCDEF bool
 ocf_has_character(const oc_font* font, uint32_t character);
 
-OC_PUBLIC size_t
+OCDEF size_t
 ocf_copy_path(const oc_font* font, char* buf, size_t len);
 
 /*
  * Opens a font.
  * Call `ocl_free_face` to release retrieved resource.
  */
-OC_PUBLIC oc_error
+OCDEF oc_error
 ocf_open_font(
     const oc_font* font,
-    oc_26p6 desired_size,
-    uint16_t dpi,
-    oc_face* oface);
+    oc_26p6        desired_size,
+    uint16_t       dpi,
+    oc_face*       oface);
 
 /*
  * Opens a font by its pathname.
  * Call `ocl_free_face` to release retrieved resource.
  */
-OC_PUBLIC oc_error
+OCDEF oc_error
 ocl_open_face(
-    const oc_library* library,
-    const char* path,
+    const oc_library*     library,
+    const char*           path,
     const oc_open_params* uparams,
-    oc_face* oface);
+    oc_face*              oface);
 
 /*
  * Opens a font that has been loaded into memory.
@@ -214,43 +214,43 @@ ocl_open_face(
  * Note the caller still owns the memory
  * do not deallocate it before calling `ocl_free_face`.
  */
-OC_PUBLIC oc_error
+OCDEF oc_error
 ocl_open_memory_face(
-    const oc_library* library,
-    const void* data,
-    size_t data_size,
+    const oc_library*     library,
+    const void*           data,
+    size_t                data_size,
     const oc_open_params* uparams,
-    oc_face* oface);
+    oc_face*              oface);
 
 /*
  * Releases given face object.
  */
-OC_PUBLIC void
+OCDEF void
 ocl_free_face(oc_face* face);
 
 // todo: give a warning that this function is not thread safe
-OC_PUBLIC oc_error
+OCDEF oc_error
 ocl_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi);
 
 /*
  * Returns the glyph index of a given character code.
  */
-OC_PUBLIC uint16_t
+OCDEF uint16_t
 ocl_get_char_index(const oc_face* face, uint32_t charcode);
 
-OC_PUBLIC void
+OCDEF void
 ocl_get_glyph_metrics(
-    const oc_face* face,
-    uint16_t index,
-    oc_load_flags flags,
+    const oc_face*    face,
+    uint16_t          index,
+    oc_load_flags     flags,
     oc_glyph_metrics* ometrics);
 
-OC_PUBLIC void
+OCDEF void
 ocl_get_glyph_cbox(
     const oc_face* face,
-    uint16_t index,
-    oc_load_flags flags,
-    oc_bbox* ocbox);
+    uint16_t       index,
+    oc_load_flags  flags,
+    oc_bbox*       ocbox);
 
 // todo: add comments here explaining that every backend will generate diffrent glyph textures
 //       so if u want it modified by every backend it would be recomended to raster it using glyph outlines
@@ -261,46 +261,46 @@ ocl_get_glyph_cbox(
 // roadmap:
 // dwrite and coretext knows how to draw bezier curves hence theoretically hinting can be achieved with manual shapes rasterization,
 // essentially onecore would become freetype, but with native font file parsing and rendering engine
-OC_PUBLIC oc_error
+OCDEF oc_error
 ocl_render_glyph(
     const oc_face* face,
-    uint16_t index,
-    oc_extent* oextent,
-    uint8_t* buffer,
-    size_t buffer_size);
+    uint16_t       index,
+    oc_extent*     oextent,
+    uint8_t*       buffer,
+    size_t         buffer_size);
 
 // todo (stage 2): renew this impl
-OC_PUBLIC bool
+OCDEF bool
 ocl_get_outline(
-    const oc_face* face,
-    uint16_t index,
+    const oc_face*          face,
+    uint16_t                index,
     const oc_outline_funcs* funcs,
-    void* user);
+    void*                   user);
 
-OC_PUBLIC oc_error
+OCDEF oc_error
 ocl_get_sfnt_table(
     const oc_face* face,
-    oc_tag tag,
-    uint32_t offset,
-    void* data,
-    uint32_t* size);
+    oc_tag         tag,
+    uint32_t       offset,
+    void*          data,
+    uint32_t*      size);
 
 /*
  * Retrieves the description of a valid onecore error.
  */
-OC_PUBLIC const char*
+OCDEF const char*
 oc_strerror(oc_error err);
 
 /*
  * Computes `(a*b)/0x10000` with maximum accuracy.
  */
-OC_PUBLIC oc_16p16
+OCDEF oc_16p16
 oc_div_16p16(oc_16p16 a, oc_16p16 b);
 
 /*
  * Computes `(a*0x10000)/b` with maximum accuracy.
  */
-OC_PUBLIC oc_16p16
+OCDEF oc_16p16
 oc_mul_16p16(oc_16p16 a, oc_16p16 b);
 
 #if defined(__cplusplus) || defined(c_plusplus)
@@ -391,7 +391,7 @@ const char* oc_strerror(oc_error err) {
     } while (0)
 
 oc_16p16 oc_div_16p16(oc_16p16 a, oc_16p16 b) {
-    bool s = false;
+    bool     s = false;
     uint64_t ua, ub, uq;
     oc_16p16 q;
 
@@ -477,13 +477,13 @@ typedef pthread_mutex_t oc__mutex_impl_t;
     } while (0)
 
 struct oc_face_impl {
-    FT_Face ft_face;
+    FT_Face          ft_face;
     oc__mutex_impl_t lock;
 };
 
 oc_error oc_init_library(oc_library* plibrary) {
     FT_Library library;
-    FT_Error err;
+    FT_Error   err;
 
     if (plibrary == NULL) {
         return oc_error_invalid_param;
@@ -516,7 +516,7 @@ void oc_free_library(oc_library* library) {
 
 static oc_error oc__init_face(FT_Face ft_face, const oc_open_params* params, oc_face* oface) {
     FT_Error err;
-    oc_face face;
+    oc_face  face;
 
     err = FT_Set_Char_Size(ft_face, 0, params->desired_size, params->dpi, params->dpi);
     switch (err) {
@@ -551,11 +551,11 @@ static oc_error oc__init_face(FT_Face ft_face, const oc_open_params* params, oc_
 }
 
 oc_error ocl_open_face(const oc_library* library, const char* path, const oc_open_params* uparams, oc_face* oface) {
-    int32_t err;
-    FT_Face ft_face;
-    FT_Library ft_library;
+    int32_t        err;
+    FT_Face        ft_face;
+    FT_Library     ft_library;
     oc_open_params params;
-    FT_Open_Args ft_open_args = { 0 };
+    FT_Open_Args   ft_open_args = { 0 };
 
     if (!(library && path && oface)) {
         return oc_error_invalid_param;
@@ -594,9 +594,9 @@ oc_error ocl_open_face(const oc_library* library, const char* path, const oc_ope
 }
 
 oc_error ocl_open_memory_face(const oc_library* library, const void* data, size_t size, const oc_open_params* uparams, oc_face* oface) {
-    int32_t err;
-    FT_Face ft_face;
-    FT_Library ft_library;
+    int32_t        err;
+    FT_Face        ft_face;
+    FT_Library     ft_library;
     oc_open_params params;
 
     if (!(library && oface)) {
@@ -647,7 +647,7 @@ void ocl_free_face(oc_face* face) {
 
 oc_error ocl_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     FT_Error err;
-    FT_Face ft_face;
+    FT_Face  ft_face;
 
     if (!face) {
         return oc_error_invalid_param;
@@ -681,7 +681,7 @@ uint16_t ocl_get_char_index(const oc_face* face, uint32_t charcode) {
 
 oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, void* data, uint32_t* size) {
     FT_Error err;
-    FT_Face ft_face;
+    FT_Face  ft_face;
 
     FT_ULong length;
 
@@ -725,12 +725,12 @@ oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, vo
 
 // todo (stage 2): add option for verticals and maybe load both hori and vert bearings, advances
 void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
-    FT_Error err;
-    FT_Face ft_face;
+    FT_Error          err;
+    FT_Face           ft_face;
     oc__mutex_impl_t* lock;
-    FT_Glyph_Metrics ft_metrics;
-    oc_glyph_metrics metrics = { 0 };
-    FT_Int32 ft_load_flags = FT_LOAD_NO_AUTOHINT | FT_LOAD_BITMAP_METRICS_ONLY | FT_LOAD_NO_HINTING;
+    FT_Glyph_Metrics  ft_metrics;
+    oc_glyph_metrics  metrics = { 0 };
+    FT_Int32          ft_load_flags = FT_LOAD_NO_AUTOHINT | FT_LOAD_BITMAP_METRICS_ONLY | FT_LOAD_NO_HINTING;
 
     if (!(face && ometrics)) {
         goto exit;
@@ -776,15 +776,15 @@ exit:
 
 typedef struct {
     const oc_outline_funcs* funcs;
-    void* ctx;
+    void*                   ctx;
 
     FT_Vector x2origin;
-    bool figure_started;
+    bool      figure_started;
 } oc__outline_context;
 
 static int oc__move_to(const FT_Vector* to, void* user) {
     oc__outline_context* ctx = (oc__outline_context*)user;
-    oc_point point = { (int32_t)(to->x >> 1), (int32_t)(to->y >> 1) };
+    oc_point             point = { (int32_t)(to->x >> 1), (int32_t)(to->y >> 1) };
 
     if (ctx->figure_started) {
         ctx->funcs->end_figure(ctx->ctx);
@@ -799,7 +799,7 @@ static int oc__move_to(const FT_Vector* to, void* user) {
 
 static int oc__line_to(const FT_Vector* x2to, void* user) {
     oc__outline_context* ctx = (oc__outline_context*)user;
-    oc_point point = { (int32_t)(x2to->x >> 1), (int32_t)(x2to->y >> 1) };
+    oc_point             point = { (int32_t)(x2to->x >> 1), (int32_t)(x2to->y >> 1) };
 
     ctx->funcs->line_to(point, ctx->ctx);
     ctx->x2origin = *x2to;
@@ -854,12 +854,12 @@ static int oc__cubic_to(const FT_Vector* x2c1, const FT_Vector* x2c2, const FT_V
 }
 
 void ocl_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
-    FT_Error err;
-    FT_Face ft_face;
+    FT_Error          err;
+    FT_Face           ft_face;
     oc__mutex_impl_t* lock;
-    FT_BBox ft_cbox;
-    oc_bbox cbox = { 0 };
-    FT_Int32 ft_load_flags = FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING;
+    FT_BBox           ft_cbox;
+    oc_bbox           cbox = { 0 };
+    FT_Int32          ft_load_flags = FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING;
 
     if (!(face && ocbox)) {
         goto exit;
@@ -896,11 +896,11 @@ exit:
 }
 
 bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
-    FT_Error err;
-    FT_Face ft_face;
-    oc__mutex_impl_t* lock;
-    FT_GlyphSlot glyph;
-    FT_Outline outline;
+    FT_Error            err;
+    FT_Face             ft_face;
+    oc__mutex_impl_t*   lock;
+    FT_GlyphSlot        glyph;
+    FT_Outline          outline;
     oc__outline_context context = { 0 };
 
     if (!(face && funcs)) {
@@ -955,13 +955,13 @@ exit:
 }
 
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
-    FT_Face ft_face;
+    FT_Face           ft_face;
     oc__mutex_impl_t* lock;
-    FT_Error ft_err;
-    FT_Bitmap ft_bitmap;
-    FT_Glyph ft_glyph = NULL;
-    oc_error err = oc_error_ok;
-    oc_extent extent = { 0 };
+    FT_Error          ft_err;
+    FT_Bitmap         ft_bitmap;
+    FT_Glyph          ft_glyph = NULL;
+    oc_error          err = oc_error_ok;
+    oc_extent         extent = { 0 };
 
     size_t length;
 
@@ -1048,13 +1048,13 @@ exit:
 
 struct oc_collection_impl {
     const oc_library* oc_library;
-    FcConfig* fc_config;
+    FcConfig*         fc_config;
 };
 
 typedef struct {
     const oc_library* oc_library;
-    FcPattern* fc_pattern;
-    oc_font font;
+    FcPattern*        fc_pattern;
+    oc_font           font;
 } oc__font_impl;
 
 typedef enum {
@@ -1070,10 +1070,10 @@ static inline void oc__free_font(oc_font* font) {
 }
 
 oc_error ocf_init_collection(const oc_library* library, oc_collection* ocollection) {
-    oc_error err = oc_error_ok;
-    FcConfig* fc_config;
+    oc_error            err = oc_error_ok;
+    FcConfig*           fc_config;
     oc_collection_impl* impl;
-    oc_collection collection = { 0 };
+    oc_collection       collection = { 0 };
 
     if (!(library && ocollection)) {
         oc__exit(oc_error_invalid_param);
@@ -1183,16 +1183,16 @@ static oc__status oc__init_font(const oc_library* library, FcPattern* fc_pattern
 }
 
 oc_error ocf_load_fonts(oc_collection* collection) {
-    oc_error err = oc_error_ok;
+    oc_error          err = oc_error_ok;
     const oc_library* oc_library;
 
-    FcConfig* fc_config;
+    FcConfig*  fc_config;
     FcFontSet* fc_fonts;
 
     int font_count;
 
     oc_font** fonts = NULL;
-    uint32_t nfonts = 0;
+    uint32_t  nfonts = 0;
 
     oc_collection tmp_collection;
 
@@ -1226,7 +1226,7 @@ oc_error ocf_load_fonts(oc_collection* collection) {
         oc__status status;
 
         FcPattern* pattern;
-        oc_font* font;
+        oc_font*   font;
 
         pattern = fc_fonts->fonts[i];
         status = oc__init_font(oc_library, pattern, &font);
@@ -1261,8 +1261,8 @@ exit:
 
 bool ocf_has_character(const oc_font* font, uint32_t character) {
     oc__font_impl* impl;
-    FcCharSet* charset;
-    FcResult result;
+    FcCharSet*     charset;
+    FcResult       result;
 
     if (!font) {
         return false;
@@ -1281,10 +1281,10 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     oc__font_impl* impl;
 
     FcPattern* pattern;
-    FcResult result;
+    FcResult   result;
 
     FcChar8* file;
-    int index;
+    int      index;
 
     oc_open_params params;
 
@@ -1314,10 +1314,10 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
 
 size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
     oc__font_impl* impl;
-    FcResult result;
+    FcResult       result;
 
     FcChar8* file;
-    size_t file_len;
+    size_t   file_len;
 
     size_t copy_len;
 
@@ -1358,10 +1358,10 @@ void oc_free_library(oc_library* library) {
 
 static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     CTFontRef ct_font;
-    oc_face face;
+    oc_face   face;
 
     oc_16p16 scaled;
-    CGFloat size;
+    CGFloat  size;
 
     oc_16p16 ppem;
     uint16_t upem;
@@ -1399,7 +1399,7 @@ static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_si
 static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_open_params* uparams, oc_face* oface) {
     CTFontDescriptorRef descriptor;
 
-    CFIndex count = CFArrayGetCount(descriptors);
+    CFIndex        count = CFArrayGetCount(descriptors);
     oc_open_params params = oc__open_params_defaults(uparams);
 
     if (count == 0) {
@@ -1420,10 +1420,10 @@ static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_
 
 oc_error ocl_open_face(const oc_library* library, const char* path, const oc_open_params* uparams, oc_face* oface) {
     CFStringRef ct_path;
-    CFURLRef url_path;
+    CFURLRef    url_path;
 
     CFArrayRef descriptors;
-    oc_error err;
+    oc_error   err;
 
     if (!(library && path && oface)) {
         return oc_error_invalid_param;
@@ -1455,7 +1455,7 @@ oc_error ocl_open_face(const oc_library* library, const char* path, const oc_ope
         // file not found
         // invalid file
         // oom
-        return oc_error_failed_to_open; 
+        return oc_error_failed_to_open;
     }
 
     err = oc__open_face_from_descriptors(descriptors, uparams, oface);
@@ -1465,9 +1465,9 @@ oc_error ocl_open_face(const oc_library* library, const char* path, const oc_ope
 }
 
 oc_error ocl_open_memory_face(const oc_library* library, const void* data, size_t size, const oc_open_params* uparams, oc_face* oface) {
-    CFDataRef ct_data;
+    CFDataRef  ct_data;
     CFArrayRef descriptors;
-    oc_error err;
+    oc_error   err;
 
     if (!(library && data && oface)) {
         return oc_error_invalid_param;
@@ -1541,7 +1541,7 @@ uint16_t ocl_get_char_index(const oc_face* face, uint32_t charcode) {
 oc_error ocl_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     oc_16p16 scaled;
     oc_16p16 scale;
-    int32_t ppem;
+    int32_t  ppem;
 
     CTFontRef ct_font;
     CTFontRef ct_font_copy;
@@ -1587,7 +1587,7 @@ oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, vo
     CFDataRef ct_table;
 
     const UInt8* buffer;
-    CFIndex length;
+    CFIndex      length;
 
     if (!(face && size)) {
         return oc_error_invalid_param;
@@ -1619,14 +1619,14 @@ oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, vo
 
 void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
     CTFontRef ct_font;
-    CFIndex count;
+    CFIndex   count;
 
     CGSize advance;
     CGRect rect;
 
     uint16_t upem;
-    CGFloat size;
-    oc_26p6 scale;
+    CGFloat  size;
+    oc_26p6  scale;
 
     oc_glyph_metrics metrics = { 0 };
 
@@ -1677,11 +1677,11 @@ exit:
 
 void ocl_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
     CTFontRef ct_font;
-    CGRect rect;
+    CGRect    rect;
 
     uint16_t upem;
-    CGFloat size;
-    oc_26p6 scale;
+    CGFloat  size;
+    oc_26p6  scale;
 
     oc_bbox cbox = { 0 };
 
@@ -1729,17 +1729,17 @@ typedef struct {
 
 typedef struct {
     const oc_outline_funcs* funcs;
-    void* ctx;
-    CGPoint start;
-    CGPoint origin;
-    CGFloat fsize;
-    CGFloat funits_per_em;
+    void*                   ctx;
+    CGPoint                 start;
+    CGPoint                 origin;
+    CGFloat                 fsize;
+    CGFloat                 funits_per_em;
 } oc__outline_context;
 
 static void oc__path_applier(void* info, const CGPathElement* element) {
     oc__outline_context* ctx = (oc__outline_context*)info;
-    CGFloat fppem = ctx->fsize;
-    CGFloat fupem = ctx->funits_per_em;
+    CGFloat              fppem = ctx->fsize;
+    CGFloat              fupem = ctx->funits_per_em;
 
     switch (element->type) {
     case kCGPathElementMoveToPoint: {
@@ -1803,8 +1803,8 @@ static void oc__path_applier(void* info, const CGPathElement* element) {
 }
 
 bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
-    CTFontRef ct_font;
-    CGPathRef outline;
+    CTFontRef           ct_font;
+    CGPathRef           outline;
     oc__outline_context context = { 0 };
 
     if (!(face && funcs)) {
@@ -1833,18 +1833,18 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
     oc_error err = oc_error_ok;
 
     CTFontRef ct_font;
-    CFIndex count;
+    CFIndex   count;
 
     oc_bbox cbox;
     oc_bbox pbox;
 
     CGColorSpaceRef linear_gray;
-    CGContextRef context;
-    CGRect rect;
-    CGPoint pos;
+    CGContextRef    context;
+    CGRect          rect;
+    CGPoint         pos;
 
     oc_extent extent = { 0 };
-    size_t length;
+    size_t    length;
 
     if (!(face && oextent)) {
         err = oc_error_invalid_param;
@@ -1955,9 +1955,9 @@ exit:
 
 typedef struct {
     CTFontDescriptorRef ct_font;
-    CTFontRef ct_face;
-    CFStringRef ct_family;
-    oc_font font;
+    CTFontRef           ct_face;
+    CFStringRef         ct_family;
+    oc_font             font;
 } oc__font_impl;
 
 static inline void oc__free_font_impl(oc_font* font) {
@@ -1968,7 +1968,7 @@ static inline void oc__free_font_impl(oc_font* font) {
 }
 
 oc_error ocf_init_collection(const oc_library* library, oc_collection* ocollection) {
-    oc_error err = oc_error_ok;
+    oc_error      err = oc_error_ok;
     oc_collection collection = { 0 };
 
     if (!(library && ocollection)) {
@@ -2000,15 +2000,15 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     oc__font_impl* impl = NULL;
 
     CFDictionaryRef ct_traits = NULL;
-    CFStringRef ct_family;
-    CTFontRef ct_face;
+    CFStringRef     ct_family;
+    CTFontRef       ct_face;
 
     const char* family;
 
     CFNumberRef symbolic_obj;
     CFNumberRef weight_obj;
 
-    int weight;
+    int      weight;
     uint32_t ct_symbolic;
 
     assert(ct_font != NULL);
@@ -2020,7 +2020,7 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     weight_obj = CTFontDescriptorCopyAttribute(ct_font, CFSTR("CTFontCSSWeightAttribute"));
     // Notify developer on GitHub if this assertion ever fails:
     // https://github.com/nedpranson/onecore/issues
-    assert(weight_obj != NULL); 
+    assert(weight_obj != NULL);
 
     CFNumberGetValue(weight_obj, kCFNumberIntType, &weight);
     CFRelease(weight_obj);
@@ -2078,12 +2078,12 @@ oc_error ocf_load_fonts(oc_collection* collection) {
     oc_error err = oc_error_ok;
 
     CTFontCollectionRef ct_collection;
-    CFArrayRef ct_fonts;
+    CFArrayRef          ct_fonts;
 
     CFIndex font_count;
 
     oc_font** fonts = NULL;
-    uint32_t nfonts = 0;
+    uint32_t  nfonts = 0;
 
     oc_collection tmp_collection;
 
@@ -2119,7 +2119,7 @@ oc_error ocf_load_fonts(oc_collection* collection) {
 
     for (CFIndex i = 0; i < font_count; i++) {
         CTFontDescriptorRef ct_font = CFArrayGetValueAtIndex(ct_fonts, i);
-        oc__font_impl* impl = oc__init_font_impl(ct_font);
+        oc__font_impl*      impl = oc__init_font_impl(ct_font);
         if (impl == NULL) {
             err = oc_error_out_of_memory;
             goto exit;
@@ -2149,7 +2149,7 @@ exit:
 
 bool ocf_has_character(const oc_font* font, uint32_t charcode) {
     oc__font_impl* impl;
-    CTFontRef ct_face;
+    CTFontRef      ct_face;
 
     CGGlyph glyphs[2];
     UniChar chars[2];
@@ -2189,8 +2189,8 @@ bool ocf_has_character(const oc_font* font, uint32_t charcode) {
 
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     oc__font_impl* impl;
-    oc_error err;
-    oc_face face = { 0 };
+    oc_error       err;
+    oc_face        face = { 0 };
 
     if (!font) {
         return oc_error_invalid_param;
@@ -2216,10 +2216,10 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
 
 size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
     oc__font_impl* impl;
-    CFURLRef url;
+    CFURLRef       url;
 
     CFStringRef path;
-    CFIndex path_len;
+    CFIndex     path_len;
 
     size_t copy_len;
 
@@ -2281,32 +2281,32 @@ size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
 
 struct oc_face_impl {
     IDWriteFontFace* dw_face;
-    IDWriteFactory* dw_factory;
+    IDWriteFactory*  dw_factory;
 };
 
 typedef struct {
     const void* data;
-    size_t size;
+    size_t      size;
 } oc__memory_view;
 
 typedef struct {
     const IDWriteFontFileStreamVtbl* lpVtbl;
-    LONG ref_count;
-    oc__memory_view memory_view;
+    LONG                             ref_count;
+    oc__memory_view                  memory_view;
 } OC__IDWriteFontFileStream;
 
 typedef struct {
     const IDWriteFontFileLoaderVtbl* lpVtbl;
-    LONG ref_count;
+    LONG                             ref_count;
 } OC__IDWriteFontFileLoader;
 
 typedef struct {
     const ID2D1SimplifiedGeometrySinkVtbl* lpVtbl;
-    const oc_outline_funcs* funcs;
-    D2D1_POINT_2F start;
-    D2D1_POINT_2F origin;
-    void* ctx;
-    LONG ref_count;
+    const oc_outline_funcs*                funcs;
+    D2D1_POINT_2F                          start;
+    D2D1_POINT_2F                          origin;
+    void*                                  ctx;
+    LONG                                   ref_count;
 } OC__ID2D1SimplifiedGeometrySink;
 
 static HRESULT STDMETHODCALLTYPE
@@ -2341,10 +2341,10 @@ OC__IDWriteFontFileStream_ReleaseFileFragment(IDWriteFontFileStream* This, void*
 static HRESULT STDMETHODCALLTYPE
 OC__IDWriteFontFileStream_ReadFileFragment(
     IDWriteFontFileStream* This,
-    const void** fragment_start,
-    UINT64 offset,
-    UINT64 fragment_size,
-    void** fragment_context) {
+    const void**           fragment_start,
+    UINT64                 offset,
+    UINT64                 fragment_size,
+    void**                 fragment_context) {
 
     OC__IDWriteFontFileStream* this = (OC__IDWriteFontFileStream*)This;
 
@@ -2608,10 +2608,10 @@ static const ID2D1SimplifiedGeometrySinkVtbl OC__ID2D1SimplifiedGeometrySinkVtbl
 };
 
 OC__IDWriteFontFileLoader oc__file_loader = { &OC__IDWriteFontFileLoaderVtbl, 0 };
-IDWriteFontFileLoader* oc__dw_file_loader = (IDWriteFontFileLoader*)&oc__file_loader;
+IDWriteFontFileLoader*    oc__dw_file_loader = (IDWriteFontFileLoader*)&oc__file_loader;
 
 oc_error oc_init_library(oc_library* olibrary) {
-    HRESULT err;
+    HRESULT         err;
     IDWriteFactory* dw_factory;
 
     if (olibrary == NULL) {
@@ -2656,10 +2656,10 @@ void oc_free_library(oc_library* library) {
 
 static oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_face, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     DWRITE_FONT_METRICS metrics;
-    oc_16p16 scaled;
-    oc_16p16 scale;
-    int32_t ppem;
-    oc_face face;
+    oc_16p16            scaled;
+    oc_16p16            scale;
+    int32_t             ppem;
+    oc_face             face;
 
     assert(dpi > 0);
     assert(desired_size >= 1 << 6);
@@ -2699,13 +2699,13 @@ static oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_fa
 }
 
 static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWriteFontFile* font_file, const oc_open_params* uparams, oc_face* oface) {
-    HRESULT err;
-    WINBOOL is_supported_fonttype;
+    HRESULT               err;
+    WINBOOL               is_supported_fonttype;
     DWRITE_FONT_FILE_TYPE file_type;
     DWRITE_FONT_FACE_TYPE face_type;
-    IDWriteFontFace* dw_face;
-    UINT32 face_num;
-    oc_open_params params = oc__open_params_defaults(uparams);
+    IDWriteFontFace*      dw_face;
+    UINT32                face_num;
+    oc_open_params        params = oc__open_params_defaults(uparams);
 
     err = font_file->lpVtbl->Analyze(
         font_file,
@@ -2751,10 +2751,10 @@ static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWrite
 }
 
 oc_error ocl_open_face(const oc_library* library, const char* path, const oc_open_params* uparams, oc_face* oface) {
-    int32_t err;
-    int size;
-    wchar_t* dw_path;
-    IDWriteFactory* dw_factory;
+    int32_t          err;
+    int              size;
+    wchar_t*         dw_path;
+    IDWriteFactory*  dw_factory;
     IDWriteFontFile* dw_font_file;
 
     if (!(library && path && oface)) {
@@ -2800,10 +2800,10 @@ oc_error ocl_open_face(const oc_library* library, const char* path, const oc_ope
 }
 
 oc_error ocl_open_memory_face(const oc_library* library, const void* data, size_t size, const oc_open_params* uparams, oc_face* oface) {
-    int32_t err;
+    int32_t          err;
     IDWriteFontFile* font_file;
-    IDWriteFactory* dw_factory;
-    oc__memory_view key;
+    IDWriteFactory*  dw_factory;
+    oc__memory_view  key;
 
     if (!(library && data && oface)) {
         return oc_error_invalid_param;
@@ -2847,9 +2847,9 @@ void ocl_free_face(oc_face* face) {
 }
 
 uint16_t ocl_get_char_index(const oc_face* face, uint32_t charcode) {
-    HRESULT err;
+    HRESULT          err;
     IDWriteFontFace* dw_face;
-    UINT16 index;
+    UINT16           index;
 
     if (face == NULL) {
         return 0;
@@ -2871,7 +2871,7 @@ uint16_t ocl_get_char_index(const oc_face* face, uint32_t charcode) {
 oc_error ocl_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     oc_16p16 scaled;
     oc_16p16 scale;
-    int32_t ppem;
+    int32_t  ppem;
 
     if (!face) {
         return oc_error_invalid_param;
@@ -2900,13 +2900,13 @@ oc_error ocl_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
 }
 
 oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, void* data, uint32_t* size) {
-    HRESULT err;
+    HRESULT          err;
     IDWriteFontFace* dw_face;
 
     const void* table_data;
-    UINT32 table_size;
+    UINT32      table_size;
 
-    void* context;
+    void*   context;
     WINBOOL exists;
 
     uint32_t length;
@@ -2953,12 +2953,12 @@ oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, vo
 }
 
 void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
-    HRESULT err;
+    HRESULT              err;
     DWRITE_GLYPH_METRICS dw_metrics;
-    IDWriteFontFace* dw_face;
-    oc_16p16 scale;
-    UINT16 count;
-    oc_glyph_metrics metrics = { 0 };
+    IDWriteFontFace*     dw_face;
+    oc_16p16             scale;
+    UINT16               count;
+    oc_glyph_metrics     metrics = { 0 };
 
     if (!(face && ometrics)) {
         goto exit;
@@ -3011,12 +3011,12 @@ exit:
 }
 
 void ocl_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
-    HRESULT err;
+    HRESULT              err;
     DWRITE_GLYPH_METRICS metrics;
-    IDWriteFontFace* dw_face;
-    UINT16 count;
-    oc_16p16 scale;
-    oc_bbox cbox = { 0 };
+    IDWriteFontFace*     dw_face;
+    UINT16               count;
+    oc_16p16             scale;
+    oc_bbox              cbox = { 0 };
 
     if (!(face && ocbox)) {
         goto exit;
@@ -3061,8 +3061,8 @@ exit:
 }
 
 bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
-    HRESULT err;
-    ULONG refs;
+    HRESULT                         err;
+    ULONG                           refs;
     OC__ID2D1SimplifiedGeometrySink geometry_sink = { 0 };
 
     if (!(face && funcs)) {
@@ -3099,24 +3099,24 @@ bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs
 
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
     oc_error err = oc_error_ok;
-    HRESULT dw_err = S_OK;
+    HRESULT  dw_err = S_OK;
 
     IDWriteFontFace* dw_face;
-    IDWriteFactory* dw_factory;
+    IDWriteFactory*  dw_factory;
 
     oc_bbox cbox;
     oc_bbox pbox;
 
     DWRITE_MATRIX transform;
-    UINT16 count;
-    RECT bounds;
+    UINT16        count;
+    RECT          bounds;
 
     IDWriteGlyphRunAnalysis* analysis = NULL;
-    DWRITE_GLYPH_RUN glyph_run = { 0 };
-    oc_extent extent = { 0 };
+    DWRITE_GLYPH_RUN         glyph_run = { 0 };
+    oc_extent                extent = { 0 };
 
     uint8_t* bitmap = NULL;
-    size_t length;
+    size_t   length;
 
     if (!(face && oextent)) {
         oc__exit(oc_error_invalid_param);
@@ -3236,14 +3236,14 @@ exit:
 
 struct oc_collection_impl {
     IDWriteFactory* dw_factory;
-    char** families;
-    UINT32 nfamilies;
+    char**          families;
+    UINT32          nfamilies;
 };
 
 typedef struct {
     IDWriteFactory* dw_factory;
-    IDWriteFont* dw_font;
-    oc_font font;
+    IDWriteFont*    dw_font;
+    oc_font         font;
 } oc__font_impl;
 
 static inline void oc__free_font(oc_font* font) {
@@ -3254,7 +3254,7 @@ static inline void oc__free_font(oc_font* font) {
 
 oc_error ocf_init_collection(const oc_library* library, oc_collection* ocollection) {
     oc_collection collection = { 0 };
-    oc_error err = oc_error_ok;
+    oc_error      err = oc_error_ok;
 
     if (!(library && ocollection)) {
         err = oc_error_invalid_param;
@@ -3299,7 +3299,7 @@ static const oc_slant oc__slant_map[] = {
 
 static oc_font* oc__init_font(IDWriteFactory* dw_factory, IDWriteFont* dw_font, const char* family) {
     DWRITE_FONT_WEIGHT weight;
-    DWRITE_FONT_STYLE style;
+    DWRITE_FONT_STYLE  style;
 
     oc__font_impl* impl;
 
@@ -3322,27 +3322,27 @@ static oc_font* oc__init_font(IDWriteFactory* dw_factory, IDWriteFont* dw_font, 
 
 oc_error ocf_load_fonts(oc_collection* collection) {
     oc_error err = oc_error_ok;
-    HRESULT hr;
+    HRESULT  hr;
 
-    IDWriteFactory* dw_factory;
+    IDWriteFactory*        dw_factory;
     IDWriteFontCollection* dw_collection = NULL;
 
     UINT32 family_count;
     UINT32 font_count;
 
     union {
-        char* str;
+        char*  str;
         UINT32 len;
-    }* families = NULL;
+    }*     families = NULL;
     UINT32 nfamilies = 0;
 
     WCHAR* wide_buf = NULL;
     UINT32 wide_buf_len;
 
     oc_font** fonts = NULL;
-    uint32_t nfonts = 0;
+    uint32_t  nfonts = 0;
 
-    oc_collection tmp_collection;
+    oc_collection      tmp_collection;
     oc_collection_impl tmp_impl;
 
     if (!collection) {
@@ -3374,9 +3374,9 @@ oc_error ocf_load_fonts(oc_collection* collection) {
     }
 
     for (UINT32 i = 0; i < family_count; i++) {
-        IDWriteFontFamily* family;
+        IDWriteFontFamily*       family;
         IDWriteLocalizedStrings* names;
-        UINT32 length;
+        UINT32                   length;
 
         hr = dw_collection->lpVtbl->GetFontFamily(dw_collection, i, &family);
         assert(hr == S_OK);
@@ -3409,14 +3409,14 @@ oc_error ocf_load_fonts(oc_collection* collection) {
     }
 
     for (UINT32 i = 0; i < family_count; i++) {
-        IDWriteFontFamily* font_family;
+        IDWriteFontFamily*       font_family;
         IDWriteLocalizedStrings* names;
 
         UINT32 wide_length = families[i].len;
         UINT32 font_index;
 
         char* family;
-        int length;
+        int   length;
 
         hr = dw_collection->lpVtbl->GetFontFamily(dw_collection, i, &font_family);
         assert(hr == S_OK);
@@ -3464,7 +3464,7 @@ oc_error ocf_load_fonts(oc_collection* collection) {
 
         while (font_index--) {
             IDWriteFont* dw_font;
-            oc_font* font;
+            oc_font*     font;
 
             hr = font_family->lpVtbl->GetFont(font_family, font_index, &dw_font);
             assert(hr == S_OK);
@@ -3514,7 +3514,7 @@ exit:
 
 bool ocf_has_character(const oc_font* font, uint32_t character) {
     oc__font_impl* impl;
-    IDWriteFont* dw_font;
+    IDWriteFont*   dw_font;
 
     HRESULT result;
     WINBOOL exists;
@@ -3532,9 +3532,9 @@ bool ocf_has_character(const oc_font* font, uint32_t character) {
 
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     oc_error err;
-    HRESULT result;
+    HRESULT  result;
 
-    oc__font_impl* impl;
+    oc__font_impl*   impl;
     IDWriteFontFace* dw_face;
 
     oc_face face = { 0 };
@@ -3571,7 +3571,7 @@ exit:
 
 size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
     oc__font_impl* impl;
-    HRESULT result;
+    HRESULT        result;
 
     IDWriteFontFace* face;
     IDWriteFontFile* file;
@@ -3579,15 +3579,15 @@ size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
     UINT32 nfiles;
 
     const void* key;
-    UINT32 key_size;
+    UINT32      key_size;
 
-    IDWriteFontFileLoader* loader;
+    IDWriteFontFileLoader*      loader;
     IDWriteLocalFontFileLoader* local_loader;
 
     WCHAR* wide_path;
     UINT32 wide_len;
 
-    int path_len;
+    int    path_len;
     size_t copy_len;
 
     if (!font) {

@@ -13,9 +13,9 @@ extern oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_si
 
 typedef struct {
     CTFontDescriptorRef ct_font;
-    CTFontRef ct_face;
-    CFStringRef ct_family;
-    oc_font font;
+    CTFontRef           ct_face;
+    CFStringRef         ct_family;
+    oc_font             font;
 } oc__font_impl;
 
 static inline void oc__free_font_impl(oc_font* font) {
@@ -26,7 +26,7 @@ static inline void oc__free_font_impl(oc_font* font) {
 }
 
 oc_error ocf_init_collection(const oc_library* library, oc_collection* ocollection) {
-    oc_error err = oc_error_ok;
+    oc_error      err = oc_error_ok;
     oc_collection collection = { 0 };
 
     if (!(library && ocollection)) {
@@ -58,15 +58,15 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     oc__font_impl* impl = NULL;
 
     CFDictionaryRef ct_traits = NULL;
-    CFStringRef ct_family;
-    CTFontRef ct_face;
+    CFStringRef     ct_family;
+    CTFontRef       ct_face;
 
     const char* family;
 
     CFNumberRef symbolic_obj;
     CFNumberRef weight_obj;
 
-    int weight;
+    int      weight;
     uint32_t ct_symbolic;
 
     assert(ct_font != NULL);
@@ -78,7 +78,7 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     weight_obj = CTFontDescriptorCopyAttribute(ct_font, CFSTR("CTFontCSSWeightAttribute"));
     // Notify developer on GitHub if this assertion ever fails:
     // https://github.com/nedpranson/onecore/issues
-    assert(weight_obj != NULL); 
+    assert(weight_obj != NULL);
 
     CFNumberGetValue(weight_obj, kCFNumberIntType, &weight);
     CFRelease(weight_obj);
@@ -136,12 +136,12 @@ oc_error ocf_load_fonts(oc_collection* collection) {
     oc_error err = oc_error_ok;
 
     CTFontCollectionRef ct_collection;
-    CFArrayRef ct_fonts;
+    CFArrayRef          ct_fonts;
 
     CFIndex font_count;
 
     oc_font** fonts = NULL;
-    uint32_t nfonts = 0;
+    uint32_t  nfonts = 0;
 
     oc_collection tmp_collection;
 
@@ -177,7 +177,7 @@ oc_error ocf_load_fonts(oc_collection* collection) {
 
     for (CFIndex i = 0; i < font_count; i++) {
         CTFontDescriptorRef ct_font = CFArrayGetValueAtIndex(ct_fonts, i);
-        oc__font_impl* impl = oc__init_font_impl(ct_font);
+        oc__font_impl*      impl = oc__init_font_impl(ct_font);
         if (impl == NULL) {
             err = oc_error_out_of_memory;
             goto exit;
@@ -207,7 +207,7 @@ exit:
 
 bool ocf_has_character(const oc_font* font, uint32_t charcode) {
     oc__font_impl* impl;
-    CTFontRef ct_face;
+    CTFontRef      ct_face;
 
     CGGlyph glyphs[2];
     UniChar chars[2];
@@ -247,8 +247,8 @@ bool ocf_has_character(const oc_font* font, uint32_t charcode) {
 
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     oc__font_impl* impl;
-    oc_error err;
-    oc_face face = { 0 };
+    oc_error       err;
+    oc_face        face = { 0 };
 
     if (!font) {
         return oc_error_invalid_param;
@@ -274,10 +274,10 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
 
 size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
     oc__font_impl* impl;
-    CFURLRef url;
+    CFURLRef       url;
 
     CFStringRef path;
-    CFIndex path_len;
+    CFIndex     path_len;
 
     size_t copy_len;
 

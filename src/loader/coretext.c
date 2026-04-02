@@ -16,10 +16,10 @@ void oc_free_library(oc_library* library) {
 
 static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     CTFontRef ct_font;
-    oc_face face;
+    oc_face   face;
 
     oc_16p16 scaled;
-    CGFloat size;
+    CGFloat  size;
 
     oc_16p16 ppem;
     uint16_t upem;
@@ -57,7 +57,7 @@ static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_si
 static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_open_params* uparams, oc_face* oface) {
     CTFontDescriptorRef descriptor;
 
-    CFIndex count = CFArrayGetCount(descriptors);
+    CFIndex        count = CFArrayGetCount(descriptors);
     oc_open_params params = oc__open_params_defaults(uparams);
 
     if (count == 0) {
@@ -78,10 +78,10 @@ static oc_error oc__open_face_from_descriptors(CFArrayRef descriptors, const oc_
 
 oc_error ocl_open_face(const oc_library* library, const char* path, const oc_open_params* uparams, oc_face* oface) {
     CFStringRef ct_path;
-    CFURLRef url_path;
+    CFURLRef    url_path;
 
     CFArrayRef descriptors;
-    oc_error err;
+    oc_error   err;
 
     if (!(library && path && oface)) {
         return oc_error_invalid_param;
@@ -113,7 +113,7 @@ oc_error ocl_open_face(const oc_library* library, const char* path, const oc_ope
         // file not found
         // invalid file
         // oom
-        return oc_error_failed_to_open; 
+        return oc_error_failed_to_open;
     }
 
     err = oc__open_face_from_descriptors(descriptors, uparams, oface);
@@ -123,9 +123,9 @@ oc_error ocl_open_face(const oc_library* library, const char* path, const oc_ope
 }
 
 oc_error ocl_open_memory_face(const oc_library* library, const void* data, size_t size, const oc_open_params* uparams, oc_face* oface) {
-    CFDataRef ct_data;
+    CFDataRef  ct_data;
     CFArrayRef descriptors;
-    oc_error err;
+    oc_error   err;
 
     if (!(library && data && oface)) {
         return oc_error_invalid_param;
@@ -199,7 +199,7 @@ uint16_t ocl_get_char_index(const oc_face* face, uint32_t charcode) {
 oc_error ocl_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     oc_16p16 scaled;
     oc_16p16 scale;
-    int32_t ppem;
+    int32_t  ppem;
 
     CTFontRef ct_font;
     CTFontRef ct_font_copy;
@@ -245,7 +245,7 @@ oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, vo
     CFDataRef ct_table;
 
     const UInt8* buffer;
-    CFIndex length;
+    CFIndex      length;
 
     if (!(face && size)) {
         return oc_error_invalid_param;
@@ -277,14 +277,14 @@ oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, vo
 
 void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
     CTFontRef ct_font;
-    CFIndex count;
+    CFIndex   count;
 
     CGSize advance;
     CGRect rect;
 
     uint16_t upem;
-    CGFloat size;
-    oc_26p6 scale;
+    CGFloat  size;
+    oc_26p6  scale;
 
     oc_glyph_metrics metrics = { 0 };
 
@@ -335,11 +335,11 @@ exit:
 
 void ocl_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
     CTFontRef ct_font;
-    CGRect rect;
+    CGRect    rect;
 
     uint16_t upem;
-    CGFloat size;
-    oc_26p6 scale;
+    CGFloat  size;
+    oc_26p6  scale;
 
     oc_bbox cbox = { 0 };
 
@@ -387,17 +387,17 @@ typedef struct {
 
 typedef struct {
     const oc_outline_funcs* funcs;
-    void* ctx;
-    CGPoint start;
-    CGPoint origin;
-    CGFloat fsize;
-    CGFloat funits_per_em;
+    void*                   ctx;
+    CGPoint                 start;
+    CGPoint                 origin;
+    CGFloat                 fsize;
+    CGFloat                 funits_per_em;
 } oc__outline_context;
 
 static void oc__path_applier(void* info, const CGPathElement* element) {
     oc__outline_context* ctx = (oc__outline_context*)info;
-    CGFloat fppem = ctx->fsize;
-    CGFloat fupem = ctx->funits_per_em;
+    CGFloat              fppem = ctx->fsize;
+    CGFloat              fupem = ctx->funits_per_em;
 
     switch (element->type) {
     case kCGPathElementMoveToPoint: {
@@ -461,8 +461,8 @@ static void oc__path_applier(void* info, const CGPathElement* element) {
 }
 
 bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
-    CTFontRef ct_font;
-    CGPathRef outline;
+    CTFontRef           ct_font;
+    CGPathRef           outline;
     oc__outline_context context = { 0 };
 
     if (!(face && funcs)) {
@@ -491,18 +491,18 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
     oc_error err = oc_error_ok;
 
     CTFontRef ct_font;
-    CFIndex count;
+    CFIndex   count;
 
     oc_bbox cbox;
     oc_bbox pbox;
 
     CGColorSpaceRef linear_gray;
-    CGContextRef context;
-    CGRect rect;
-    CGPoint pos;
+    CGContextRef    context;
+    CGRect          rect;
+    CGPoint         pos;
 
     oc_extent extent = { 0 };
-    size_t length;
+    size_t    length;
 
     if (!(face && oextent)) {
         err = oc_error_invalid_param;

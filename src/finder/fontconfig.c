@@ -10,13 +10,13 @@
 
 struct oc_collection_impl {
     const oc_library* oc_library;
-    FcConfig* fc_config;
+    FcConfig*         fc_config;
 };
 
 typedef struct {
     const oc_library* oc_library;
-    FcPattern* fc_pattern;
-    oc_font font;
+    FcPattern*        fc_pattern;
+    oc_font           font;
 } oc__font_impl;
 
 typedef enum {
@@ -32,10 +32,10 @@ static inline void oc__free_font(oc_font* font) {
 }
 
 oc_error ocf_init_collection(const oc_library* library, oc_collection* ocollection) {
-    oc_error err = oc_error_ok;
-    FcConfig* fc_config;
+    oc_error            err = oc_error_ok;
+    FcConfig*           fc_config;
     oc_collection_impl* impl;
-    oc_collection collection = { 0 };
+    oc_collection       collection = { 0 };
 
     if (!(library && ocollection)) {
         oc__exit(oc_error_invalid_param);
@@ -145,16 +145,16 @@ static oc__status oc__init_font(const oc_library* library, FcPattern* fc_pattern
 }
 
 oc_error ocf_load_fonts(oc_collection* collection) {
-    oc_error err = oc_error_ok;
+    oc_error          err = oc_error_ok;
     const oc_library* oc_library;
 
-    FcConfig* fc_config;
+    FcConfig*  fc_config;
     FcFontSet* fc_fonts;
 
     int font_count;
 
     oc_font** fonts = NULL;
-    uint32_t nfonts = 0;
+    uint32_t  nfonts = 0;
 
     oc_collection tmp_collection;
 
@@ -188,7 +188,7 @@ oc_error ocf_load_fonts(oc_collection* collection) {
         oc__status status;
 
         FcPattern* pattern;
-        oc_font* font;
+        oc_font*   font;
 
         pattern = fc_fonts->fonts[i];
         status = oc__init_font(oc_library, pattern, &font);
@@ -223,8 +223,8 @@ exit:
 
 bool ocf_has_character(const oc_font* font, uint32_t character) {
     oc__font_impl* impl;
-    FcCharSet* charset;
-    FcResult result;
+    FcCharSet*     charset;
+    FcResult       result;
 
     if (!font) {
         return false;
@@ -243,10 +243,10 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     oc__font_impl* impl;
 
     FcPattern* pattern;
-    FcResult result;
+    FcResult   result;
 
     FcChar8* file;
-    int index;
+    int      index;
 
     oc_open_params params;
 
@@ -276,10 +276,10 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
 
 size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
     oc__font_impl* impl;
-    FcResult result;
+    FcResult       result;
 
     FcChar8* file;
-    size_t file_len;
+    size_t   file_len;
 
     size_t copy_len;
 
