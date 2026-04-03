@@ -159,7 +159,6 @@ oc_error ocf_load_fonts(oc_collection* collection) {
         hr = family->lpVtbl->GetFamilyNames(family, &names);
         assert(hr == S_OK);
 
-        // todo: test this locale idx feature an other backends
         hr = names->lpVtbl->GetStringLength(names, 0, &length);
         assert(hr == S_OK);
 

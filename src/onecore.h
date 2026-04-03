@@ -15,13 +15,13 @@ typedef int32_t  oc_26p6;
 #define OCDEF
 #endif
 
-#define OC_LOAD_DEFAULT 0x0
-#define OC_LOAD_NO_SCALE (1l << 0)
-#define OC_LOAD_NO_HINTING (1l << 1)
+#define OC_LOAD_DEFAULT 0x0 /* load scaled and fitted metrics */
+#define OC_LOAD_NO_SCALE (1l << 0) /* use font units directly */
+#define OC_LOAD_NO_HINTING (1l << 1) /* disable hinting (does noting for now) */
 // todo (stage 2): add these flags
 // #define OC_LOAD_VERTICAL (1l << 2)
 // #define OC_LOAD_COLOR (1l << 3)
-#define OC_LOAD_NO_FITTING (1l << 4)
+#define OC_LOAD_NO_FITTING (1l << 4) /* not fit metrics into the pixel grid */
 
 #define OC_ERROR_LIST                                      \
     X(oc_error_ok, "no error")                             \
@@ -33,6 +33,7 @@ typedef int32_t  oc_26p6;
     X(oc_error_invalid_pixel_size, "invalid pixel size")   \
     X(oc_error_unexpected, "unexpected error")
 
+/* Converts four-letter tags that are used to label TrueType tables. */
 #define OC_MAKE_TAG(x1, x2, x3, x4) \
     (((uint32_t)(uint8_t)x1) << 24 | ((uint32_t)(uint8_t)x2) << 16 | ((uint32_t)(uint8_t)x3) << 8 | ((uint32_t)(uint8_t)x4))
 
@@ -61,9 +62,9 @@ typedef enum {
 } oc_slant;
 
 typedef struct {
-    uint32_t face_index;
-    oc_26p6  desired_size;
-    uint16_t dpi;
+    uint32_t face_index; /* index of the face in the font file */
+    oc_26p6  desired_size; /* nominal height in 26.6 pixels */
+    uint16_t dpi; /* resolution in dpi */
 } oc_open_params;
 
 typedef struct {
@@ -116,7 +117,6 @@ typedef struct oc_collection_impl oc_collection_impl;
 // todo (stage 2): integrate even more fields
 // todo (stage 2): need a way to know homy mady glyphs a font has
 typedef struct {
-    // todo: check if family names change on diff locales
     const char* family;
     oc_slant    slant;
     uint16_t    weight;
@@ -134,13 +134,13 @@ typedef struct {
 typedef struct {
     oc_face_impl* impl;
 
-    oc_size  size;
+    oc_size  size; /* current active size */
     uint16_t upem; /* units per EM */
-    uint16_t ascent;
-    uint16_t descent;
-    int16_t  leading;
-    int16_t  underline_position;
-    uint16_t underline_thickness;
+    uint16_t ascent; /* typographic ascender in font units. */
+    uint16_t descent; /* typographic descender in font units. */
+    int16_t  leading; /* typographic leading in font units. */
+    int16_t  underline_position; /* underline position in font units */
+    uint16_t underline_thickness; /* underline thickness in font units */
 } oc_face;
 
 typedef struct {
