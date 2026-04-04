@@ -138,7 +138,7 @@ typedef struct {
 typedef struct {
     oc_collection_impl* impl;
 
-    oc_font** fonts; /* discovered fonts list */
+    oc_font** fonts;  /* discovered fonts list */
     uint32_t  nfonts; /* number of discovered fonts */
 } oc_collection;
 
@@ -184,7 +184,7 @@ ocf_has_character(const oc_font* font, uint32_t character);
 
 /*
  * Copies the font's path into client memory.
- * Passing `length` as 0 will exit immediately and return 
+ * Passing `length` as 0 will exit immediately and return
  * the full path length.
  *
  * Note on dwrite the path is uppercase.
