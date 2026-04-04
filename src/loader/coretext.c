@@ -258,7 +258,8 @@ oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, vo
     assert(length == 0 || length >= offset);
 
     if (ct_table == NULL) {
-        return oc_error_table_missing;
+        // todo (stage 2): check if this can oom
+        return oc_error_table_missing; // or oom
     }
 
     if (length == 0) {

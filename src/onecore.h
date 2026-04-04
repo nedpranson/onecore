@@ -9,19 +9,18 @@ typedef uint32_t oc_tag;
 typedef uint32_t oc_load_flags;
 typedef int32_t  oc_16p16;
 typedef int32_t  oc_26p6;
-// typedef int16_t oc_10p6;
 
 #ifndef OCDEF
 #define OCDEF
 #endif
 
-#define OC_LOAD_DEFAULT 0x0 /* load scaled and fitted metrics */
-#define OC_LOAD_NO_SCALE (1l << 0) /* use font units directly */
-#define OC_LOAD_NO_HINTING (1l << 1) /* disable hinting (does noting for now) */
+#define OC_LOAD_DEFAULT 0x0          /* load scaled and fitted metrics */
+#define OC_LOAD_NO_SCALE (1l << 0)   /* use font units directly */
+#define OC_LOAD_NO_HINTING (1l << 1) /* disable hinting (does nothing for now) */
 // todo (stage 2): add these flags
 // #define OC_LOAD_VERTICAL (1l << 2)
 // #define OC_LOAD_COLOR (1l << 3)
-#define OC_LOAD_NO_FITTING (1l << 4) /* not fit metrics into the pixel grid */
+#define OC_LOAD_NO_FITTING (1l << 4) /* disable grid-fitting for 26.6 pixels */
 
 #define OC_ERROR_LIST                                      \
     X(oc_error_ok, "no error")                             \
@@ -47,8 +46,6 @@ typedef int32_t  oc_26p6;
 extern "C" {
 #endif
 
-// todo: document every struct field and method
-
 typedef enum {
 #define X(e, s) e,
     OC_ERROR_LIST
@@ -62,9 +59,9 @@ typedef enum {
 } oc_slant;
 
 typedef struct {
-    uint32_t face_index; /* index of the face in the font file */
-    oc_26p6  desired_size; /* nominal height in 26.6 pixels */
-    uint16_t dpi; /* resolution in dpi */
+    uint32_t face_index;   /* index of the face in the font file */
+    oc_26p6  desired_size; /* nominal height in 26.6 pixels (default 12 * 64) */
+    uint16_t dpi;          /* resolution in dpi (default 72) */
 } oc_open_params;
 
 typedef struct {
@@ -97,57 +94,52 @@ typedef struct {
     int32_t y;
 } oc_point;
 
-typedef void (*oc_outline_start_figure)(oc_point at, void* context);
-typedef void (*oc_outline_end_figure)(void* context);
-typedef void (*oc_outline_line_to)(oc_point to, void* context);
-typedef void (*oc_outline_cubic_to)(oc_point c1, oc_point c2, oc_point to, void* context);
+typedef void (*oc_outline_start_figure)(oc_point at, void* user);
+typedef void (*oc_outline_end_figure)(void* user);
+typedef void (*oc_outline_line_to)(oc_point to, void* user);
+typedef void (*oc_outline_cubic_to)(oc_point c1, oc_point c2, oc_point to, void* user);
 
 typedef struct {
-    oc_outline_start_figure start_figure;
-    oc_outline_end_figure   end_figure;
-    oc_outline_line_to      line_to;
-    oc_outline_cubic_to     cubic_to;
+    oc_outline_start_figure start_figure; /* new figure emitter */
+    oc_outline_end_figure   end_figure;   /* figure end emitter */
+    oc_outline_line_to      line_to;      /* segment emitter */
+    oc_outline_cubic_to     cubic_to;     /* third-order bezier arc emitter */
 } oc_outline_funcs;
 
-// typedef struct oc_library_impl oc_library_impl;
 typedef struct oc_face_impl       oc_face_impl;
 typedef struct oc_collection_impl oc_collection_impl;
-// typedef struct oc_font oc_font;
 
 // todo (stage 2): integrate even more fields
-// todo (stage 2): need a way to know homy mady glyphs a font has
+// todo (stage 2): need a way to know how many glyphs a font has
 typedef struct {
     const char* family;
     oc_slant    slant;
     uint16_t    weight;
     // -> langs
-    // -> way to get ?path
-    // -> way to open oc_font
     // -> monoscope
 } oc_font;
 
 typedef struct {
-    // oc_library_impl* impl;
     void* internals;
 } oc_library;
 
 typedef struct {
     oc_face_impl* impl;
 
-    oc_size  size; /* current active size */
-    uint16_t upem; /* units per EM */
-    uint16_t ascent; /* typographic ascender in font units. */
-    uint16_t descent; /* typographic descender in font units. */
-    int16_t  leading; /* typographic leading in font units. */
-    int16_t  underline_position; /* underline position in font units */
+    oc_size  size;                /* current active size */
+    uint16_t upem;                /* units per EM */
+    uint16_t ascent;              /* typographic ascender in font units. */
+    uint16_t descent;             /* typographic descender in font units. */
+    int16_t  leading;             /* typographic leading in font units. */
+    int16_t  underline_position;  /* underline position in font units */
     uint16_t underline_thickness; /* underline thickness in font units */
 } oc_face;
 
 typedef struct {
     oc_collection_impl* impl;
 
-    oc_font** fonts;
-    uint32_t  nfonts;
+    oc_font** fonts; /* discovered fonts list */
+    uint32_t  nfonts; /* number of discovered fonts */
 } oc_collection;
 
 /*
@@ -176,18 +168,34 @@ ocf_init_collection(const oc_library* library, oc_collection* ocollection);
 OCDEF void
 ocf_free_collection(oc_collection* collection);
 
+/*
+ * Loads the list of available system fonts into the collection.
+ *
+ * Note this function is not thread-safe.
+ */
 OCDEF oc_error
 ocf_load_fonts(oc_collection* collection);
 
+/*
+ * Determines whether the font supports a specified character.
+ */
 OCDEF bool
 ocf_has_character(const oc_font* font, uint32_t character);
 
+/*
+ * Copies the font's path into client memory.
+ * Passing `length` as 0 will exit immediately and return 
+ * the full path length.
+ *
+ * Note on dwrite the path is uppercase.
+ */
 OCDEF size_t
-ocf_copy_path(const oc_font* font, char* buf, size_t len);
+ocf_copy_path(const oc_font* font, char* buffer, size_t length);
 
 /*
  * Opens a font.
  * Call `ocl_free_face` to release retrieved resource.
+ * Passing `desired_size` or `dpi` as 0 will use the defaults.
  */
 OCDEF oc_error
 ocf_open_font(
@@ -199,6 +207,7 @@ ocf_open_font(
 /*
  * Opens a font by its pathname.
  * Call `ocl_free_face` to release retrieved resource.
+ * Passing `uparams` as 0 will use the defaults.
  */
 OCDEF oc_error
 ocl_open_face(
@@ -210,6 +219,7 @@ ocl_open_face(
 /*
  * Opens a font that has been loaded into memory.
  * Call `ocl_free_face` to release retrieved resource.
+ * Passing `uparams` as 0 will use the defaults.
  *
  * Note the caller still owns the memory
  * do not deallocate it before calling `ocl_free_face`.
@@ -228,7 +238,13 @@ ocl_open_memory_face(
 OCDEF void
 ocl_free_face(oc_face* face);
 
-// todo: give a warning that this function is not thread safe
+/*
+ * Resizes the scale of the active size object in a face.
+ * Passing `desired_size` or `dpi` as 0 will use the defaults.
+ *
+ * Note the resulting ppem value for the given resolution is always rounded.
+ * Note this function is not thread-safe.
+ */
 OCDEF oc_error
 ocl_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi);
 
@@ -238,6 +254,9 @@ ocl_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi);
 OCDEF uint16_t
 ocl_get_char_index(const oc_face* face, uint32_t charcode);
 
+/*
+ * Returns the metrics of a given glyph.
+ */
 OCDEF void
 ocl_get_glyph_metrics(
     const oc_face*    face,
@@ -245,6 +264,9 @@ ocl_get_glyph_metrics(
     oc_load_flags     flags,
     oc_glyph_metrics* ometrics);
 
+/*
+ * Returns the control box of a given glyph.
+ */
 OCDEF void
 ocl_get_glyph_cbox(
     const oc_face* face,
@@ -252,8 +274,6 @@ ocl_get_glyph_cbox(
     oc_load_flags  flags,
     oc_bbox*       ocbox);
 
-// todo: add comments here explaining that every backend will generate diffrent glyph textures
-//       so if u want it modified by every backend it would be recomended to raster it using glyph outlines
 // todo (stage 2): now we're rendering these glyphs from [0;0] position which is convenient, but it does lose some extra draw data
 //       make so an user could specify how to draw this glyph mb allow to pass matricies and origins mb just some flags??
 // todo (stage 2): it is needed to make this method more complicated, now we cannot pass origin where to draw or matricies, nothing
@@ -261,6 +281,13 @@ ocl_get_glyph_cbox(
 // roadmap:
 // dwrite and coretext knows how to draw bezier curves hence theoretically hinting can be achieved with manual shapes rasterization,
 // essentially onecore would become freetype, but with native font file parsing and rendering engine
+
+/*
+ * Rasterizes a glyph into the pixel buffer.
+ *
+ * Note passing `buffer` as 0 will exit immediately after setting `oextent`.
+ * Note each backend may produce different pixel data for the glyph.
+ */
 OCDEF oc_error
 ocl_render_glyph(
     const oc_face* face,
@@ -269,7 +296,16 @@ ocl_render_glyph(
     uint8_t*       buffer,
     size_t         buffer_size);
 
+// todo (stage 2): add hori kerning support
+// OCDEF oc_26p6
+// ocl_get_kerning(const oc_face* face, uint16_t li, uint16_t ri, some_flags...);
+
 // todo (stage 2): renew this impl
+
+/*
+ * Walk over an outline's structure to decompose it into individual
+ * segments and bezier arcs.
+ */
 OCDEF bool
 ocl_get_outline(
     const oc_face*          face,
@@ -277,6 +313,12 @@ ocl_get_outline(
     const oc_outline_funcs* funcs,
     void*                   user);
 
+/*
+ * Loads any SFNT font table into client memory.
+ *
+ * Note passing `*size` as 0 will exit immediately while returning the
+ * table's full size in it.
+ */
 OCDEF oc_error
 ocl_get_sfnt_table(
     const oc_face* face,
@@ -295,13 +337,13 @@ oc_strerror(oc_error err);
  * Computes `(a*b)/0x10000` with maximum accuracy.
  */
 OCDEF oc_16p16
-oc_div_16p16(oc_16p16 a, oc_16p16 b);
+oc_mul_16p16(oc_16p16 a, oc_16p16 b);
 
 /*
  * Computes `(a*0x10000)/b` with maximum accuracy.
  */
 OCDEF oc_16p16
-oc_mul_16p16(oc_16p16 a, oc_16p16 b);
+oc_div_16p16(oc_16p16 a, oc_16p16 b);
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }
