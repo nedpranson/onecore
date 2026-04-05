@@ -235,7 +235,8 @@ bool ocf_has_character(const oc_font* font, uint32_t character) {
     return result == FcResultMatch && FcCharSetHasChar(charset, character);
 }
 
-// todo (stage 2): make this stuff crossplatform
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+// todo: make this stuff crossplatform
 // upper 16 means instance
 // lower 16 means index
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
@@ -272,6 +273,7 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
 
     return ocl_open_face(impl->oc_library, (char*)file, &params, oface);
 }
+#endif
 
 size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
     oc__font_impl* impl;

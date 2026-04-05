@@ -39,39 +39,6 @@ struct oc_face_impl {
     oc__mutex_impl_t lock;
 };
 
-oc_error oc_init_library(oc_library* plibrary) {
-    FT_Library library;
-    FT_Error   err;
-
-    if (plibrary == NULL) {
-        return oc_error_invalid_param;
-    }
-
-    err = FT_Init_FreeType(&library);
-    switch (err) {
-    case FT_Err_Ok:
-        break;
-    case FT_Err_Out_Of_Memory:
-        return oc_error_out_of_memory;
-    default:
-        return oc__unexpected(err);
-    }
-
-    plibrary->internals = library;
-    return oc_error_ok;
-}
-
-void oc_free_library(oc_library* library) {
-    FT_Library ft_library;
-    if (!library) {
-        return;
-    }
-
-    ft_library = library->internals;
-    FT_Done_FreeType(ft_library);
-    memset(library, 0, sizeof(*library));
-}
-
 static oc_error oc__init_face(FT_Face ft_face, const oc_open_params* params, oc_face* oface) {
     FT_Error err;
     oc_face  face;

@@ -138,7 +138,7 @@ typedef struct {
 typedef struct {
     oc_collection_impl* impl;
 
-    oc_font** fonts; /* discovered fonts list */
+    oc_font** fonts;  /* discovered fonts list */
     uint32_t  nfonts; /* number of discovered fonts */
 } oc_collection;
 
@@ -184,7 +184,7 @@ ocf_has_character(const oc_font* font, uint32_t character);
 
 /*
  * Copies the font's path into client memory.
- * Passing `length` as 0 will exit immediately and return 
+ * Passing `length` as 0 will exit immediately and return
  * the full path length.
  *
  * Note on dwrite the path is uppercase.
@@ -358,7 +358,7 @@ oc_div_16p16(oc_16p16 a, oc_16p16 b);
 /******************************************************************************************************/
 
 #ifdef ONECORE_LOADER_IMPLEMENTATION
-#define ONECORE_SHARED_IMPLEMENTATION
+#define ONECORE_IMPLEMENTATION
 #if defined(_MSC_VER) || defined(__MINGW32__)
 #define ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
 #elif defined(__APPLE__)
@@ -369,7 +369,7 @@ oc_div_16p16(oc_16p16 a, oc_16p16 b);
 #endif /* ONECORE_LOADER_IMPLEMENTATION */
 
 #ifdef ONECORE_FINDER_IMPLEMENTATION
-#define ONECORE_SHARED_IMPLEMENTATION
+#define ONECORE_IMPLEMENTATION
 #if defined(_MSC_VER) || defined(__MINGW32__)
 #define ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
 #elif defined(__APPLE__)
@@ -379,7 +379,7 @@ oc_div_16p16(oc_16p16 a, oc_16p16 b);
 #endif
 #endif /* ONECORE_FINDER_IMPLEMENTATION */
 
-#ifdef ONECORE_SHARED_IMPLEMENTATION
+#ifdef ONECORE_IMPLEMENTATION
 #ifdef NDEBUG
 #define oc__unexpected(e) oc_error_unexpected
 #else
@@ -400,22 +400,6 @@ static inline oc_error oc__unexpected_impl(long err, const char* file, int line)
 #define OC__MIN(a, b) \
     ((a) < (b) ? (a) : (b))
 
-const char* oc_strerror(oc_error err) {
-#ifdef ONECORE_NO_ERROR_STRINGS
-    return NULL;
-#else
-    switch (err) {
-#define X(e, s) \
-    case e:     \
-        return s;
-        OC_ERROR_LIST
-#undef X
-    default:
-        return "unknown error";
-    }
-#endif /* ONECORE_NO_ERROR_STRINGS */
-}
-
 #define oc__exit(e) \
     do {            \
         err = (e);  \
@@ -431,6 +415,22 @@ const char* oc_strerror(oc_error err) {
             ux = (utype)ix;             \
         }                               \
     } while (0)
+
+const char* oc_strerror(oc_error err) {
+#ifdef ONECORE_NO_ERROR_STRINGS
+    return NULL;
+#else
+    switch (err) {
+#define X(e, s) \
+    case e:     \
+        return s;
+        OC_ERROR_LIST
+#undef X
+    default:
+        return "unknown error";
+    }
+#endif /* ONECORE_NO_ERROR_STRINGS */
+}
 
 oc_16p16 oc_div_16p16(oc_16p16 a, oc_16p16 b) {
     bool     s = false;
@@ -483,7 +483,7 @@ static inline void oc__fit_metrics(oc_glyph_metrics* pmetrics) {
 
     pmetrics->advance = OC_26P6_ROUND(pmetrics->advance);
 }
-#endif /* ONECORE_SHARED_IMPLEMENTATION */
+#endif /* ONECORE_IMPLEMENTATION */
 
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
 #include <assert.h>
@@ -1316,7 +1316,8 @@ bool ocf_has_character(const oc_font* font, uint32_t character) {
     return result == FcResultMatch && FcCharSetHasChar(charset, character);
 }
 
-// todo (stage 2): make this stuff crossplatform
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+// todo: make this stuff crossplatform
 // upper 16 means instance
 // lower 16 means index
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
@@ -1353,6 +1354,7 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
 
     return ocl_open_face(impl->oc_library, (char*)file, &params, oface);
 }
+#endif
 
 size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
     oc__font_impl* impl;
