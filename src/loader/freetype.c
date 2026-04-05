@@ -1,5 +1,5 @@
-#define ONECORE_SHARED_IMPLEMENTATION
-#include "../onecore.h"
+#define ONECORE_IMPLEMENTATION
+#include "../../onecore.h"
 
 /* ONECORE_FREETYPE_LOADER_IMPLEMENTATION */
 #include <assert.h>
@@ -86,7 +86,7 @@ oc_error ocl_open_face(const oc_library* library, const char* path, const oc_ope
         return oc_error_invalid_param;
     }
 
-    ft_library = library->internals;
+    ft_library = (FT_Library)library;
 
     ft_open_args.flags = FT_OPEN_PATHNAME;
     ft_open_args.pathname = (FT_String*)path;
@@ -128,7 +128,7 @@ oc_error ocl_open_memory_face(const oc_library* library, const void* data, size_
         return oc_error_invalid_param;
     }
 
-    ft_library = library->internals;
+    ft_library = (FT_Library)library;
     params = oc__open_params_defaults(uparams);
 
     err = FT_New_Memory_Face(ft_library, data, size, params.face_index, &ft_face);

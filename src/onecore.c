@@ -1,4 +1,7 @@
+#include <ft2build.h>
+#include FT_FREETYPE_H
 #include "onecore.h"
+#define ONECORE_FREETYPE_LOADER_IMPLEMENTATION
 /* ONECORE_IMPLEMENTATION */
 #ifdef NDEBUG
 #define oc__unexpected(e) oc_error_unexpected
@@ -104,36 +107,101 @@ static inline void oc__fit_metrics(oc_glyph_metrics* pmetrics) {
     pmetrics->advance = OC_26P6_ROUND(pmetrics->advance);
 }
 
+/* oc_library:
+ * - (freetype; fconfig)  -> (freetype) + -
+ * - (freetype; dwrite)   -> (freetype; dwrite) + -
+ * - (freetype; coretext) -> (freetype) + -
+ * - (dwrite;   dwrite)   -> (dwrite) - -
+ * - (coretext; coretext) -> (NULL) - -
+ * - (dwrite;   fconfig)  -> (dwrite) - -
+ * - (coretext; fconfig)  -> (NULL) - -
+ */
 
-oc_error oc_init_library(oc_library* plibrary) {
-    FT_Library library;
-    FT_Error   err;
+#if defined(ONECORE_FREETYPE_LOADER_IMPLEMENTATION)
+// tood: move this s out of here
+#include <ft2build.h>
+#include FT_FREETYPE_H
+#ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
+struct oc_library {
+    FT_Library      ft_library;
+    IDWriteFactory* dw_factory;
+};
+#endif
 
-    if (plibrary == NULL) {
+oc_error oc_init_library(oc_library** olibrary) {
+    FT_Error   ft_err;
+    FT_Library ft_library;
+#ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
+    HRESULT         result;
+    IDWriteFactory* dw_factory;
+#endif
+    oc_error err = oc_error_ok;
+    oc_library* library = NULL;
+
+    if (!olibrary) {
         return oc_error_invalid_param;
     }
 
-    err = FT_Init_FreeType(&library);
-    switch (err) {
+    ft_err = FT_Init_FreeType(&ft_library);
+    switch (ft_err) {
     case FT_Err_Ok:
         break;
     case FT_Err_Out_Of_Memory:
-        return oc_error_out_of_memory;
+        oc__exit(oc_error_out_of_memory);
     default:
-        return oc__unexpected(err);
+        oc__exit(oc__unexpected(ft_err));
+    }
+#ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
+    result = DWriteCreateFactory(DWRITE_FACTORY_TYPE_ISOLATED, &IID_IDWriteFactory, (IUnknown**)&dw_factory);
+    switch (result) {
+    case S_OK:
+        break;
+    case E_OUTOFMEMORY:
+        FT_Done_FreeType(ft_library);
+        oc__exit(oc_error_out_of_memory);
+    default:
+        FT_Done_FreeType(ft_library);
+        oc__exit(oc__unexpected(result));
     }
 
-    plibrary->internals = library;
-    return oc_error_ok;
+    library = malloc(sizeof(*library));
+    if (!library) {
+        dw_factory->lpVtbl->Release(dw_factory);
+        FT_Done_FreeType(ft_library);
+        oc__exit(oc_error_out_of_memory);
+    }
+
+    library->ft_library = ft_library;
+    library->dw_factory = dw_factory;
+#else
+    library = (oc_library*)ft_library;
+#endif
+exit:
+    *olibrary = library;
+    return err;
 }
 
 void oc_free_library(oc_library* library) {
     FT_Library ft_library;
+#ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
+    IDWriteFactory* dw_factory;
+#endif
     if (!library) {
         return;
     }
+#ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
+    ft_library = library->ft_library;
+    dw_factory = library->dw_factory;
 
-    ft_library = library->internals;
+    dw_factory->lpVtbl->Release(dw_factory);
     FT_Done_FreeType(ft_library);
-    memset(library, 0, sizeof(*library));
+
+    free(library)
+#else
+    ft_library = (FT_Library)library;
+    FT_Done_FreeType(ft_library);
+#endif
 }
+#elif defined(ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION)
+
+#endif

@@ -108,6 +108,7 @@ typedef struct {
 
 typedef struct oc_face_impl       oc_face_impl;
 typedef struct oc_collection_impl oc_collection_impl;
+typedef struct oc_library oc_library;
 
 // todo (stage 2): integrate even more fields
 // todo (stage 2): need a way to know how many glyphs a font has
@@ -119,9 +120,9 @@ typedef struct {
     // -> monoscope
 } oc_font;
 
-typedef struct {
-    void* internals;
-} oc_library;
+// typedef struct {
+//     void* internals;
+// } oc_library;
 
 typedef struct {
     oc_face_impl* impl;
@@ -150,7 +151,7 @@ typedef struct {
  * Call `oc_free_library` to release retrieved resource.
  */
 OCDEF oc_error
-oc_init_library(oc_library* olibrary);
+oc_init_library(oc_library** olibrary);
 
 /*
  * Releases given library object.
@@ -381,6 +382,8 @@ oc_div_16p16(oc_16p16 a, oc_16p16 b);
 #define ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION
 #endif
 #endif /* ONECORE_FINDER_IMPLEMENTATION */
+
+// todo: define all used includes here!
 
 #ifdef ONECORE_IMPLEMENTATION
 #endif /* ONECORE_IMPLEMENTATION */

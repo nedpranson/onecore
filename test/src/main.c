@@ -6,7 +6,7 @@
 #define ONECORE_FINDER_IMPLEMENTATION
 #include <onecore.h>
 
-oc_library g_library;
+oc_library* g_library;
 oc_face    g_arial_ttf;
 
 // todo (stage 2): test emoji fonts
@@ -29,12 +29,12 @@ void test_math(void) {
 }
 
 void test_oc_init_library(void) {
-    oc_library lib;
+    oc_library* lib;
     oc_error   err;
 
     err = oc_init_library(&lib);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
-    oc_free_library(&lib);
+    oc_free_library(lib);
 
     err = oc_init_library(NULL);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
@@ -51,13 +51,13 @@ void test_oc_init_collection(void) {
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
     TEST_ASSERT_EQUAL_MEMORY(&nil_col, &col, sizeof(oc_collection));
 
-    err = ocf_init_collection(&g_library, &col);
+    err = ocf_init_collection(g_library, &col);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
     ocf_free_collection(&col);
     TEST_ASSERT_EQUAL_MEMORY(&nil_col, &col, sizeof(oc_collection));
 
-    err = ocf_init_collection(&g_library, NULL);
+    err = ocf_init_collection(g_library, NULL);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
     ocf_free_collection(NULL);
@@ -74,7 +74,7 @@ void test_oc_load_fonts(void) {
     oc_collection col;
     oc_error      err;
 
-    err = ocf_init_collection(&g_library, &col);
+    err = ocf_init_collection(g_library, &col);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
     err = ocf_load_fonts(&col);
@@ -116,38 +116,38 @@ void test_ocl_open_face(void) {
     oc_face  face;
     oc_error err;
 
-    err = ocl_open_face(&g_library, "test/files/arial.ttf", NULL, &face);
+    err = ocl_open_face(g_library, "test/files/arial.ttf", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
     ocl_free_face(&face);
 
-    err = ocl_open_face(&g_library, "test/files/arial.idk", NULL, &face);
+    err = ocl_open_face(g_library, "test/files/arial.idk", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     ocl_free_face(&face);
 
-    err = ocl_open_face(&g_library, "test/files/arial.otf", NULL, &face);
+    err = ocl_open_face(g_library, "test/files/arial.otf", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     ocl_free_face(&face);
 
-    err = ocl_open_face(&g_library, "test/files/arial", NULL, &face);
+    err = ocl_open_face(g_library, "test/files/arial", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     ocl_free_face(&face);
 
-    err = ocl_open_face(&g_library, "test/files/arial.ttf", NULL, NULL);
+    err = ocl_open_face(g_library, "test/files/arial.ttf", NULL, NULL);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
-    err = ocl_open_face(&g_library, NULL, 0, &face);
+    err = ocl_open_face(g_library, NULL, 0, &face);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
     oc_open_params params = { 0 };
     params.face_index = 10;
-    err = ocl_open_face(&g_library, "test/files/arial.ttf", &params, &face);
+    err = ocl_open_face(g_library, "test/files/arial.ttf", &params, &face);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
-    err = ocl_open_face(&g_library, "non_existing.ttf", NULL, &face);
+    err = ocl_open_face(g_library, "non_existing.ttf", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
 
-    err = ocl_open_face(&g_library, "test/files/corrupt.ttf", NULL, &face);
+    err = ocl_open_face(g_library, "test/files/corrupt.ttf", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
 
     char path[8192 + 1];
@@ -158,30 +158,30 @@ void test_ocl_open_face(void) {
     path[8191] = 'f';
     path[8192] = '\0';
 
-    err = ocl_open_face(&g_library, path, NULL, &face);
+    err = ocl_open_face(g_library, path, NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
 
     const char ipath[] = { 0xC0, 0xAF, 0x00 };
-    err = ocl_open_face(&g_library, ipath, NULL, &face);
+    err = ocl_open_face(g_library, ipath, NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
 
-    err = ocl_open_face(&g_library, "", NULL, &face);
+    err = ocl_open_face(g_library, "", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
 
-    err = ocl_open_face(&g_library, " ", NULL, &face);
+    err = ocl_open_face(g_library, " ", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
 
-    err = ocl_open_face(&g_library, "  ", NULL, &face);
+    err = ocl_open_face(g_library, "  ", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
 
-    err = ocl_open_face(&g_library, "  test/files/arial.ttf", NULL, &face);
+    err = ocl_open_face(g_library, "  test/files/arial.ttf", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
 
     params.face_index = 0;
     params.desired_size = 4194271;
     params.dpi = 72;
 
-    err = ocl_open_face(&g_library, "test/files/arial.ttf", &params, &face);
+    err = ocl_open_face(g_library, "test/files/arial.ttf", &params, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     ocl_free_face(&face);
 
@@ -189,7 +189,7 @@ void test_ocl_open_face(void) {
     params.desired_size = 4194272;
     params.dpi = 72;
 
-    err = ocl_open_face(&g_library, "test/files/arial.ttf", &params, &face);
+    err = ocl_open_face(g_library, "test/files/arial.ttf", &params, &face);
     TEST_ASSERT_EQUAL(oc_error_invalid_pixel_size, err);
 }
 
@@ -197,19 +197,19 @@ void test_ocl_open_memory_face(void) {
     oc_face  face;
     oc_error err;
 
-    err = ocl_open_memory_face(&g_library, NULL, 0, NULL, &face);
+    err = ocl_open_memory_face(g_library, NULL, 0, NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
-    err = ocl_open_memory_face(&g_library, NULL, 5, NULL, &face);
+    err = ocl_open_memory_face(g_library, NULL, 5, NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
     char buf[1024];
     memset(buf, 'a', sizeof(buf));
 
-    err = ocl_open_memory_face(&g_library, buf, sizeof(buf), NULL, &face);
+    err = ocl_open_memory_face(g_library, buf, sizeof(buf), NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
 
-    err = ocl_open_memory_face(&g_library, buf, sizeof(buf), NULL, NULL);
+    err = ocl_open_memory_face(g_library, buf, sizeof(buf), NULL, NULL);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
     FILE* file = fopen("test/files/arial.ttf", "rb");
@@ -229,30 +229,30 @@ void test_ocl_open_memory_face(void) {
 
     TEST_ASSERT_EQUAL_INT(size, nread);
 
-    err = ocl_open_memory_face(&g_library, data, size, NULL, &face);
+    err = ocl_open_memory_face(g_library, data, size, NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     ocl_free_face(&face);
 
-    err = ocl_open_memory_face(&g_library, data, size - 20, NULL, &face);
+    err = ocl_open_memory_face(g_library, data, size - 20, NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     ocl_free_face(&face);
 
     oc_open_params params = { 0 };
     params.face_index = 10;
-    err = ocl_open_memory_face(&g_library, data, 0, &params, &face);
+    err = ocl_open_memory_face(g_library, data, 0, &params, &face);
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
 
-    err = ocl_open_memory_face(&g_library, data, 0, NULL, &face);
+    err = ocl_open_memory_face(g_library, data, 0, NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_failed_to_open, err);
 
-    err = ocl_open_memory_face(&g_library, data, size, &params, &face);
+    err = ocl_open_memory_face(g_library, data, size, &params, &face);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
     params.face_index = 0;
     params.desired_size = 4194271;
     params.dpi = 72;
 
-    err = ocl_open_memory_face(&g_library, data, size, &params, &face);
+    err = ocl_open_memory_face(g_library, data, size, &params, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     ocl_free_face(&face);
 
@@ -260,7 +260,7 @@ void test_ocl_open_memory_face(void) {
     params.desired_size = 4194272;
     params.dpi = 72;
 
-    err = ocl_open_memory_face(&g_library, data, size, &params, &face);
+    err = ocl_open_memory_face(g_library, data, size, &params, &face);
     TEST_ASSERT_EQUAL(oc_error_invalid_pixel_size, err);
 
     free(data);
@@ -275,7 +275,7 @@ void test_oc_test_sizes(void) {
     uint8_t   bitmap_a[13 * 12];
     uint8_t   bitmap_b[13 * 12];
 
-    err = ocl_open_face(&g_library, "test/files/arial.otf", NULL, &face);
+    err = ocl_open_face(g_library, "test/files/arial.otf", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     TEST_ASSERT_EQUAL_UINT16(12, face.size.ppem);
     TEST_ASSERT_EQUAL_INT32(24576, face.size.scale);
@@ -365,7 +365,7 @@ void test_ocl_get_char_index(void) {
     oc_error err;
     uint16_t idx;
 
-    err = ocl_open_face(&g_library, "test/files/arial.ttf", 0, &face);
+    err = ocl_open_face(g_library, "test/files/arial.ttf", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
     idx = ocl_get_char_index(&face, 'A');
@@ -384,7 +384,7 @@ void test_ocl_get_char_index(void) {
     TEST_ASSERT_EQUAL_INT16(0, idx);
     ocl_free_face(&face);
 
-    err = ocl_open_face(&g_library, "test/files/emoji.ttf", 0, &face);
+    err = ocl_open_face(g_library, "test/files/emoji.ttf", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
     idx = ocl_get_char_index(&face, 0x1F600);
@@ -465,7 +465,7 @@ void test_oc_font_metrics(void) {
     oc_face  face;
     oc_error err;
 
-    err = ocl_open_face(&g_library, "test/files/arial.ttf", 0, &face);
+    err = ocl_open_face(g_library, "test/files/arial.ttf", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
     TEST_ASSERT_EQUAL_UINT16(2048, face.upem);
@@ -476,7 +476,7 @@ void test_oc_font_metrics(void) {
     TEST_ASSERT_EQUAL_UINT16(150, face.underline_thickness);
     ocl_free_face(&face);
 
-    err = ocl_open_face(&g_library, "test/files/source-serif.otf", 0, &face);
+    err = ocl_open_face(g_library, "test/files/source-serif.otf", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
     TEST_ASSERT_EQUAL_UINT16(1000, face.upem);
@@ -487,7 +487,7 @@ void test_oc_font_metrics(void) {
     TEST_ASSERT_EQUAL_UINT16(50, face.underline_thickness);
     ocl_free_face(&face);
 
-    err = ocl_open_face(&g_library, "test/files/roman.ttf", 0, &face);
+    err = ocl_open_face(g_library, "test/files/roman.ttf", 0, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
     TEST_ASSERT_EQUAL_UINT16(1000, face.upem);
@@ -550,7 +550,7 @@ void test_ocl_get_glyph_metrics(void) {
     face_params.desired_size = 16 << 6;
     face_params.dpi = 96;
 
-    oc_error err = ocl_open_face(&g_library, "test/files/arial.ttf", &face_params, &face);
+    oc_error err = ocl_open_face(g_library, "test/files/arial.ttf", &face_params, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
     idx = ocl_get_char_index(&g_arial_ttf, 'e');
@@ -956,7 +956,7 @@ int main(void) {
     oc_open_params face_params = { 0 };
     face_params.dpi = 96;
 
-    err = ocl_open_face(&g_library, "test/files/arial.ttf", &face_params, &g_arial_ttf);
+    err = ocl_open_face(g_library, "test/files/arial.ttf", &face_params, &g_arial_ttf);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     TEST_ASSERT_EQUAL_UINT16(16, g_arial_ttf.size.ppem);
 
@@ -979,7 +979,7 @@ int main(void) {
     RUN_TEST(test_ocl_render_glyph);
 
     ocl_free_face(&g_arial_ttf);
-    oc_free_library(&g_library);
+    oc_free_library(g_library);
 
     UNITY_END();
     return 0;
