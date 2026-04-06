@@ -23,13 +23,7 @@ def strip(path, marker):
                 return file.read()
 
 def concat(source, marker, body):
-    header = source.find(f"#ifdef {marker}")
-    pos = source.find('\n', header) + 1
-
-    header = source[:pos]
-    footer = source[pos:]
-    
-    return f"{header}{body}{footer}"
+    return source.replace(f"/// {marker} ///\n", body)
 
 def inject(source, file, marker):
     body = strip(file, marker)

@@ -361,8 +361,21 @@ oc_div_16p16(oc_16p16 a, oc_16p16 b);
 /*                                                                                                    */
 /******************************************************************************************************/
 
+#define OC__LOADER_BACKENDS \
+    X(FREETYPE_LOADER)      \
+    X(DIRECTWRITE_LOADER)   \
+    X(CORETEXT_LOADER)
+
+#define OC__FINDER_BACKENDS \
+    X(FONTCONFIG_FINDER)    \
+    X(DIRECTWRITE_FINDER)   \
+    X(CORETEXT_FINDER)
+
+#define OC__BACKENDS    \
+    OC__LOADER_BACKENDS \
+    OC__FINDER_BACKENDS
+
 #ifdef ONECORE_LOADER_IMPLEMENTATION
-#define ONECORE_IMPLEMENTATION
 #if defined(_MSC_VER) || defined(__MINGW32__)
 #define ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
 #elif defined(__APPLE__)
@@ -373,7 +386,6 @@ oc_div_16p16(oc_16p16 a, oc_16p16 b);
 #endif /* ONECORE_LOADER_IMPLEMENTATION */
 
 #ifdef ONECORE_FINDER_IMPLEMENTATION
-#define ONECORE_IMPLEMENTATION
 #if defined(_MSC_VER) || defined(__MINGW32__)
 #define ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
 #elif defined(__APPLE__)
@@ -382,6 +394,14 @@ oc_div_16p16(oc_16p16 a, oc_16p16 b);
 #define ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION
 #endif
 #endif /* ONECORE_FINDER_IMPLEMENTATION */
+
+// todo: define all used includes here!
+
+#define X(name) defined(ONECORE_##name##_IMPLEMENTATION) ||
+#if OC__BACKENDS 0
+#define ONECORE_IMPLEMENTATION
+#endif
+#undef X
 
 #ifdef ONECORE_IMPLEMENTATION
 #ifdef NDEBUG
@@ -498,464 +518,67 @@ static inline void oc__fit_metrics(oc_glyph_metrics* pmetrics) {
  * - (coretext; fconfig)  -> (NULL) - -
  */
 
-#if defined(ONECORE_FREETYPE_LOADER_IMPLEMENTATION)
+// #if defined(ONECORE_FREETYPE_LOADER_IMPLEMENTATION)
 // tood: move this s out of here
+// #elif defined(ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION)
+// ...
+// #else
+// static char oc__noop_library;
+// oc_error oc_init_library(oc_library** olibrary) {
+//     if (!olibrary) {
+//         return oc_error_invalid_param;
+//     }
+//
+//     *olibrary = (oc_library*)&oc__noop_library;
+//     return oc_error_ok;
+// }
+//
+// void oc_free_library(oc_library* library) {
+//     (void)library;
+// }
+// #endif
+#endif /* ONECORE_IMPLEMENTATION */
+
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+#include <assert.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#include FT_TRUETYPE_TABLES_H
+#include FT_OUTLINE_H
+#include FT_GLYPH_H
 #ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
-#include <assert.h>
-#include <dwrite.h>
+#ininline <dwrite.h>
+#include <windows.h>
 
-struct oc_collection_impl {
-    IDWriteFactory* dw_factory;
-    char**          families;
-    UINT32          nfamilies;
+typedef SRWLOCK oc__mutex_impl_t;
+
+#define oc__mutex_impl_init(m) InitializeSRWLock(m)
+#define oc__mutex_impl_lock(m) AcquireSRWLockExclusive(m)
+#define oc__mutex_impl_unlock(m) ReleaseSRWLockExclusive(m)
+#define oc__mutex_impl_destroy(m) ((void)0)
+#else
+#include <pthread.h>
+typedef pthread_mutex_t oc__mutex_impl_t;
+
+#define oc__mutex_impl_init(m) pthread_mutex_init(m, NULL)
+#define oc__mutex_impl_lock(m) pthread_mutex_lock(m)
+#define oc__mutex_impl_unlock(m) pthread_mutex_unlock(m)
+#define oc__mutex_impl_destroy(m) pthread_mutex_destroy(m)
+#endif
+
+#define oc__exit_critical(e)         \
+    do {                             \
+        oc__mutex_impl_unlock(lock); \
+        err = (e);                   \
+        goto exit;                   \
+    } while (0)
+
+struct oc_face_impl {
+    FT_Face          ft_face;
+    oc__mutex_impl_t lock;
 };
 
-typedef struct {
-    IDWriteFactory* dw_factory;
-    IDWriteFont*    dw_font;
-    oc_font         font;
-} oc__font_impl;
-
-static inline void oc__free_font(oc_font* font) {
-    oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
-    impl->dw_font->lpVtbl->Release(impl->dw_font);
-    free(impl);
-}
-
-oc_error ocf_init_collection(const oc_library* library, oc_collection* ocollection) {
-    oc_collection collection = { 0 };
-    oc_error      err = oc_error_ok;
-
-    if (!(library && ocollection)) {
-        err = oc_error_invalid_param;
-        goto exit;
-    }
-
-    collection.impl = calloc(1, sizeof(oc_collection_impl));
-    if (collection.impl == NULL) {
-        return oc_error_out_of_memory;
-    }
-
-    collection.impl->dw_factory = library->internals;
-exit:
-    if (ocollection)
-        *ocollection = collection;
-    return err;
-}
-
-void ocf_free_collection(oc_collection* collection) {
-    if (collection) {
-        while (collection->nfonts--) {
-            oc__free_font(collection->fonts[collection->nfonts]);
-        }
-
-        while (collection->impl->nfamilies--) {
-            free(collection->impl->families[collection->impl->nfamilies]);
-        }
-
-        free(collection->fonts);
-        free(collection->impl->families);
-        free(collection->impl);
-
-        memset(collection, 0, sizeof(*collection));
-    }
-}
-
-static const oc_slant oc__slant_map[] = {
-    [DWRITE_FONT_STYLE_NORMAL] = oc_slant_roman,
-    [DWRITE_FONT_STYLE_OBLIQUE] = oc_slant_oblique,
-    [DWRITE_FONT_STYLE_ITALIC] = oc_slant_italic,
-};
-
-static oc_font* oc__init_font(IDWriteFactory* dw_factory, IDWriteFont* dw_font, const char* family) {
-    DWRITE_FONT_WEIGHT weight;
-    DWRITE_FONT_STYLE  style;
-
-    oc__font_impl* impl;
-
-    weight = dw_font->lpVtbl->GetWeight(dw_font);
-    style = dw_font->lpVtbl->GetStyle(dw_font);
-
-    impl = malloc(sizeof(*impl));
-    if (impl == NULL) {
-        return NULL;
-    }
-
-    impl->dw_factory = dw_factory;
-    impl->dw_font = dw_font;
-    impl->font.family = family;
-    impl->font.weight = (uint16_t)weight;
-    impl->font.slant = oc__slant_map[style];
-
-    return &impl->font;
-}
-
-oc_error ocf_load_fonts(oc_collection* collection) {
-    oc_error err = oc_error_ok;
-    HRESULT  hr;
-
-    IDWriteFactory*        dw_factory;
-    IDWriteFontCollection* dw_collection = NULL;
-
-    UINT32 family_count;
-    UINT32 font_count;
-
-    union {
-        char*  str;
-        UINT32 len;
-    }*     families = NULL;
-    UINT32 nfamilies = 0;
-
-    WCHAR* wide_buf = NULL;
-    UINT32 wide_buf_len;
-
-    oc_font** fonts = NULL;
-    uint32_t  nfonts = 0;
-
-    oc_collection      tmp_collection;
-    oc_collection_impl tmp_impl;
-
-    if (!collection) {
-        oc__exit(oc_error_invalid_param);
-    }
-
-    dw_factory = collection->impl->dw_factory;
-    hr = dw_factory->lpVtbl->GetSystemFontCollection(dw_factory, &dw_collection, TRUE);
-
-    switch (hr) {
-    case S_OK:
-        break;
-    case E_OUTOFMEMORY:
-        oc__exit(oc_error_out_of_memory);
-    default:
-        oc__exit(oc__unexpected(hr));
-    }
-
-    family_count = dw_collection->lpVtbl->GetFontFamilyCount(dw_collection);
-    if (family_count == 0) {
-        goto done;
-    }
-
-    font_count = 0;
-    families = malloc(family_count * sizeof(*families));
-
-    if (families == NULL) {
-        oc__exit(oc_error_out_of_memory);
-    }
-
-    for (UINT32 i = 0; i < family_count; i++) {
-        IDWriteFontFamily*       family;
-        IDWriteLocalizedStrings* names;
-        UINT32                   length;
-
-        hr = dw_collection->lpVtbl->GetFontFamily(dw_collection, i, &family);
-        assert(hr == S_OK);
-
-        hr = family->lpVtbl->GetFamilyNames(family, &names);
-        assert(hr == S_OK);
-
-        hr = names->lpVtbl->GetStringLength(names, 0, &length);
-        assert(hr == S_OK);
-
-        families[i].len = length;
-        wide_buf_len = OC__MAX(wide_buf_len, length);
-        font_count += family->lpVtbl->GetFontCount(family);
-
-        names->lpVtbl->Release(names);
-        family->lpVtbl->Release(family);
-    }
-
-    assert(font_count > 0);
-
-    wide_buf = malloc((wide_buf_len + 1) * sizeof(WCHAR));
-    if (wide_buf == NULL) {
-        oc__exit(oc_error_out_of_memory);
-    }
-
-    fonts = malloc(sizeof(*fonts) * font_count);
-    if (fonts == NULL) {
-        oc__exit(oc_error_out_of_memory);
-    }
-
-    for (UINT32 i = 0; i < family_count; i++) {
-        IDWriteFontFamily*       font_family;
-        IDWriteLocalizedStrings* names;
-
-        UINT32 wide_length = families[i].len;
-        UINT32 font_index;
-
-        char* family;
-        int   length;
-
-        hr = dw_collection->lpVtbl->GetFontFamily(dw_collection, i, &font_family);
-        assert(hr == S_OK);
-
-        hr = font_family->lpVtbl->GetFamilyNames(font_family, &names);
-        assert(hr == S_OK);
-
-        hr = names->lpVtbl->GetString(names, 0, wide_buf, wide_length + 1);
-        names->lpVtbl->Release(names);
-        assert(hr == S_OK);
-
-        length = WideCharToMultiByte(
-            CP_UTF8,
-            0,
-            wide_buf,
-            wide_length,
-            NULL,
-            0,
-            NULL,
-            NULL);
-
-        assert(length > 0);
-
-        family = malloc(length + 1);
-        if (family == NULL) {
-            font_family->lpVtbl->Release(font_family);
-            oc__exit(oc_error_out_of_memory);
-        }
-
-        length = WideCharToMultiByte(
-            CP_UTF8,
-            0,
-            wide_buf,
-            wide_length,
-            family,
-            length,
-            NULL,
-            NULL);
-
-        assert(length > 0);
-
-        family[length] = '\0';
-        families[nfamilies++].str = family;
-        font_index = font_family->lpVtbl->GetFontCount(font_family);
-
-        while (font_index--) {
-            IDWriteFont* dw_font;
-            oc_font*     font;
-
-            hr = font_family->lpVtbl->GetFont(font_family, font_index, &dw_font);
-            assert(hr == S_OK);
-
-            font = oc__init_font(dw_factory, dw_font, family);
-            if (font == NULL) {
-                font_family->lpVtbl->Release(font_family);
-                oc__exit(oc_error_out_of_memory);
-            }
-
-            fonts[nfonts++] = font;
-        }
-
-        font_family->lpVtbl->Release(font_family);
-    }
-done:
-    tmp_impl.dw_factory = dw_factory;
-    tmp_impl.families = (char**)families;
-    tmp_impl.nfamilies = nfamilies;
-
-    tmp_collection.impl = collection->impl;
-    tmp_collection.fonts = fonts;
-    tmp_collection.nfonts = nfonts;
-
-    families = (void*)collection->impl->families;
-    nfamilies = collection->impl->nfamilies;
-    fonts = collection->fonts;
-    nfonts = collection->nfonts;
-
-    *collection->impl = tmp_impl;
-    *collection = tmp_collection;
-exit:
-    while (nfonts--)
-        oc__free_font(fonts[nfonts]);
-    while (nfamilies--)
-        free(families[nfamilies].str);
-
-    if (dw_collection)
-        dw_collection->lpVtbl->Release(dw_collection);
-
-    free(fonts);
-    free(families);
-    free(wide_buf);
-
-    return err;
-}
-
-bool ocf_has_character(const oc_font* font, uint32_t character) {
-    oc__font_impl* impl;
-    IDWriteFont*   dw_font;
-
-    HRESULT result;
-    WINBOOL exists;
-
-    if (!font) {
-        return false;
-    }
-
-    impl = oc__parentof(oc__font_impl, font, font);
-    dw_font = impl->dw_font;
-
-    result = dw_font->lpVtbl->HasCharacter(dw_font, character, &exists);
-    return result == S_OK && exists;
-}
-
-oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
-    oc_error err;
-    HRESULT  result;
-
-    oc__font_impl*   impl;
-    IDWriteFontFace* dw_face;
-
-    oc_face face = { 0 };
-
-    if (!font) {
-        return oc_error_invalid_param;
-    }
-
-    impl = oc__parentof(oc__font_impl, font, font);
-    result = impl->dw_font->lpVtbl->CreateFontFace(impl->dw_font, &dw_face);
-
-    switch (result) {
-    case S_OK:
-        break;
-    default:
-        oc__exit(oc__unexpected(result));
-    }
-
-    if (desired_size == 0) {
-        desired_size = 12 << 6;
-    } else if (desired_size < 1 << 6) {
-        desired_size = 1 << 6;
-    }
-
-    if (dpi == 0) {
-        dpi = 72;
-    }
-
-    err = oc__init_face(impl->dw_factory, dw_face, desired_size, dpi, &face);
-exit:
-    *oface = face;
-    return err;
-}
-
-size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
-    oc__font_impl* impl;
-    HRESULT        result;
-
-    IDWriteFontFace* face;
-    IDWriteFontFile* file;
-
-    UINT32 nfiles;
-
-    const void* key;
-    UINT32      key_size;
-
-    IDWriteFontFileLoader*      loader;
-    IDWriteLocalFontFileLoader* local_loader;
-
-    WCHAR* wide_path;
-    UINT32 wide_len;
-
-    int    path_len;
-    size_t copy_len;
-
-    if (!font) {
-        return 0;
-    }
-
-    impl = oc__parentof(oc__font_impl, font, font);
-    result = impl->dw_font->lpVtbl->CreateFontFace(impl->dw_font, &face);
-
-    if (result != S_OK) {
-        return 0;
-    }
-
-    nfiles = 1;
-    result = face->lpVtbl->GetFiles(face, &nfiles, &file);
-    face->lpVtbl->Release(face);
-
-    if (result != S_OK || nfiles == 0) {
-        return 0;
-    }
-
-    result = file->lpVtbl->GetReferenceKey(file, &key, &key_size);
-    assert(result == S_OK);
-
-    result = file->lpVtbl->GetLoader(file, &loader);
-    file->lpVtbl->Release(file);
-
-    assert(result == S_OK);
-
-    result = loader->lpVtbl->QueryInterface(
-        loader,
-        &IID_IDWriteLocalFontFileLoader,
-        (void**)&local_loader);
-    loader->lpVtbl->Release(loader);
-
-    if (result != S_OK) {
-        return 0;
-    }
-
-    result = local_loader->lpVtbl->GetFilePathLengthFromKey(
-        local_loader,
-        key,
-        key_size,
-        &wide_len);
-
-    assert(result == S_OK);
-    if (wide_len == 0) {
-        local_loader->lpVtbl->Release(local_loader);
-        return 0;
-    }
-
-    wide_path = malloc((wide_len + 1) * sizeof(WCHAR));
-    if (wide_path == NULL) {
-        local_loader->lpVtbl->Release(local_loader);
-        return 0;
-    }
-
-    result = local_loader->lpVtbl->GetFilePathFromKey(
-        local_loader,
-        key,
-        key_size,
-        wide_path,
-        wide_len + 1);
-
-    local_loader->lpVtbl->Release(local_loader);
-    assert(result == S_OK);
-
-    path_len = WideCharToMultiByte(
-        CP_UTF8,
-        0,
-        wide_path,
-        wide_len,
-        NULL,
-        0,
-        NULL,
-        NULL);
-
-    assert(path_len > 0);
-    if (len == 0) {
-        free(wide_path);
-        return path_len;
-    }
-
-    copy_len = len < (size_t)path_len ? len : (size_t)path_len;
-    WideCharToMultiByte(
-        CP_UTF8,
-        0,
-        wide_path,
-        wide_len,
-        buf,
-        (int)copy_len,
-        NULL,
-        NULL);
-
-    free(wide_path);
-    return copy_len;
-}
+#ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
 struct oc_library {
     FT_Library      ft_library;
     IDWriteFactory* dw_factory;
@@ -1036,48 +659,6 @@ void oc_free_library(oc_library* library) {
     FT_Done_FreeType(ft_library);
 #endif
 }
-#elif defined(ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION)
-
-#endif
-#endif /* ONECORE_IMPLEMENTATION */
-
-#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
-#include <assert.h>
-#include <ft2build.h>
-#include FT_FREETYPE_H
-#include FT_TRUETYPE_TABLES_H
-#include FT_OUTLINE_H
-#include FT_GLYPH_H
-
-#if defined(_MSC_VER) || defined(__MINGW32__)
-#include <windows.h>
-typedef SRWLOCK oc__mutex_impl_t;
-
-#define oc__mutex_impl_init(m) InitializeSRWLock(m)
-#define oc__mutex_impl_lock(m) AcquireSRWLockExclusive(m)
-#define oc__mutex_impl_unlock(m) ReleaseSRWLockExclusive(m)
-#define oc__mutex_impl_destroy(m) ((void)0)
-#else
-#include <pthread.h>
-typedef pthread_mutex_t oc__mutex_impl_t;
-
-#define oc__mutex_impl_init(m) pthread_mutex_init(m, NULL)
-#define oc__mutex_impl_lock(m) pthread_mutex_lock(m)
-#define oc__mutex_impl_unlock(m) pthread_mutex_unlock(m)
-#define oc__mutex_impl_destroy(m) pthread_mutex_destroy(m)
-#endif /* defined(_MSC_VER) || defined(__MINGW32__) */
-
-#define oc__exit_critical(e)         \
-    do {                             \
-        oc__mutex_impl_unlock(lock); \
-        err = (e);                   \
-        goto exit;                   \
-    } while (0)
-
-struct oc_face_impl {
-    FT_Face          ft_face;
-    oc__mutex_impl_t lock;
-};
 
 static oc_error oc__init_face(FT_Face ft_face, const oc_open_params* params, oc_face* oface) {
     FT_Error err;
@@ -1628,6 +1209,23 @@ typedef enum {
     oc__status_skip,
 } oc__status;
 
+#ifndef ONECORE_LOADER_IMPLEMENTATION
+static void* oc__noop_library;
+
+oc_error oc_init_library(oc_library** olibrary) {
+    if (!olibrary) {
+        return oc_error_invalid_param;
+    }
+
+    *olibrary = (oc_library*)&oc__noop_library;
+    return oc_error_ok;
+}
+
+void oc_free_library(oc_library* library) {
+    (void)library;
+}
+#endif
+
 static inline void oc__free_font(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
     // impl->fc_pattern should not be freed as it is owned by FcConfig
@@ -1914,13 +1512,19 @@ size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
 #ifdef ONECORE_CORETEXT_LOADER_IMPLEMENTATION
 #include <CoreText/CoreText.h>
 
-oc_error oc_init_library(oc_library* olibrary) {
-    return olibrary == NULL ? oc_error_invalid_param : oc_error_ok;
+static void* oc__noop_library;
+
+oc_error oc_init_library(oc_library** olibrary) {
+    if (!olibrary) {
+        return oc_error_invalid_param;
+    }
+
+    *olibrary = (oc_library*)&oc__noop_library;
+    return oc_error_ok;
 }
 
 void oc_free_library(oc_library* library) {
-    if (library)
-        memset(library, 0, sizeof(*library));
+    (void)library;
 }
 
 static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
@@ -2519,325 +2123,7 @@ exit:
 #endif /* ONECORE_CORETEXT_LOADER_IMPLEMENTATION */
 
 #ifdef ONECORE_CORETEXT_FINDER_IMPLEMENTATION
-#include <CoreText/CoreText.h>
-
-typedef struct {
-    CTFontDescriptorRef ct_font;
-    CTFontRef           ct_face;
-    CFStringRef         ct_family;
-    oc_font             font;
-} oc__font_impl;
-
-static inline void oc__free_font_impl(oc_font* font) {
-    oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
-    CFRelease(impl->ct_family);
-    CFRelease(impl->ct_face);
-    free(impl);
-}
-
-oc_error ocf_init_collection(const oc_library* library, oc_collection* ocollection) {
-    oc_error      err = oc_error_ok;
-    oc_collection collection = { 0 };
-
-    if (!(library && ocollection)) {
-        err = oc_error_invalid_param;
-        goto exit;
-    }
-
-exit:
-    if (ocollection)
-        *ocollection = collection;
-    return err;
-}
-
-void ocf_free_collection(oc_collection* collection) {
-    if (collection) {
-        while (collection->nfonts--) {
-            oc__free_font_impl(collection->fonts[collection->nfonts]);
-        }
-
-        free(collection->fonts);
-
-        if (collection->impl)
-            CFRelease(collection->impl);
-        memset(collection, 0, sizeof(*collection));
-    }
-}
-
-static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
-    oc__font_impl* impl = NULL;
-
-    CFDictionaryRef ct_traits = NULL;
-    CFStringRef     ct_family;
-    CTFontRef       ct_face;
-
-    const char* family;
-
-    CFNumberRef symbolic_obj;
-    CFNumberRef weight_obj;
-
-    int      weight;
-    uint32_t ct_symbolic;
-
-    assert(ct_font != NULL);
-
-    // todo (stage 2): do some assumptions based on this assumption
-    // is_immortal = CFGetRetainCount(obj) == 0x7FFFFFFFFFFFFFFF
-
-    // Cheers to AI it has found private api to 'CTFontCSSWeightAttribute'
-    weight_obj = CTFontDescriptorCopyAttribute(ct_font, CFSTR("CTFontCSSWeightAttribute"));
-    // Notify developer on GitHub if this assertion ever fails:
-    // https://github.com/nedpranson/onecore/issues
-    assert(weight_obj != NULL);
-
-    CFNumberGetValue(weight_obj, kCFNumberIntType, &weight);
-    CFRelease(weight_obj);
-
-    ct_traits = CTFontDescriptorCopyAttribute(ct_font, kCTFontTraitsAttribute);
-    if (ct_traits == NULL) {
-        goto exit;
-    }
-
-    symbolic_obj = CFDictionaryGetValue(ct_traits, kCTFontSymbolicTrait);
-    assert(symbolic_obj != NULL);
-
-    CFNumberGetValue(symbolic_obj, kCFNumberSInt32Type, &ct_symbolic);
-
-    ct_family = CTFontDescriptorCopyAttribute(ct_font, kCTFontFamilyNameAttribute);
-    assert(ct_family != NULL);
-
-    // family seems to always be utf8 and null terminated
-    family = CFStringGetCStringPtr(ct_family, kCFStringEncodingUTF8);
-    assert(family != NULL);
-
-    ct_face = CTFontCreateWithFontDescriptor(ct_font, 0.0, NULL);
-    if (ct_face == NULL) {
-        CFRelease(ct_family);
-        goto exit;
-    }
-
-    impl = malloc(sizeof(*impl));
-    if (impl == NULL) {
-        CFRelease(ct_family);
-        CFRelease(ct_face);
-        goto exit;
-    }
-
-    impl->ct_font = ct_font;
-    impl->ct_family = ct_family;
-    impl->ct_face = ct_face;
-    impl->font.family = family;
-    impl->font.weight = (uint16_t)weight;
-    impl->font.slant = oc_slant_roman;
-
-    // todo (stage 2): implement valid one
-    // we need crossplatform solution
-    if (ct_symbolic & kCTFontItalicTrait) {
-        impl->font.slant = oc_slant_italic;
-    }
-
-exit:
-    if (ct_traits)
-        CFRelease(ct_traits);
-    return impl;
-}
-
-oc_error ocf_load_fonts(oc_collection* collection) {
-    oc_error err = oc_error_ok;
-
-    CTFontCollectionRef ct_collection;
-    CFArrayRef          ct_fonts;
-
-    CFIndex font_count;
-
-    oc_font** fonts = NULL;
-    uint32_t  nfonts = 0;
-
-    oc_collection tmp_collection;
-
-    if (!collection) {
-        err = oc_error_invalid_param;
-        goto exit;
-    }
-
-    ct_collection = CTFontCollectionCreateFromAvailableFonts(NULL);
-    if (ct_collection == NULL) {
-        err = oc_error_out_of_memory;
-        goto exit;
-    }
-
-    ct_fonts = CTFontCollectionCreateMatchingFontDescriptors(ct_collection);
-    CFRelease(ct_collection);
-
-    if (ct_fonts == NULL) {
-        err = oc_error_out_of_memory;
-        goto exit;
-    }
-
-    font_count = CFArrayGetCount(ct_fonts);
-    if (font_count == 0) {
-        goto done;
-    }
-
-    fonts = malloc(font_count * sizeof(*fonts));
-    if (fonts == NULL) {
-        err = oc_error_out_of_memory;
-        goto exit;
-    }
-
-    for (CFIndex i = 0; i < font_count; i++) {
-        CTFontDescriptorRef ct_font = CFArrayGetValueAtIndex(ct_fonts, i);
-        oc__font_impl*      impl = oc__init_font_impl(ct_font);
-        if (impl == NULL) {
-            err = oc_error_out_of_memory;
-            goto exit;
-        }
-
-        fonts[nfonts++] = &impl->font;
-    }
-done:
-    tmp_collection.impl = (oc_collection_impl*)ct_fonts;
-    tmp_collection.fonts = fonts;
-    tmp_collection.nfonts = nfonts;
-
-    ct_fonts = (CFArrayRef)collection->impl;
-    fonts = collection->fonts;
-    nfonts = collection->nfonts;
-
-    *collection = tmp_collection;
-exit:
-    while (nfonts--)
-        oc__free_font_impl(fonts[nfonts]);
-    free(fonts);
-    if (ct_fonts)
-        CFRelease(ct_fonts);
-
-    return err;
-}
-
-bool ocf_has_character(const oc_font* font, uint32_t charcode) {
-    oc__font_impl* impl;
-    CTFontRef      ct_face;
-
-    CGGlyph glyphs[2];
-    UniChar chars[2];
-
-    if (!font || charcode > 0x10FFFF) {
-        return false;
-    }
-
-    impl = oc__parentof(oc__font_impl, font, font);
-    ct_face = impl->ct_face;
-
-    // check out CFStringGetSurrogatePairForLongCharacter
-
-    // CTFontGetGlyphsForCharacters writes cg_glyph[1] when the length is 2 (i.e. when encoding a surrogate pair)
-    // in this case it will always be set to 0, but we still need to pass 2 elements
-    // we reuse the second element to store the utf16 character sequence length
-    if (charcode <= 0xFFFF) {
-        chars[0] = charcode;
-        glyphs[1] = 1;
-    } else {
-        uint32_t norm = charcode - 0x10000;
-        chars[0] = (norm >> 10) + 0xD800;
-        chars[1] = (norm & 0x3FF) + 0xDC00;
-        glyphs[1] = 2;
-    }
-
-    // cg_glyph[0] will always be set by Core Text no matter the status
-    // thus we can ignore returned value
-    CTFontGetGlyphsForCharacters(
-        ct_face,
-        chars,
-        glyphs,
-        glyphs[1]);
-
-    return glyphs[0];
-}
-
-oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
-    oc__font_impl* impl;
-    oc_error       err;
-    oc_face        face = { 0 };
-
-    if (!font) {
-        return oc_error_invalid_param;
-    }
-
-    impl = oc__parentof(oc__font_impl, font, font);
-
-    if (desired_size == 0) {
-        desired_size = 12 << 6;
-    } else if (desired_size < 1 << 6) {
-        desired_size = 1 << 6;
-    }
-
-    if (dpi == 0) {
-        dpi = 72;
-    }
-
-    err = oc__init_face(impl->ct_font, desired_size, dpi, &face);
-    *oface = face;
-
-    return err;
-}
-
-size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
-    oc__font_impl* impl;
-    CFURLRef       url;
-
-    CFStringRef path;
-    CFIndex     path_len;
-
-    size_t copy_len;
-
-    if (!font) {
-        return 0;
-    }
-
-    impl = oc__parentof(oc__font_impl, font, font);
-    url = CTFontDescriptorCopyAttribute(impl->ct_font, kCTFontURLAttribute);
-
-    if (url == NULL) {
-        return 0;
-    }
-
-    path = CFURLCopyFileSystemPath(url, kCFURLPOSIXPathStyle);
-    CFRelease(url);
-
-    if (path == NULL) {
-        return 0;
-    }
-
-    path_len = CFStringGetBytes(
-        path,
-        CFRangeMake(0, CFStringGetLength(path)),
-        kCFStringEncodingUTF8,
-        0,
-        false,
-        NULL,
-        0,
-        NULL);
-
-    copy_len = len < (size_t)path_len ? len : (size_t)path_len;
-    if (copy_len == 0) {
-        CFRelease(path);
-        return (size_t)path_len;
-    }
-
-    CFStringGetBytes(
-        path,
-        CFRangeMake(0, CFStringGetLength(path)),
-        kCFStringEncodingUTF8,
-        0,
-        false,
-        (UInt8*)buf,
-        copy_len,
-        NULL);
-
-    CFRelease(path);
-    return copy_len;
-}
+/// ONECORE_CORETEXT_LINDER_IMPLEMENTATION ///
 #endif /* ONECORE_CORETEXT_LINDER_IMPLEMENTATION */
 
 #ifdef ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
@@ -3799,4 +3085,457 @@ exit:
 #endif /* ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION */
 
 #ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
+#include <assert.h>
+#include <dwrite.h>
+
+struct oc_collection_impl {
+    IDWriteFactory* dw_factory;
+    char**          families;
+    UINT32          nfamilies;
+};
+
+typedef struct {
+    IDWriteFactory* dw_factory;
+    IDWriteFont*    dw_font;
+    oc_font         font;
+} oc__font_impl;
+
+static inline void oc__free_font(oc_font* font) {
+    oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
+    impl->dw_font->lpVtbl->Release(impl->dw_font);
+    free(impl);
+}
+
+oc_error ocf_init_collection(const oc_library* library, oc_collection* ocollection) {
+    oc_collection collection = { 0 };
+    oc_error      err = oc_error_ok;
+
+    if (!(library && ocollection)) {
+        err = oc_error_invalid_param;
+        goto exit;
+    }
+
+    collection.impl = calloc(1, sizeof(oc_collection_impl));
+    if (collection.impl == NULL) {
+        return oc_error_out_of_memory;
+    }
+
+    collection.impl->dw_factory = library->internals;
+exit:
+    if (ocollection)
+        *ocollection = collection;
+    return err;
+}
+
+void ocf_free_collection(oc_collection* collection) {
+    if (collection) {
+        while (collection->nfonts--) {
+            oc__free_font(collection->fonts[collection->nfonts]);
+        }
+
+        while (collection->impl->nfamilies--) {
+            free(collection->impl->families[collection->impl->nfamilies]);
+        }
+
+        free(collection->fonts);
+        free(collection->impl->families);
+        free(collection->impl);
+
+        memset(collection, 0, sizeof(*collection));
+    }
+}
+
+static const oc_slant oc__slant_map[] = {
+    [DWRITE_FONT_STYLE_NORMAL] = oc_slant_roman,
+    [DWRITE_FONT_STYLE_OBLIQUE] = oc_slant_oblique,
+    [DWRITE_FONT_STYLE_ITALIC] = oc_slant_italic,
+};
+
+static oc_font* oc__init_font(IDWriteFactory* dw_factory, IDWriteFont* dw_font, const char* family) {
+    DWRITE_FONT_WEIGHT weight;
+    DWRITE_FONT_STYLE  style;
+
+    oc__font_impl* impl;
+
+    weight = dw_font->lpVtbl->GetWeight(dw_font);
+    style = dw_font->lpVtbl->GetStyle(dw_font);
+
+    impl = malloc(sizeof(*impl));
+    if (impl == NULL) {
+        return NULL;
+    }
+
+    impl->dw_factory = dw_factory;
+    impl->dw_font = dw_font;
+    impl->font.family = family;
+    impl->font.weight = (uint16_t)weight;
+    impl->font.slant = oc__slant_map[style];
+
+    return &impl->font;
+}
+
+oc_error ocf_load_fonts(oc_collection* collection) {
+    oc_error err = oc_error_ok;
+    HRESULT  hr;
+
+    IDWriteFactory*        dw_factory;
+    IDWriteFontCollection* dw_collection = NULL;
+
+    UINT32 family_count;
+    UINT32 font_count;
+
+    union {
+        char*  str;
+        UINT32 len;
+    }*     families = NULL;
+    UINT32 nfamilies = 0;
+
+    WCHAR* wide_buf = NULL;
+    UINT32 wide_buf_len;
+
+    oc_font** fonts = NULL;
+    uint32_t  nfonts = 0;
+
+    oc_collection      tmp_collection;
+    oc_collection_impl tmp_impl;
+
+    if (!collection) {
+        oc__exit(oc_error_invalid_param);
+    }
+
+    dw_factory = collection->impl->dw_factory;
+    hr = dw_factory->lpVtbl->GetSystemFontCollection(dw_factory, &dw_collection, TRUE);
+
+    switch (hr) {
+    case S_OK:
+        break;
+    case E_OUTOFMEMORY:
+        oc__exit(oc_error_out_of_memory);
+    default:
+        oc__exit(oc__unexpected(hr));
+    }
+
+    family_count = dw_collection->lpVtbl->GetFontFamilyCount(dw_collection);
+    if (family_count == 0) {
+        goto done;
+    }
+
+    font_count = 0;
+    families = malloc(family_count * sizeof(*families));
+
+    if (families == NULL) {
+        oc__exit(oc_error_out_of_memory);
+    }
+
+    for (UINT32 i = 0; i < family_count; i++) {
+        IDWriteFontFamily*       family;
+        IDWriteLocalizedStrings* names;
+        UINT32                   length;
+
+        hr = dw_collection->lpVtbl->GetFontFamily(dw_collection, i, &family);
+        assert(hr == S_OK);
+
+        hr = family->lpVtbl->GetFamilyNames(family, &names);
+        assert(hr == S_OK);
+
+        hr = names->lpVtbl->GetStringLength(names, 0, &length);
+        assert(hr == S_OK);
+
+        families[i].len = length;
+        wide_buf_len = OC__MAX(wide_buf_len, length);
+        font_count += family->lpVtbl->GetFontCount(family);
+
+        names->lpVtbl->Release(names);
+        family->lpVtbl->Release(family);
+    }
+
+    assert(font_count > 0);
+
+    wide_buf = malloc((wide_buf_len + 1) * sizeof(WCHAR));
+    if (wide_buf == NULL) {
+        oc__exit(oc_error_out_of_memory);
+    }
+
+    fonts = malloc(sizeof(*fonts) * font_count);
+    if (fonts == NULL) {
+        oc__exit(oc_error_out_of_memory);
+    }
+
+    for (UINT32 i = 0; i < family_count; i++) {
+        IDWriteFontFamily*       font_family;
+        IDWriteLocalizedStrings* names;
+
+        UINT32 wide_length = families[i].len;
+        UINT32 font_index;
+
+        char* family;
+        int   length;
+
+        hr = dw_collection->lpVtbl->GetFontFamily(dw_collection, i, &font_family);
+        assert(hr == S_OK);
+
+        hr = font_family->lpVtbl->GetFamilyNames(font_family, &names);
+        assert(hr == S_OK);
+
+        hr = names->lpVtbl->GetString(names, 0, wide_buf, wide_length + 1);
+        names->lpVtbl->Release(names);
+        assert(hr == S_OK);
+
+        length = WideCharToMultiByte(
+            CP_UTF8,
+            0,
+            wide_buf,
+            wide_length,
+            NULL,
+            0,
+            NULL,
+            NULL);
+
+        assert(length > 0);
+
+        family = malloc(length + 1);
+        if (family == NULL) {
+            font_family->lpVtbl->Release(font_family);
+            oc__exit(oc_error_out_of_memory);
+        }
+
+        length = WideCharToMultiByte(
+            CP_UTF8,
+            0,
+            wide_buf,
+            wide_length,
+            family,
+            length,
+            NULL,
+            NULL);
+
+        assert(length > 0);
+
+        family[length] = '\0';
+        families[nfamilies++].str = family;
+        font_index = font_family->lpVtbl->GetFontCount(font_family);
+
+        while (font_index--) {
+            IDWriteFont* dw_font;
+            oc_font*     font;
+
+            hr = font_family->lpVtbl->GetFont(font_family, font_index, &dw_font);
+            assert(hr == S_OK);
+
+            font = oc__init_font(dw_factory, dw_font, family);
+            if (font == NULL) {
+                font_family->lpVtbl->Release(font_family);
+                oc__exit(oc_error_out_of_memory);
+            }
+
+            fonts[nfonts++] = font;
+        }
+
+        font_family->lpVtbl->Release(font_family);
+    }
+done:
+    tmp_impl.dw_factory = dw_factory;
+    tmp_impl.families = (char**)families;
+    tmp_impl.nfamilies = nfamilies;
+
+    tmp_collection.impl = collection->impl;
+    tmp_collection.fonts = fonts;
+    tmp_collection.nfonts = nfonts;
+
+    families = (void*)collection->impl->families;
+    nfamilies = collection->impl->nfamilies;
+    fonts = collection->fonts;
+    nfonts = collection->nfonts;
+
+    *collection->impl = tmp_impl;
+    *collection = tmp_collection;
+exit:
+    while (nfonts--)
+        oc__free_font(fonts[nfonts]);
+    while (nfamilies--)
+        free(families[nfamilies].str);
+
+    if (dw_collection)
+        dw_collection->lpVtbl->Release(dw_collection);
+
+    free(fonts);
+    free(families);
+    free(wide_buf);
+
+    return err;
+}
+
+bool ocf_has_character(const oc_font* font, uint32_t character) {
+    oc__font_impl* impl;
+    IDWriteFont*   dw_font;
+
+    HRESULT result;
+    WINBOOL exists;
+
+    if (!font) {
+        return false;
+    }
+
+    impl = oc__parentof(oc__font_impl, font, font);
+    dw_font = impl->dw_font;
+
+    result = dw_font->lpVtbl->HasCharacter(dw_font, character, &exists);
+    return result == S_OK && exists;
+}
+
+oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
+    oc_error err;
+    HRESULT  result;
+
+    oc__font_impl*   impl;
+    IDWriteFontFace* dw_face;
+
+    oc_face face = { 0 };
+
+    if (!font) {
+        return oc_error_invalid_param;
+    }
+
+    impl = oc__parentof(oc__font_impl, font, font);
+    result = impl->dw_font->lpVtbl->CreateFontFace(impl->dw_font, &dw_face);
+
+    switch (result) {
+    case S_OK:
+        break;
+    default:
+        oc__exit(oc__unexpected(result));
+    }
+
+    if (desired_size == 0) {
+        desired_size = 12 << 6;
+    } else if (desired_size < 1 << 6) {
+        desired_size = 1 << 6;
+    }
+
+    if (dpi == 0) {
+        dpi = 72;
+    }
+
+    err = oc__init_face(impl->dw_factory, dw_face, desired_size, dpi, &face);
+exit:
+    *oface = face;
+    return err;
+}
+
+size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
+    oc__font_impl* impl;
+    HRESULT        result;
+
+    IDWriteFontFace* face;
+    IDWriteFontFile* file;
+
+    UINT32 nfiles;
+
+    const void* key;
+    UINT32      key_size;
+
+    IDWriteFontFileLoader*      loader;
+    IDWriteLocalFontFileLoader* local_loader;
+
+    WCHAR* wide_path;
+    UINT32 wide_len;
+
+    int    path_len;
+    size_t copy_len;
+
+    if (!font) {
+        return 0;
+    }
+
+    impl = oc__parentof(oc__font_impl, font, font);
+    result = impl->dw_font->lpVtbl->CreateFontFace(impl->dw_font, &face);
+
+    if (result != S_OK) {
+        return 0;
+    }
+
+    nfiles = 1;
+    result = face->lpVtbl->GetFiles(face, &nfiles, &file);
+    face->lpVtbl->Release(face);
+
+    if (result != S_OK || nfiles == 0) {
+        return 0;
+    }
+
+    result = file->lpVtbl->GetReferenceKey(file, &key, &key_size);
+    assert(result == S_OK);
+
+    result = file->lpVtbl->GetLoader(file, &loader);
+    file->lpVtbl->Release(file);
+
+    assert(result == S_OK);
+
+    result = loader->lpVtbl->QueryInterface(
+        loader,
+        &IID_IDWriteLocalFontFileLoader,
+        (void**)&local_loader);
+    loader->lpVtbl->Release(loader);
+
+    if (result != S_OK) {
+        return 0;
+    }
+
+    result = local_loader->lpVtbl->GetFilePathLengthFromKey(
+        local_loader,
+        key,
+        key_size,
+        &wide_len);
+
+    assert(result == S_OK);
+    if (wide_len == 0) {
+        local_loader->lpVtbl->Release(local_loader);
+        return 0;
+    }
+
+    wide_path = malloc((wide_len + 1) * sizeof(WCHAR));
+    if (wide_path == NULL) {
+        local_loader->lpVtbl->Release(local_loader);
+        return 0;
+    }
+
+    result = local_loader->lpVtbl->GetFilePathFromKey(
+        local_loader,
+        key,
+        key_size,
+        wide_path,
+        wide_len + 1);
+
+    local_loader->lpVtbl->Release(local_loader);
+    assert(result == S_OK);
+
+    path_len = WideCharToMultiByte(
+        CP_UTF8,
+        0,
+        wide_path,
+        wide_len,
+        NULL,
+        0,
+        NULL,
+        NULL);
+
+    assert(path_len > 0);
+    if (len == 0) {
+        free(wide_path);
+        return path_len;
+    }
+
+    copy_len = len < (size_t)path_len ? len : (size_t)path_len;
+    WideCharToMultiByte(
+        CP_UTF8,
+        0,
+        wide_path,
+        wide_len,
+        buf,
+        (int)copy_len,
+        NULL,
+        NULL);
+
+    free(wide_path);
+    return copy_len;
+}
 #endif /* ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION */

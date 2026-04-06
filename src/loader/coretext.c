@@ -5,13 +5,19 @@
 /* ONECORE_CORETEXT_LOADER_IMPLEMENTATION */
 #include <CoreText/CoreText.h>
 
-oc_error oc_init_library(oc_library* olibrary) {
-    return olibrary == NULL ? oc_error_invalid_param : oc_error_ok;
+static void* oc__noop_library;
+
+oc_error oc_init_library(oc_library** olibrary) {
+    if (!olibrary) {
+        return oc_error_invalid_param;
+    }
+
+    *olibrary = (oc_library*)&oc__noop_library;
+    return oc_error_ok;
 }
 
 void oc_free_library(oc_library* library) {
-    if (library)
-        memset(library, 0, sizeof(*library));
+    (void)library;
 }
 
 static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {

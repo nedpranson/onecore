@@ -1,13 +1,14 @@
-#define ONECORE_FINDER_IMPLEMENTATION
-//#define ONECORE_LOADER_IMPLEMENTATION
+#define ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION
 #include "onecore.h"
 
 int main() {
-    oc_library lib;
+    oc_library* lib;
     oc_init_library(&lib);
 
+    printf("%p\n", lib);
+
     oc_collection col;
-    ocf_init_collection(&lib, &col);
+    ocf_init_collection(lib, &col);
     ocf_load_fonts(&col);
 
     for (uint32_t i = 0; i < col.nfonts; i++) {
@@ -15,5 +16,5 @@ int main() {
     }
 
     ocf_free_collection(&col);
-    oc_free_library(&lib);
+    oc_free_library(lib);
 }

@@ -18,6 +18,23 @@ typedef struct {
     oc_font             font;
 } oc__font_impl;
 
+#ifndef ONECORE_LOADER_IMPLEMENTATION
+static void* oc__noop_library;
+
+oc_error oc_init_library(oc_library** olibrary) {
+    if (!olibrary) {
+        return oc_error_invalid_param;
+    }
+
+    *olibrary = (oc_library*)&oc__noop_library;
+    return oc_error_ok;
+}
+
+void oc_free_library(oc_library* library) {
+    (void)library;
+}
+#endif
+
 static inline void oc__free_font_impl(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
     CFRelease(impl->ct_family);
