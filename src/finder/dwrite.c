@@ -6,6 +6,8 @@
 extern oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_face, oc_26p6 desired_size, uint16_t dpi, oc_face* oface);
 
 /* ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION */
+#include <initguid.h>
+
 #include <assert.h>
 #include <dwrite.h>
 
@@ -20,6 +22,23 @@ typedef struct {
     IDWriteFont*    dw_font;
     oc_font         font;
 } oc__font_impl;
+
+#ifndef ONECORE_LOADER_IMPLEMENTATION
+static void* oc__noop_library;
+
+oc_error oc_init_library(oc_library** olibrary) {
+    if (!olibrary) {
+        return oc_error_invalid_param;
+    }
+
+    *olibrary = (oc_library*)&oc__noop_library;
+    return oc_error_ok;
+}
+
+void oc_free_library(oc_library* library) {
+    (void)library;
+}
+#endif
 
 static inline void oc__free_font(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
@@ -41,7 +60,7 @@ oc_error ocf_init_collection(const oc_library* library, oc_collection* ocollecti
         return oc_error_out_of_memory;
     }
 
-    collection.impl->dw_factory = library->internals;
+    collection.impl->dw_factory = (IDWriteFactory*)library;
 exit:
     if (ocollection)
         *ocollection = collection;
@@ -304,6 +323,7 @@ bool ocf_has_character(const oc_font* font, uint32_t character) {
     return result == S_OK && exists;
 }
 
+#ifdef ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     oc_error err;
     HRESULT  result;
@@ -342,6 +362,7 @@ exit:
     *oface = face;
     return err;
 }
+#endif
 
 size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
     oc__font_impl* impl;

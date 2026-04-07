@@ -361,20 +361,6 @@ oc_div_16p16(oc_16p16 a, oc_16p16 b);
 /*                                                                                                    */
 /******************************************************************************************************/
 
-#define OC__LOADER_BACKENDS \
-    X(FREETYPE_LOADER)      \
-    X(DIRECTWRITE_LOADER)   \
-    X(CORETEXT_LOADER)
-
-#define OC__FINDER_BACKENDS \
-    X(FONTCONFIG_FINDER)    \
-    X(DIRECTWRITE_FINDER)   \
-    X(CORETEXT_FINDER)
-
-#define OC__BACKENDS    \
-    OC__LOADER_BACKENDS \
-    OC__FINDER_BACKENDS
-
 #ifdef ONECORE_LOADER_IMPLEMENTATION
 #if defined(_MSC_VER) || defined(__MINGW32__)
 #define ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
@@ -397,11 +383,14 @@ oc_div_16p16(oc_16p16 a, oc_16p16 b);
 
 // todo: define all used includes here!
 
-#define X(name) defined(ONECORE_##name##_IMPLEMENTATION) ||
-#if OC__BACKENDS 0
+#if defined (ONECORE_FREETYPE_LOADER_IMPLEMENTATION) || \
+    defined (ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION) || \
+    defined (ONECORE_CORETEXT_LOADER_IMPLEMENTATION) || \
+    defined (ONECORE_CORETEXT_FINDER_IMPLEMENTATION) || \
+    defined (ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION) || \
+    defined (ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION)
 #define ONECORE_IMPLEMENTATION
 #endif
-#undef X
 
 #ifdef ONECORE_IMPLEMENTATION
 /// ONECORE_IMPLEMENTATION ///

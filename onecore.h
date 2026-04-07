@@ -361,20 +361,6 @@ oc_div_16p16(oc_16p16 a, oc_16p16 b);
 /*                                                                                                    */
 /******************************************************************************************************/
 
-#define OC__LOADER_BACKENDS \
-    X(FREETYPE_LOADER)      \
-    X(DIRECTWRITE_LOADER)   \
-    X(CORETEXT_LOADER)
-
-#define OC__FINDER_BACKENDS \
-    X(FONTCONFIG_FINDER)    \
-    X(DIRECTWRITE_FINDER)   \
-    X(CORETEXT_FINDER)
-
-#define OC__BACKENDS    \
-    OC__LOADER_BACKENDS \
-    OC__FINDER_BACKENDS
-
 #ifdef ONECORE_LOADER_IMPLEMENTATION
 #if defined(_MSC_VER) || defined(__MINGW32__)
 #define ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
@@ -397,11 +383,14 @@ oc_div_16p16(oc_16p16 a, oc_16p16 b);
 
 // todo: define all used includes here!
 
-#define X(name) defined(ONECORE_##name##_IMPLEMENTATION) ||
-#if OC__BACKENDS 0
+#if defined (ONECORE_FREETYPE_LOADER_IMPLEMENTATION) || \
+    defined (ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION) || \
+    defined (ONECORE_CORETEXT_LOADER_IMPLEMENTATION) || \
+    defined (ONECORE_CORETEXT_FINDER_IMPLEMENTATION) || \
+    defined (ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION) || \
+    defined (ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION)
 #define ONECORE_IMPLEMENTATION
 #endif
-#undef X
 
 #ifdef ONECORE_IMPLEMENTATION
 #ifdef NDEBUG
@@ -3085,6 +3074,8 @@ exit:
 #endif /* ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION */
 
 #ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
+#include <initguid.h>
+
 #include <assert.h>
 #include <dwrite.h>
 
@@ -3099,6 +3090,23 @@ typedef struct {
     IDWriteFont*    dw_font;
     oc_font         font;
 } oc__font_impl;
+
+#ifndef ONECORE_LOADER_IMPLEMENTATION
+static void* oc__noop_library;
+
+oc_error oc_init_library(oc_library** olibrary) {
+    if (!olibrary) {
+        return oc_error_invalid_param;
+    }
+
+    *olibrary = (oc_library*)&oc__noop_library;
+    return oc_error_ok;
+}
+
+void oc_free_library(oc_library* library) {
+    (void)library;
+}
+#endif
 
 static inline void oc__free_font(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
@@ -3120,7 +3128,7 @@ oc_error ocf_init_collection(const oc_library* library, oc_collection* ocollecti
         return oc_error_out_of_memory;
     }
 
-    collection.impl->dw_factory = library->internals;
+    collection.impl->dw_factory = (IDWriteFactory*)library;
 exit:
     if (ocollection)
         *ocollection = collection;
@@ -3383,6 +3391,7 @@ bool ocf_has_character(const oc_font* font, uint32_t character) {
     return result == S_OK && exists;
 }
 
+#ifdef ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     oc_error err;
     HRESULT  result;
@@ -3421,6 +3430,7 @@ exit:
     *oface = face;
     return err;
 }
+#endif
 
 size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
     oc__font_impl* impl;
