@@ -23,20 +23,41 @@ typedef struct {
     oc_font         font;
 } oc__font_impl;
 
-#ifndef ONECORE_LOADER_IMPLEMENTATION
-static void* oc__noop_library;
+#ifndef OC__OVERRIDE_LIBRARY_IMPL
+#define OC__OVERRIDE_LIBRARY_IMPL
 
 oc_error oc_init_library(oc_library** olibrary) {
-    if (!olibrary) {
+    HRESULT         result;
+    IDWriteFactory* dw_factory;
+
+    if (olibrary == NULL) {
         return oc_error_invalid_param;
     }
 
-    *olibrary = (oc_library*)&oc__noop_library;
+    result = DWriteCreateFactory(DWRITE_FACTORY_TYPE_ISOLATED, &IID_IDWriteFactory, (IUnknown**)&dw_factory);
+    switch (result) {
+    case S_OK:
+        break;
+    case E_OUTOFMEMORY:
+        return oc_error_out_of_memory;
+    default:
+        return oc__unexpected(result);
+    }
+
+
+    *olibrary = (oc_library*)dw_factory;
     return oc_error_ok;
 }
 
 void oc_free_library(oc_library* library) {
-    (void)library;
+    IDWriteFactory* dw_factory;
+
+    if (!library) {
+        return;
+    }
+
+    dw_factory = (IDWriteFactory*)library;
+    dw_factory->lpVtbl->Release(dw_factory);
 }
 #endif
 

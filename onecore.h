@@ -567,6 +567,8 @@ struct oc_face_impl {
     oc__mutex_impl_t lock;
 };
 
+#define OC__OVERRIDE_LIBRARY_IMPL
+
 #ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
 struct oc_library {
     FT_Library      ft_library;
@@ -1197,23 +1199,6 @@ typedef enum {
     oc__status_memory,
     oc__status_skip,
 } oc__status;
-
-#ifndef ONECORE_LOADER_IMPLEMENTATION
-static void* oc__noop_library;
-
-oc_error oc_init_library(oc_library** olibrary) {
-    if (!olibrary) {
-        return oc_error_invalid_param;
-    }
-
-    *olibrary = (oc_library*)&oc__noop_library;
-    return oc_error_ok;
-}
-
-void oc_free_library(oc_library* library) {
-    (void)library;
-}
-#endif
 
 static inline void oc__free_font(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
@@ -3091,20 +3076,41 @@ typedef struct {
     oc_font         font;
 } oc__font_impl;
 
-#ifndef ONECORE_LOADER_IMPLEMENTATION
-static void* oc__noop_library;
+#ifndef OC__OVERRIDE_LIBRARY_IMPL
+#define OC__OVERRIDE_LIBRARY_IMPL
 
 oc_error oc_init_library(oc_library** olibrary) {
-    if (!olibrary) {
+    HRESULT         result;
+    IDWriteFactory* dw_factory;
+
+    if (olibrary == NULL) {
         return oc_error_invalid_param;
     }
 
-    *olibrary = (oc_library*)&oc__noop_library;
+    result = DWriteCreateFactory(DWRITE_FACTORY_TYPE_ISOLATED, &IID_IDWriteFactory, (IUnknown**)&dw_factory);
+    switch (result) {
+    case S_OK:
+        break;
+    case E_OUTOFMEMORY:
+        return oc_error_out_of_memory;
+    default:
+        return oc__unexpected(result);
+    }
+
+
+    *olibrary = (oc_library*)dw_factory;
     return oc_error_ok;
 }
 
 void oc_free_library(oc_library* library) {
-    (void)library;
+    IDWriteFactory* dw_factory;
+
+    if (!library) {
+        return;
+    }
+
+    dw_factory = (IDWriteFactory*)library;
+    dw_factory->lpVtbl->Release(dw_factory);
 }
 #endif
 
@@ -3549,3 +3555,20 @@ size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
     return copy_len;
 }
 #endif /* ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION */
+
+#if defined(ONECORE_IMPLEMENTATION) && !defined(OC__OVERRIDE_LIBRARY_IMPL)
+static void* oc__noop_library;
+
+oc_error oc_init_library(oc_library** olibrary) {
+    if (!olibrary) {
+        return oc_error_invalid_param;
+    }
+
+    *olibrary = (oc_library*)&oc__noop_library;
+    return oc_error_ok;
+}
+
+void oc_free_library(oc_library* library) {
+    (void)library;
+}
+#endif

@@ -40,6 +40,8 @@ struct oc_face_impl {
     oc__mutex_impl_t lock;
 };
 
+#define OC__OVERRIDE_LIBRARY_IMPL
+
 #ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
 struct oc_library {
     FT_Library      ft_library;

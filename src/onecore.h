@@ -419,3 +419,20 @@ oc_div_16p16(oc_16p16 a, oc_16p16 b);
 #ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
 /// ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION ///
 #endif /* ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION */
+
+#if defined(ONECORE_IMPLEMENTATION) && !defined(OC__OVERRIDE_LIBRARY_IMPL)
+static void* oc__noop_library;
+
+oc_error oc_init_library(oc_library** olibrary) {
+    if (!olibrary) {
+        return oc_error_invalid_param;
+    }
+
+    *olibrary = (oc_library*)&oc__noop_library;
+    return oc_error_ok;
+}
+
+void oc_free_library(oc_library* library) {
+    (void)library;
+}
+#endif
