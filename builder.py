@@ -7,7 +7,6 @@ source_dir = pathlib.Path("src")
 onecore_h = source_dir / "onecore.h"
 
 sources = [
-    (source_dir / "onecore.c", "ONECORE_IMPLEMENTATION"),
     (source_dir / "loader/freetype.c", "ONECORE_FREETYPE_LOADER_IMPLEMENTATION"),
     (source_dir / "loader/coretext.c", "ONECORE_CORETEXT_LOADER_IMPLEMENTATION"),
     (source_dir / "loader/dwrite.c", "ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION"),

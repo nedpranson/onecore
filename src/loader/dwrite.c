@@ -339,7 +339,9 @@ static const ID2D1SimplifiedGeometrySinkVtbl OC__ID2D1SimplifiedGeometrySinkVtbl
 OC__IDWriteFontFileLoader oc__file_loader = { &OC__IDWriteFontFileLoaderVtbl, 0 };
 IDWriteFontFileLoader*    oc__dw_file_loader = (IDWriteFontFileLoader*)&oc__file_loader;
 
-oc_error oc_init_library(oc_library* olibrary) {
+#define OC__OVERRIDE_LIBRARY_IMPL
+
+oc_error oc_init_library(oc_library** olibrary) {
     HRESULT         err;
     IDWriteFactory* dw_factory;
 
@@ -364,7 +366,7 @@ oc_error oc_init_library(oc_library* olibrary) {
         return oc__unexpected(err);
     }
 
-    olibrary->internals = dw_factory;
+    *olibrary = (oc_library*)dw_factory;
     return oc_error_ok;
 }
 
@@ -375,12 +377,10 @@ void oc_free_library(oc_library* library) {
         return;
     }
 
-    dw_factory = library->internals;
+    dw_factory = (IDWriteFactory*)library;
 
     dw_factory->lpVtbl->UnregisterFontFileLoader(dw_factory, oc__dw_file_loader);
     dw_factory->lpVtbl->Release(dw_factory);
-
-    memset(library, 0, sizeof(oc_library));
 }
 
 static oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_face, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
@@ -503,7 +503,7 @@ oc_error ocl_open_face(const oc_library* library, const char* path, const oc_ope
     size = MultiByteToWideChar(CP_UTF8, 0, path, -1, dw_path, size);
     assert(size > 0);
 
-    dw_factory = library->internals;
+    dw_factory = (IDWriteFactory*)library;
     err = dw_factory->lpVtbl->CreateFontFileReference(
         dw_factory,
         dw_path,
@@ -542,7 +542,7 @@ oc_error ocl_open_memory_face(const oc_library* library, const void* data, size_
         return oc_error_invalid_param;
     }
 
-    dw_factory = library->internals;
+    dw_factory = (IDWriteFactory*)library;
 
     key.data = data;
     key.size = size;

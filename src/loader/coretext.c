@@ -5,21 +5,6 @@
 /* ONECORE_CORETEXT_LOADER_IMPLEMENTATION */
 #include <CoreText/CoreText.h>
 
-static void* oc__noop_library;
-
-oc_error oc_init_library(oc_library** olibrary) {
-    if (!olibrary) {
-        return oc_error_invalid_param;
-    }
-
-    *olibrary = (oc_library*)&oc__noop_library;
-    return oc_error_ok;
-}
-
-void oc_free_library(oc_library* library) {
-    (void)library;
-}
-
 static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     CTFontRef ct_font;
     oc_face   face;

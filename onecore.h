@@ -496,36 +496,6 @@ static inline void oc__fit_metrics(oc_glyph_metrics* pmetrics) {
 
     pmetrics->advance = OC_26P6_ROUND(pmetrics->advance);
 }
-
-/* oc_library:
- * - (freetype; fconfig)  -> (freetype) + -
- * - (freetype; dwrite)   -> (freetype; dwrite) + -
- * - (freetype; coretext) -> (freetype) + -
- * - (dwrite;   dwrite)   -> (dwrite) - -
- * - (coretext; coretext) -> (NULL) - -
- * - (dwrite;   fconfig)  -> (dwrite) - -
- * - (coretext; fconfig)  -> (NULL) - -
- */
-
-// #if defined(ONECORE_FREETYPE_LOADER_IMPLEMENTATION)
-// tood: move this s out of here
-// #elif defined(ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION)
-// ...
-// #else
-// static char oc__noop_library;
-// oc_error oc_init_library(oc_library** olibrary) {
-//     if (!olibrary) {
-//         return oc_error_invalid_param;
-//     }
-//
-//     *olibrary = (oc_library*)&oc__noop_library;
-//     return oc_error_ok;
-// }
-//
-// void oc_free_library(oc_library* library) {
-//     (void)library;
-// }
-// #endif
 #endif /* ONECORE_IMPLEMENTATION */
 
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
@@ -1486,21 +1456,6 @@ size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
 #ifdef ONECORE_CORETEXT_LOADER_IMPLEMENTATION
 #include <CoreText/CoreText.h>
 
-static void* oc__noop_library;
-
-oc_error oc_init_library(oc_library** olibrary) {
-    if (!olibrary) {
-        return oc_error_invalid_param;
-    }
-
-    *olibrary = (oc_library*)&oc__noop_library;
-    return oc_error_ok;
-}
-
-void oc_free_library(oc_library* library) {
-    (void)library;
-}
-
 static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     CTFontRef ct_font;
     oc_face   face;
@@ -2097,7 +2052,327 @@ exit:
 #endif /* ONECORE_CORETEXT_LOADER_IMPLEMENTATION */
 
 #ifdef ONECORE_CORETEXT_FINDER_IMPLEMENTATION
-/// ONECORE_CORETEXT_LINDER_IMPLEMENTATION ///
+#include <CoreText/CoreText.h>
+
+typedef struct {
+    CTFontDescriptorRef ct_font;
+    CTFontRef           ct_face;
+    CFStringRef         ct_family;
+    oc_font             font;
+} oc__font_impl;
+
+static inline void oc__free_font_impl(oc_font* font) {
+    oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
+    CFRelease(impl->ct_family);
+    CFRelease(impl->ct_face);
+    free(impl);
+}
+
+oc_error ocf_init_collection(const oc_library* library, oc_collection* ocollection) {
+    oc_error      err = oc_error_ok;
+    oc_collection collection = { 0 };
+
+    if (!(library && ocollection)) {
+        err = oc_error_invalid_param;
+        goto exit;
+    }
+
+exit:
+    if (ocollection)
+        *ocollection = collection;
+    return err;
+}
+
+void ocf_free_collection(oc_collection* collection) {
+    if (collection) {
+        while (collection->nfonts--) {
+            oc__free_font_impl(collection->fonts[collection->nfonts]);
+        }
+
+        free(collection->fonts);
+
+        if (collection->impl)
+            CFRelease(collection->impl);
+        memset(collection, 0, sizeof(*collection));
+    }
+}
+
+static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
+    oc__font_impl* impl = NULL;
+
+    CFDictionaryRef ct_traits = NULL;
+    CFStringRef     ct_family;
+    CTFontRef       ct_face;
+
+    const char* family;
+
+    CFNumberRef symbolic_obj;
+    CFNumberRef weight_obj;
+
+    int      weight;
+    uint32_t ct_symbolic;
+
+    assert(ct_font != NULL);
+
+    // todo (stage 2): do some assumptions based on this assumption
+    // is_immortal = CFGetRetainCount(obj) == 0x7FFFFFFFFFFFFFFF
+
+    // Cheers to AI it has found private api to 'CTFontCSSWeightAttribute'
+    weight_obj = CTFontDescriptorCopyAttribute(ct_font, CFSTR("CTFontCSSWeightAttribute"));
+    // Notify developer on GitHub if this assertion ever fails:
+    // https://github.com/nedpranson/onecore/issues
+    assert(weight_obj != NULL);
+
+    CFNumberGetValue(weight_obj, kCFNumberIntType, &weight);
+    CFRelease(weight_obj);
+
+    ct_traits = CTFontDescriptorCopyAttribute(ct_font, kCTFontTraitsAttribute);
+    if (ct_traits == NULL) {
+        goto exit;
+    }
+
+    symbolic_obj = CFDictionaryGetValue(ct_traits, kCTFontSymbolicTrait);
+    assert(symbolic_obj != NULL);
+
+    CFNumberGetValue(symbolic_obj, kCFNumberSInt32Type, &ct_symbolic);
+
+    ct_family = CTFontDescriptorCopyAttribute(ct_font, kCTFontFamilyNameAttribute);
+    assert(ct_family != NULL);
+
+    // family seems to always be utf8 and null terminated
+    family = CFStringGetCStringPtr(ct_family, kCFStringEncodingUTF8);
+    assert(family != NULL);
+
+    ct_face = CTFontCreateWithFontDescriptor(ct_font, 0.0, NULL);
+    if (ct_face == NULL) {
+        CFRelease(ct_family);
+        goto exit;
+    }
+
+    impl = malloc(sizeof(*impl));
+    if (impl == NULL) {
+        CFRelease(ct_family);
+        CFRelease(ct_face);
+        goto exit;
+    }
+
+    impl->ct_font = ct_font;
+    impl->ct_family = ct_family;
+    impl->ct_face = ct_face;
+    impl->font.family = family;
+    impl->font.weight = (uint16_t)weight;
+    impl->font.slant = oc_slant_roman;
+
+    // todo (stage 2): implement valid one
+    // we need crossplatform solution
+    if (ct_symbolic & kCTFontItalicTrait) {
+        impl->font.slant = oc_slant_italic;
+    }
+
+exit:
+    if (ct_traits)
+        CFRelease(ct_traits);
+    return impl;
+}
+
+oc_error ocf_load_fonts(oc_collection* collection) {
+    oc_error err = oc_error_ok;
+
+    CTFontCollectionRef ct_collection;
+    CFArrayRef          ct_fonts;
+
+    CFIndex font_count;
+
+    oc_font** fonts = NULL;
+    uint32_t  nfonts = 0;
+
+    oc_collection tmp_collection;
+
+    if (!collection) {
+        err = oc_error_invalid_param;
+        goto exit;
+    }
+
+    ct_collection = CTFontCollectionCreateFromAvailableFonts(NULL);
+    if (ct_collection == NULL) {
+        err = oc_error_out_of_memory;
+        goto exit;
+    }
+
+    ct_fonts = CTFontCollectionCreateMatchingFontDescriptors(ct_collection);
+    CFRelease(ct_collection);
+
+    if (ct_fonts == NULL) {
+        err = oc_error_out_of_memory;
+        goto exit;
+    }
+
+    font_count = CFArrayGetCount(ct_fonts);
+    if (font_count == 0) {
+        goto done;
+    }
+
+    fonts = malloc(font_count * sizeof(*fonts));
+    if (fonts == NULL) {
+        err = oc_error_out_of_memory;
+        goto exit;
+    }
+
+    for (CFIndex i = 0; i < font_count; i++) {
+        CTFontDescriptorRef ct_font = CFArrayGetValueAtIndex(ct_fonts, i);
+        oc__font_impl*      impl = oc__init_font_impl(ct_font);
+        if (impl == NULL) {
+            err = oc_error_out_of_memory;
+            goto exit;
+        }
+
+        fonts[nfonts++] = &impl->font;
+    }
+done:
+    tmp_collection.impl = (oc_collection_impl*)ct_fonts;
+    tmp_collection.fonts = fonts;
+    tmp_collection.nfonts = nfonts;
+
+    ct_fonts = (CFArrayRef)collection->impl;
+    fonts = collection->fonts;
+    nfonts = collection->nfonts;
+
+    *collection = tmp_collection;
+exit:
+    while (nfonts--)
+        oc__free_font_impl(fonts[nfonts]);
+    free(fonts);
+    if (ct_fonts)
+        CFRelease(ct_fonts);
+
+    return err;
+}
+
+bool ocf_has_character(const oc_font* font, uint32_t charcode) {
+    oc__font_impl* impl;
+    CTFontRef      ct_face;
+
+    CGGlyph glyphs[2];
+    UniChar chars[2];
+
+    if (!font || charcode > 0x10FFFF) {
+        return false;
+    }
+
+    impl = oc__parentof(oc__font_impl, font, font);
+    ct_face = impl->ct_face;
+
+    // check out CFStringGetSurrogatePairForLongCharacter
+
+    // CTFontGetGlyphsForCharacters writes cg_glyph[1] when the length is 2 (i.e. when encoding a surrogate pair)
+    // in this case it will always be set to 0, but we still need to pass 2 elements
+    // we reuse the second element to store the utf16 character sequence length
+    if (charcode <= 0xFFFF) {
+        chars[0] = charcode;
+        glyphs[1] = 1;
+    } else {
+        uint32_t norm = charcode - 0x10000;
+        chars[0] = (norm >> 10) + 0xD800;
+        chars[1] = (norm & 0x3FF) + 0xDC00;
+        glyphs[1] = 2;
+    }
+
+    // cg_glyph[0] will always be set by Core Text no matter the status
+    // thus we can ignore returned value
+    CTFontGetGlyphsForCharacters(
+        ct_face,
+        chars,
+        glyphs,
+        glyphs[1]);
+
+    return glyphs[0];
+}
+
+#ifdef ONECORE_CORETEXT_LOADER_IMPLEMENTATION
+oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
+    oc__font_impl* impl;
+    oc_error       err;
+    oc_face        face = { 0 };
+
+    if (!font) {
+        return oc_error_invalid_param;
+    }
+
+    impl = oc__parentof(oc__font_impl, font, font);
+
+    if (desired_size == 0) {
+        desired_size = 12 << 6;
+    } else if (desired_size < 1 << 6) {
+        desired_size = 1 << 6;
+    }
+
+    if (dpi == 0) {
+        dpi = 72;
+    }
+
+    err = oc__init_face(impl->ct_font, desired_size, dpi, &face);
+    *oface = face;
+
+    return err;
+}
+#endif
+
+size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
+    oc__font_impl* impl;
+    CFURLRef       url;
+
+    CFStringRef path;
+    CFIndex     path_len;
+
+    size_t copy_len;
+
+    if (!font) {
+        return 0;
+    }
+
+    impl = oc__parentof(oc__font_impl, font, font);
+    url = CTFontDescriptorCopyAttribute(impl->ct_font, kCTFontURLAttribute);
+
+    if (url == NULL) {
+        return 0;
+    }
+
+    path = CFURLCopyFileSystemPath(url, kCFURLPOSIXPathStyle);
+    CFRelease(url);
+
+    if (path == NULL) {
+        return 0;
+    }
+
+    path_len = CFStringGetBytes(
+        path,
+        CFRangeMake(0, CFStringGetLength(path)),
+        kCFStringEncodingUTF8,
+        0,
+        false,
+        NULL,
+        0,
+        NULL);
+
+    copy_len = len < (size_t)path_len ? len : (size_t)path_len;
+    if (copy_len == 0) {
+        CFRelease(path);
+        return (size_t)path_len;
+    }
+
+    CFStringGetBytes(
+        path,
+        CFRangeMake(0, CFStringGetLength(path)),
+        kCFStringEncodingUTF8,
+        0,
+        false,
+        (UInt8*)buf,
+        copy_len,
+        NULL);
+
+    CFRelease(path);
+    return copy_len;
+}
 #endif /* ONECORE_CORETEXT_LINDER_IMPLEMENTATION */
 
 #ifdef ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
@@ -2438,7 +2713,9 @@ static const ID2D1SimplifiedGeometrySinkVtbl OC__ID2D1SimplifiedGeometrySinkVtbl
 OC__IDWriteFontFileLoader oc__file_loader = { &OC__IDWriteFontFileLoaderVtbl, 0 };
 IDWriteFontFileLoader*    oc__dw_file_loader = (IDWriteFontFileLoader*)&oc__file_loader;
 
-oc_error oc_init_library(oc_library* olibrary) {
+#define OC__OVERRIDE_LIBRARY_IMPL
+
+oc_error oc_init_library(oc_library** olibrary) {
     HRESULT         err;
     IDWriteFactory* dw_factory;
 
@@ -2463,7 +2740,7 @@ oc_error oc_init_library(oc_library* olibrary) {
         return oc__unexpected(err);
     }
 
-    olibrary->internals = dw_factory;
+    *olibrary = (oc_library*)dw_factory;
     return oc_error_ok;
 }
 
@@ -2474,12 +2751,10 @@ void oc_free_library(oc_library* library) {
         return;
     }
 
-    dw_factory = library->internals;
+    dw_factory = (IDWriteFactory*)library;
 
     dw_factory->lpVtbl->UnregisterFontFileLoader(dw_factory, oc__dw_file_loader);
     dw_factory->lpVtbl->Release(dw_factory);
-
-    memset(library, 0, sizeof(oc_library));
 }
 
 static oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_face, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
@@ -2602,7 +2877,7 @@ oc_error ocl_open_face(const oc_library* library, const char* path, const oc_ope
     size = MultiByteToWideChar(CP_UTF8, 0, path, -1, dw_path, size);
     assert(size > 0);
 
-    dw_factory = library->internals;
+    dw_factory = (IDWriteFactory*)library;
     err = dw_factory->lpVtbl->CreateFontFileReference(
         dw_factory,
         dw_path,
@@ -2641,7 +2916,7 @@ oc_error ocl_open_memory_face(const oc_library* library, const void* data, size_
         return oc_error_invalid_param;
     }
 
-    dw_factory = library->internals;
+    dw_factory = (IDWriteFactory*)library;
 
     key.data = data;
     key.size = size;
@@ -3398,6 +3673,7 @@ bool ocf_has_character(const oc_font* font, uint32_t character) {
 }
 
 #ifdef ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
+// todo: make compatible with freetype
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     oc_error err;
     HRESULT  result;

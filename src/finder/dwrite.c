@@ -345,6 +345,7 @@ bool ocf_has_character(const oc_font* font, uint32_t character) {
 }
 
 #ifdef ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
+// todo: make compatible with freetype
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     oc_error err;
     HRESULT  result;
