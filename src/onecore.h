@@ -108,7 +108,7 @@ typedef struct {
 
 typedef struct oc_face_impl       oc_face_impl;
 typedef struct oc_collection_impl oc_collection_impl;
-typedef struct oc_library oc_library;
+typedef struct oc_library         oc_library;
 
 // todo (stage 2): integrate even more fields
 // todo (stage 2): need a way to know how many glyphs a font has
@@ -142,9 +142,6 @@ typedef struct {
     oc_font** fonts;  /* discovered fonts list */
     uint32_t  nfonts; /* number of discovered fonts */
 } oc_collection;
-
-// todo: remove init_library
-// if a backends needs library he can have it localy
 
 /*
  * Initializes a new onecore library instance.
@@ -383,12 +380,7 @@ oc_div_16p16(oc_16p16 a, oc_16p16 b);
 
 // todo: define all used includes here!
 
-#if defined (ONECORE_FREETYPE_LOADER_IMPLEMENTATION) || \
-    defined (ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION) || \
-    defined (ONECORE_CORETEXT_LOADER_IMPLEMENTATION) || \
-    defined (ONECORE_CORETEXT_FINDER_IMPLEMENTATION) || \
-    defined (ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION) || \
-    defined (ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION)
+#if defined(ONECORE_FREETYPE_LOADER_IMPLEMENTATION) || defined(ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION) || defined(ONECORE_CORETEXT_LOADER_IMPLEMENTATION) || defined(ONECORE_CORETEXT_FINDER_IMPLEMENTATION) || defined(ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION) || defined(ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION)
 #define ONECORE_IMPLEMENTATION
 #endif
 
@@ -523,24 +515,49 @@ static inline void oc__fit_metrics(oc_glyph_metrics* pmetrics) {
 /// ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION ///
 #endif /* ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION */
 
-// dwrite
-// freetype
-// freetype dwrite
-
 #if defined(ONECORE_IMPLEMENTATION) && !defined(OC__OVERRIDE_LIBRARY_IMPL)
-// todo: init freetype if used
+#ifndef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
 static void* oc__noop_library;
-
+#endif
 oc_error oc_init_library(oc_library** olibrary) {
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    FT_Error   ft_err;
+    FT_Library ft_library;
+#endif
     if (!olibrary) {
         return oc_error_invalid_param;
     }
-
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    ft_err = FT_Init_FreeType(&ft_library);
+    switch (ft_err) {
+    case FT_Err_Ok:
+        break;
+    case FT_Err_Out_Of_Memory:
+        *olibrary = NULL;
+        return oc_error_out_of_memory;
+    default:
+        *olibrary = NULL;
+        return oc__unexpected(ft_err);
+    }
+    *olibrary = (oc_library*)ft_library;
+#else
     *olibrary = (oc_library*)&oc__noop_library;
+#endif
     return oc_error_ok;
 }
 
 void oc_free_library(oc_library* library) {
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    FT_Library ft_library;
+
+    if (!library) {
+        return;
+    }
+
+    ft_library = (FT_Library)library;
+    FT_Done_FreeType(ft_library);
+#else
     (void)library;
+#endif
 }
 #endif

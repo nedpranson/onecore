@@ -143,9 +143,6 @@ typedef struct {
     uint32_t  nfonts; /* number of discovered fonts */
 } oc_collection;
 
-// todo: remove init_library
-// if a backends needs library he can have it localy
-
 /*
  * Initializes a new onecore library instance.
  * Call `oc_free_library` to release retrieved resource.
@@ -496,6 +493,7 @@ static inline void oc__fit_metrics(oc_glyph_metrics* pmetrics) {
 
     pmetrics->advance = OC_26P6_ROUND(pmetrics->advance);
 }
+
 #endif /* ONECORE_IMPLEMENTATION */
 
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
@@ -3833,18 +3831,48 @@ size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
 #endif /* ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION */
 
 #if defined(ONECORE_IMPLEMENTATION) && !defined(OC__OVERRIDE_LIBRARY_IMPL)
+#ifndef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
 static void* oc__noop_library;
-
+#endif
 oc_error oc_init_library(oc_library** olibrary) {
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    FT_Error   ft_err;
+    FT_Library ft_library;
+#endif
     if (!olibrary) {
         return oc_error_invalid_param;
     }
-
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    ft_err = FT_Init_FreeType(&ft_library);
+    switch (ft_err) {
+    case FT_Err_Ok:
+        break;
+    case FT_Err_Out_Of_Memory:
+        *olibrary = NULL;
+        return oc_error_out_of_memory;
+    default:
+        *olibrary = NULL;
+        return oc__unexpected(ft_err);
+    }
+    *olibrary = (oc_library*)ft_library;
+#else
     *olibrary = (oc_library*)&oc__noop_library;
+#endif
     return oc_error_ok;
 }
 
 void oc_free_library(oc_library* library) {
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    FT_Library ft_library;
+
+    if (!library) {
+        return;
+    }
+
+    ft_library = (FT_Library)library;
+    FT_Done_FreeType(ft_library);
+#else
     (void)library;
+#endif
 }
 #endif

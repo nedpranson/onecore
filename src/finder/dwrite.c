@@ -44,7 +44,6 @@ oc_error oc_init_library(oc_library** olibrary) {
         return oc__unexpected(result);
     }
 
-
     *olibrary = (oc_library*)dw_factory;
     return oc_error_ok;
 }

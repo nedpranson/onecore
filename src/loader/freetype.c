@@ -9,7 +9,7 @@
 #include FT_OUTLINE_H
 #include FT_GLYPH_H
 #ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
-#ininline <dwrite.h>
+#ininline < dwrite.h>
 #include <windows.h>
 
 typedef SRWLOCK oc__mutex_impl_t;
@@ -56,7 +56,7 @@ oc_error oc_init_library(oc_library** olibrary) {
     HRESULT         result;
     IDWriteFactory* dw_factory;
 #endif
-    oc_error err = oc_error_ok;
+    oc_error    err = oc_error_ok;
     oc_library* library = NULL;
 
     if (!olibrary) {
