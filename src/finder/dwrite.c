@@ -9,7 +9,7 @@ extern oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_fa
 #include <dwrite.h>
 
 struct oc_collection_impl {
-    oc_library* oc_library;
+    const oc_library* oc_library;
     char**      families;
     UINT32      nfamilies;
 };
@@ -135,7 +135,7 @@ oc_error ocf_load_fonts(oc_collection* collection) {
     oc_error err = oc_error_ok;
     HRESULT  hr;
 
-    oc_library oc_library;
+    const oc_library* oc_library;
 
     IDWriteFactory*        dw_factory;
     IDWriteFontCollection* dw_collection = NULL;
