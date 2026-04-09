@@ -3340,9 +3340,9 @@ exit:
 #include <dwrite.h>
 
 struct oc_collection_impl {
-    IDWriteFactory* dw_factory;
-    char**          families;
-    UINT32          nfamilies;
+    oc_library* oc_library;
+    char**      families;
+    UINT32      nfamilies;
 };
 
 typedef struct {
@@ -3408,7 +3408,7 @@ oc_error ocf_init_collection(const oc_library* library, oc_collection* ocollecti
         return oc_error_out_of_memory;
     }
 
-    collection.impl->dw_factory = (IDWriteFactory*)library;
+    collection.impl->oc_library = library;
 exit:
     if (ocollection)
         *ocollection = collection;
@@ -3466,6 +3466,8 @@ oc_error ocf_load_fonts(oc_collection* collection) {
     oc_error err = oc_error_ok;
     HRESULT  hr;
 
+    oc_library oc_library;
+
     IDWriteFactory*        dw_factory;
     IDWriteFontCollection* dw_collection = NULL;
 
@@ -3491,7 +3493,12 @@ oc_error ocf_load_fonts(oc_collection* collection) {
         oc__exit(oc_error_invalid_param);
     }
 
-    dw_factory = collection->impl->dw_factory;
+    oc_library = collection->impl->oc_library;
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    dw_factory = oc_library->dw_factory;
+#else
+    dw_factory = (IDWriteFactory*)oc_library;
+#endif
     hr = dw_factory->lpVtbl->GetSystemFontCollection(dw_factory, &dw_collection, TRUE);
 
     switch (hr) {
@@ -3622,7 +3629,7 @@ oc_error ocf_load_fonts(oc_collection* collection) {
         font_family->lpVtbl->Release(font_family);
     }
 done:
-    tmp_impl.dw_factory = dw_factory;
+    tmp_impl.oc_library = oc_library;
     tmp_impl.families = (char**)families;
     tmp_impl.nfamilies = nfamilies;
 
