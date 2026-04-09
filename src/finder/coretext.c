@@ -1,11 +1,6 @@
-#include <CoreFoundation/CFBase.h>
-#include <CoreText/CTFontTraits.h>
-#include <assert.h>
-#include <stdint.h>
-#define ONECORE_SHARED_IMPLEMENTATION
-#include "../onecore.h"
+#define ONECORE_IMPLEMENTATION
+#include "onecore.h"
 
-#include <CoreText/CoreText.h>
 extern oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface);
 
 /* ONECORE_CORETEXT_FINDER_IMPLEMENTATION */
@@ -246,6 +241,7 @@ bool ocf_has_character(const oc_font* font, uint32_t charcode) {
 }
 
 #ifdef ONECORE_CORETEXT_LOADER_IMPLEMENTATION
+// todo: add support for freetype
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     oc__font_impl* impl;
     oc_error       err;

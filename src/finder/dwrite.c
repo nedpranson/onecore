@@ -1,14 +1,11 @@
-#include "winerror.h"
-#define ONECORE_SHARED_IMPLEMENTATION
-#include "../onecore.h"
+#define ONECORE_IMPLEMENTATION
+#include "onecore.h"
 
-#include <dwrite.h>
 extern oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_face, oc_26p6 desired_size, uint16_t dpi, oc_face* oface);
 
 /* ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION */
 #include <initguid.h>
 
-#include <assert.h>
 #include <dwrite.h>
 
 struct oc_collection_impl {
@@ -344,7 +341,7 @@ bool ocf_has_character(const oc_font* font, uint32_t character) {
 }
 
 #ifdef ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
-// todo: make compatible with freetype
+// todo: add support for freetype
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     oc_error err;
     HRESULT  result;

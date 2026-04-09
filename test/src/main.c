@@ -2,8 +2,6 @@
 #include <string.h>
 #include <unity.h>
 
-#define ONECORE_LOADER_IMPLEMENTATION
-#define ONECORE_FINDER_IMPLEMENTATION
 #include <onecore.h>
 
 oc_library* g_library;

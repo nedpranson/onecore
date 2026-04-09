@@ -1,5 +1,4 @@
-#include <stdint.h>
-#define ONECORE_SHARED_IMPLEMENTATION
+#define ONECORE_IMPLEMENTATION
 #include "../onecore.h"
 
 /* ONECORE_CORETEXT_LOADER_IMPLEMENTATION */

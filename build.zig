@@ -2,20 +2,55 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 pub const FontBackend = enum {
-    FreeType,
+    FreeTypeFontConfig,
     CoreText,
     DirectWrite,
+    FreetypeCoreText,
+    FreetypeDirectWrite,
+    CoreTextFontConfig,
+    DirectWriteFontConfig,
 
-    pub fn default(target: std.Target) FontBackend {
+    fn default(target: std.Target) FontBackend {
         return switch (target.os.tag) {
             .windows => .DirectWrite,
-            // .driverkit, does not have ct
-            .ios,
-            .macos,
-            .tvos,
-            .visionos,
-            .watchos => .CoreText,
-            else => .FreeType,
+            .macos => .CoreText,
+            else => .FreeTypeFontConfig
+        };
+    }
+
+    fn hasFreeType(s: FontBackend) bool {
+        return switch (s) {
+            .FreeTypeFontConfig,
+            .FreetypeCoreText,
+            .FreetypeDirectWrite => true,
+            else => false
+        };
+    }
+
+    fn hasFontConfig(s: FontBackend) bool {
+        return switch (s) {
+            .FreeTypeFontConfig,
+            .CoreTextFontConfig,
+            .DirectWriteFontConfig => true,
+            else => false
+        };
+    }
+
+    fn hasDirectWrite(s: FontBackend) bool {
+        return switch (s) {
+            .DirectWrite,
+            .FreetypeDirectWrite,
+            .DirectWriteFontConfig => true,
+            else => false
+        };
+    }
+
+    fn hasCoreText(s: FontBackend) bool {
+        return switch (s) {
+            .CoreText,
+            .FreetypeCoreText,
+            .CoreTextFontConfig=> true,
+            else => false
         };
     }
 };
@@ -27,8 +62,11 @@ pub fn build(b: *std.Build) void {
     const font_backend = b.option(
         FontBackend,
         "font-backend",
-        "The font backend to use for parsing and rasterization.",
+        "The font backend to use for discovery, parsing and rasterization.",
     ) orelse FontBackend.default(target.result);
+
+    const sfreetype = b.systemIntegrationOption("freetype", .{ .default = FontBackend.default(target.result).hasFreeType() });
+    //const sfontconfig = b.systemIntegrationOption("fontconfig", .{ .default = FontBackend.default().hasFontConfig() });
 
     const unity = b.dependency("unity", .{});
 
@@ -43,18 +81,54 @@ pub fn build(b: *std.Build) void {
     lib_tests.root_module.link_libc = true;
 
     switch (font_backend) {
-        .DirectWrite => lib_tests.root_module.linkSystemLibrary("dwrite", .{}),
-        .FreeType => {
-            lib_tests.root_module.linkSystemLibrary("freetype2", .{});
-            lib_tests.root_module.linkSystemLibrary("fontconfig", .{});
+        .FreeTypeFontConfig => {
+            lib_tests.root_module.addCMacro("ONECORE_FREETYPE_LOADER_IMPLEMENTATION", "");
+            lib_tests.root_module.addCMacro("ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION", "");
         },
         .CoreText => {
-            addAppleSDK(b, lib_tests.root_module);
-
-            lib_tests.root_module.linkFramework("CoreFoundation", .{});
-            lib_tests.root_module.linkFramework("CoreGraphics", .{});
-            lib_tests.root_module.linkFramework("CoreText", .{});
+            lib_tests.root_module.addCMacro("ONECORE_CORETEXT_LOADER_IMPLEMENTATION", "");
+            lib_tests.root_module.addCMacro("ONECORE_CORETEXT_FINDER_IMPLEMENTATION", "");
         },
+        .DirectWrite => {
+            lib_tests.root_module.addCMacro("ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION", "");
+            lib_tests.root_module.addCMacro("ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION", "");
+        },
+        .FreetypeCoreText => {
+            lib_tests.root_module.addCMacro("ONECORE_FREETYPE_LOADER_IMPLEMENTATION", "");
+            lib_tests.root_module.addCMacro("ONECORE_CORETEXT_FINDER_IMPLEMENTATION", "");
+        },
+        .FreetypeDirectWrite => {
+            lib_tests.root_module.addCMacro("ONECORE_FREETYPE_LOADER_IMPLEMENTATION", "");
+            lib_tests.root_module.addCMacro("ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION", "");
+        },
+        else => {},
+    }
+
+    if (font_backend.hasFreeType()) {
+        if (sfreetype) {
+            lib_tests.root_module.linkSystemLibrary("freetype2", .{});
+        } else if (b.lazyDependency("freetype", .{
+            .target = target,
+            .optimize = optimize,
+        })) |freetype| {
+            lib_tests.root_module.linkLibrary(freetype.artifact("freetype"));
+        }
+    }
+
+    if (font_backend.hasFontConfig()) {
+        lib_tests.root_module.linkSystemLibrary("fontconfig", .{});
+    }
+
+    if (font_backend.hasDirectWrite()) {
+        lib_tests.root_module.linkSystemLibrary("dwrite", .{});
+    }
+
+    if (font_backend.hasCoreText()) {
+        addAppleSDK(b, lib_tests.root_module);
+
+        lib_tests.root_module.linkFramework("CoreFoundation", .{});
+        lib_tests.root_module.linkFramework("CoreGraphics", .{});
+        lib_tests.root_module.linkFramework("CoreText", .{});
     }
 
     lib_tests.root_module.addIncludePath(unity.path("src"));
@@ -88,17 +162,17 @@ pub fn build(b: *std.Build) void {
 
     example.root_module.link_libc = true;
 
-    switch (font_backend) {
-        .FreeType => {
-            example.root_module.linkSystemLibrary("freetype2", .{});
-        },
-        .DirectWrite => example.root_module.linkSystemLibrary("dwrite", .{}),
-        .CoreText => {
+    switch (builtin.os.tag) {
+        .windows => example.root_module.linkSystemLibrary("dwrite", .{}),
+        .macos => {
             addAppleSDK(b, example.root_module);
 
             example.root_module.linkFramework("CoreFoundation", .{});
             example.root_module.linkFramework("CoreGraphics", .{});
             example.root_module.linkFramework("CoreText", .{});
+        },
+        else => {
+            example.root_module.linkSystemLibrary("freetype2", .{});
         },
     }
 

@@ -1,11 +1,8 @@
 #define ONECORE_IMPLEMENTATION
-#include "../../onecore.h"
+#include "onecore.h"
 
 /* ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION */
-#include <assert.h>
 #include <fontconfig/fontconfig.h>
-#include <stdlib.h>
-#include <string.h>
 
 struct oc_collection_impl {
     const oc_library* oc_library;
@@ -236,7 +233,8 @@ bool ocf_has_character(const oc_font* font, uint32_t character) {
 }
 
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
-// todo: make this stuff crossplatform
+// todo: add support for dwrite and coretext
+// todo (stage 2) make face index logic compatible with other backends
 // upper 16 means instance
 // lower 16 means index
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {

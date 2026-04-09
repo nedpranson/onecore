@@ -1,8 +1,7 @@
-#define ONECORE_SHARED_IMPLEMENTATION
+#define ONECORE_IMPLEMENTATION
 #include "../onecore.h"
 
 /* ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION */
-#include <assert.h>
 #include <initguid.h>
 
 #include <d2d1.h>

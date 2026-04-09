@@ -378,13 +378,15 @@ oc_div_16p16(oc_16p16 a, oc_16p16 b);
 #endif
 #endif /* ONECORE_FINDER_IMPLEMENTATION */
 
-// todo: define all used includes here!
-
 #if defined(ONECORE_FREETYPE_LOADER_IMPLEMENTATION) || defined(ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION) || defined(ONECORE_CORETEXT_LOADER_IMPLEMENTATION) || defined(ONECORE_CORETEXT_FINDER_IMPLEMENTATION) || defined(ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION) || defined(ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION)
 #define ONECORE_IMPLEMENTATION
 #endif
 
 #ifdef ONECORE_IMPLEMENTATION
+#include <assert.h>
+#include <string.h>
+#include <stdlib.h> 
+
 #ifdef NDEBUG
 #define oc__unexpected(e) oc_error_unexpected
 #else

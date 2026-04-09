@@ -108,7 +108,7 @@ typedef struct {
 
 typedef struct oc_face_impl       oc_face_impl;
 typedef struct oc_collection_impl oc_collection_impl;
-typedef struct oc_library oc_library;
+typedef struct oc_library         oc_library;
 
 // todo (stage 2): integrate even more fields
 // todo (stage 2): need a way to know how many glyphs a font has
@@ -378,18 +378,15 @@ oc_div_16p16(oc_16p16 a, oc_16p16 b);
 #endif
 #endif /* ONECORE_FINDER_IMPLEMENTATION */
 
-// todo: define all used includes here!
-
-#if defined (ONECORE_FREETYPE_LOADER_IMPLEMENTATION) || \
-    defined (ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION) || \
-    defined (ONECORE_CORETEXT_LOADER_IMPLEMENTATION) || \
-    defined (ONECORE_CORETEXT_FINDER_IMPLEMENTATION) || \
-    defined (ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION) || \
-    defined (ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION)
+#if defined(ONECORE_FREETYPE_LOADER_IMPLEMENTATION) || defined(ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION) || defined(ONECORE_CORETEXT_LOADER_IMPLEMENTATION) || defined(ONECORE_CORETEXT_FINDER_IMPLEMENTATION) || defined(ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION) || defined(ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION)
 #define ONECORE_IMPLEMENTATION
 #endif
 
 #ifdef ONECORE_IMPLEMENTATION
+#include <assert.h>
+#include <string.h>
+#include <stdlib.h> 
+
 #ifdef NDEBUG
 #define oc__unexpected(e) oc_error_unexpected
 #else
@@ -497,26 +494,24 @@ static inline void oc__fit_metrics(oc_glyph_metrics* pmetrics) {
 #endif /* ONECORE_IMPLEMENTATION */
 
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
-#include <assert.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_TRUETYPE_TABLES_H
 #include FT_OUTLINE_H
 #include FT_GLYPH_H
-#ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
-#ininline <dwrite.h>
+
+#if defined(_MSC_VER) || defined(__MINGW32__)
 #include <windows.h>
 
 typedef SRWLOCK oc__mutex_impl_t;
-
 #define oc__mutex_impl_init(m) InitializeSRWLock(m)
 #define oc__mutex_impl_lock(m) AcquireSRWLockExclusive(m)
 #define oc__mutex_impl_unlock(m) ReleaseSRWLockExclusive(m)
 #define oc__mutex_impl_destroy(m) ((void)0)
 #else
 #include <pthread.h>
-typedef pthread_mutex_t oc__mutex_impl_t;
 
+typedef pthread_mutex_t oc__mutex_impl_t;
 #define oc__mutex_impl_init(m) pthread_mutex_init(m, NULL)
 #define oc__mutex_impl_lock(m) pthread_mutex_lock(m)
 #define oc__mutex_impl_unlock(m) pthread_mutex_unlock(m)
@@ -538,6 +533,10 @@ struct oc_face_impl {
 #define OC__OVERRIDE_LIBRARY_IMPL
 
 #ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
+#include <initguid.h>
+
+#include <dwrite.h>
+
 struct oc_library {
     FT_Library      ft_library;
     IDWriteFactory* dw_factory;
@@ -551,7 +550,7 @@ oc_error oc_init_library(oc_library** olibrary) {
     HRESULT         result;
     IDWriteFactory* dw_factory;
 #endif
-    oc_error err = oc_error_ok;
+    oc_error    err = oc_error_ok;
     oc_library* library = NULL;
 
     if (!olibrary) {
@@ -612,7 +611,7 @@ void oc_free_library(oc_library* library) {
     dw_factory->lpVtbl->Release(dw_factory);
     FT_Done_FreeType(ft_library);
 
-    free(library)
+    free(library);
 #else
     ft_library = (FT_Library)library;
     FT_Done_FreeType(ft_library);
@@ -1146,10 +1145,7 @@ exit:
 #endif /* ONECORE_FREETYPE_LOADER_IMPLEMENTATION */
 
 #ifdef ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION
-#include <assert.h>
 #include <fontconfig/fontconfig.h>
-#include <stdlib.h>
-#include <string.h>
 
 struct oc_collection_impl {
     const oc_library* oc_library;
@@ -1380,7 +1376,8 @@ bool ocf_has_character(const oc_font* font, uint32_t character) {
 }
 
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
-// todo: make this stuff crossplatform
+// todo: add support for dwrite and coretext
+// todo (stage 2) make face index logic compatible with other backends
 // upper 16 means instance
 // lower 16 means index
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
@@ -2287,6 +2284,7 @@ bool ocf_has_character(const oc_font* font, uint32_t charcode) {
 }
 
 #ifdef ONECORE_CORETEXT_LOADER_IMPLEMENTATION
+// todo: add support for freetype
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     oc__font_impl* impl;
     oc_error       err;
@@ -2374,7 +2372,6 @@ size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
 #endif /* ONECORE_CORETEXT_LINDER_IMPLEMENTATION */
 
 #ifdef ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
-#include <assert.h>
 #include <initguid.h>
 
 #include <d2d1.h>
@@ -3334,7 +3331,6 @@ exit:
 #ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
 #include <initguid.h>
 
-#include <assert.h>
 #include <dwrite.h>
 
 struct oc_collection_impl {
@@ -3369,7 +3365,6 @@ oc_error oc_init_library(oc_library** olibrary) {
     default:
         return oc__unexpected(result);
     }
-
 
     *olibrary = (oc_library*)dw_factory;
     return oc_error_ok;
@@ -3671,7 +3666,7 @@ bool ocf_has_character(const oc_font* font, uint32_t character) {
 }
 
 #ifdef ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
-// todo: make compatible with freetype
+// todo: add support for freetype
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     oc_error err;
     HRESULT  result;

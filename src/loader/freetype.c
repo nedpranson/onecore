@@ -1,27 +1,26 @@
 #define ONECORE_IMPLEMENTATION
-#include "../../onecore.h"
+#define OC__OVERRIDE_LIBRARY_IMPL
+#include "onecore.h"
 
 /* ONECORE_FREETYPE_LOADER_IMPLEMENTATION */
-#include <assert.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_TRUETYPE_TABLES_H
 #include FT_OUTLINE_H
 #include FT_GLYPH_H
-#ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
-#ininline < dwrite.h>
+
+#if defined(_MSC_VER) || defined(__MINGW32__)
 #include <windows.h>
 
 typedef SRWLOCK oc__mutex_impl_t;
-
 #define oc__mutex_impl_init(m) InitializeSRWLock(m)
 #define oc__mutex_impl_lock(m) AcquireSRWLockExclusive(m)
 #define oc__mutex_impl_unlock(m) ReleaseSRWLockExclusive(m)
 #define oc__mutex_impl_destroy(m) ((void)0)
 #else
 #include <pthread.h>
-typedef pthread_mutex_t oc__mutex_impl_t;
 
+typedef pthread_mutex_t oc__mutex_impl_t;
 #define oc__mutex_impl_init(m) pthread_mutex_init(m, NULL)
 #define oc__mutex_impl_lock(m) pthread_mutex_lock(m)
 #define oc__mutex_impl_unlock(m) pthread_mutex_unlock(m)
@@ -43,6 +42,10 @@ struct oc_face_impl {
 #define OC__OVERRIDE_LIBRARY_IMPL
 
 #ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
+#include <initguid.h>
+
+#include <dwrite.h>
+
 struct oc_library {
     FT_Library      ft_library;
     IDWriteFactory* dw_factory;
@@ -117,7 +120,7 @@ void oc_free_library(oc_library* library) {
     dw_factory->lpVtbl->Release(dw_factory);
     FT_Done_FreeType(ft_library);
 
-    free(library)
+    free(library);
 #else
     ft_library = (FT_Library)library;
     FT_Done_FreeType(ft_library);
