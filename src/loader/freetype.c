@@ -173,8 +173,11 @@ oc_error ocl_open_face(const oc_library* library, const char* path, const oc_ope
     if (!(library && path && oface)) {
         return oc_error_invalid_param;
     }
-
+#ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
+    ft_library = library->ft_library;
+#else
     ft_library = (FT_Library)library;
+#endif
 
     ft_open_args.flags = FT_OPEN_PATHNAME;
     ft_open_args.pathname = (FT_String*)path;
@@ -215,11 +218,14 @@ oc_error ocl_open_memory_face(const oc_library* library, const void* data, size_
     if (!(library && oface)) {
         return oc_error_invalid_param;
     }
-
+#ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
+    ft_library = library->ft_library;
+#else
     ft_library = (FT_Library)library;
+#endif
     params = oc__open_params_defaults(uparams);
-
     err = FT_New_Memory_Face(ft_library, data, size, params.face_index, &ft_face);
+
     switch (err) {
     case FT_Err_Ok:
         break;
