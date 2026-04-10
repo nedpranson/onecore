@@ -5,8 +5,8 @@ pub const FontBackend = enum {
     FreeTypeFontConfig,
     CoreText,
     DirectWrite,
-    FreetypeCoreText,
-    FreetypeDirectWrite,
+    FreeTypeCoreText,
+    FreeTypeDirectWrite,
     CoreTextFontConfig,
     DirectWriteFontConfig,
 
@@ -21,8 +21,8 @@ pub const FontBackend = enum {
     fn hasFreeType(s: FontBackend) bool {
         return switch (s) {
             .FreeTypeFontConfig,
-            .FreetypeCoreText,
-            .FreetypeDirectWrite => true,
+            .FreeTypeCoreText,
+            .FreeTypeDirectWrite => true,
             else => false
         };
     }
@@ -39,7 +39,7 @@ pub const FontBackend = enum {
     fn hasDirectWrite(s: FontBackend) bool {
         return switch (s) {
             .DirectWrite,
-            .FreetypeDirectWrite,
+            .FreeTypeDirectWrite,
             .DirectWriteFontConfig => true,
             else => false
         };
@@ -48,7 +48,7 @@ pub const FontBackend = enum {
     fn hasCoreText(s: FontBackend) bool {
         return switch (s) {
             .CoreText,
-            .FreetypeCoreText,
+            .FreeTypeCoreText,
             .CoreTextFontConfig=> true,
             else => false
         };
@@ -93,11 +93,11 @@ pub fn build(b: *std.Build) void {
             lib_tests.root_module.addCMacro("ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION", "");
             lib_tests.root_module.addCMacro("ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION", "");
         },
-        .FreetypeCoreText => {
+        .FreeTypeCoreText => {
             lib_tests.root_module.addCMacro("ONECORE_FREETYPE_LOADER_IMPLEMENTATION", "");
             lib_tests.root_module.addCMacro("ONECORE_CORETEXT_FINDER_IMPLEMENTATION", "");
         },
-        .FreetypeDirectWrite => {
+        .FreeTypeDirectWrite => {
             lib_tests.root_module.addCMacro("ONECORE_FREETYPE_LOADER_IMPLEMENTATION", "");
             lib_tests.root_module.addCMacro("ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION", "");
         },

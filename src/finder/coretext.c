@@ -1,4 +1,5 @@
 #define ONECORE_IMPLEMENTATION
+#define ONECORE_FREETYPE_LOADER_IMPLEMENTATION
 #include "onecore.h"
 
 extern oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface);
@@ -240,8 +241,7 @@ bool ocf_has_character(const oc_font* font, uint32_t charcode) {
     return glyphs[0];
 }
 
-#ifdef ONECORE_CORETEXT_LOADER_IMPLEMENTATION
-// todo: add support for freetype
+#if defined(ONECORE_CORETEXT_LOADER_IMPLEMENTATION)
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     oc__font_impl* impl;
     oc_error       err;
@@ -267,6 +267,165 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     *oface = face;
 
     return err;
+}
+#elif defined(ONECORE_FREETYPE_LOADER_IMPLEMENTATION)
+typedef struct {
+    int32_t  sfnt_version;
+    uint16_t num_tables;
+    uint16_t search_range;
+    uint16_t entry_selector;
+    uint16_t range_shift;
+} ocf__offset_table;
+
+typedef struct {
+    uint32_t tag;
+    uint32_t checksum;
+    uint32_t offset;
+    uint32_t length;
+} ocf__table_record;
+
+
+typedef struct {
+    size_t size;
+    void*  data;
+} ocf__memory_view;
+
+static uint32_t ocf__checksum(const uint32_t* table, uint32_t padded_size) {
+    uint32_t sum = 0;
+    while (padded_size--) {
+        sum += CFSwapInt32HostToBig(*table++);
+    }
+    return sum;
+}
+
+// https://gist.github.com/netmaid/dd524da6a8b893c3f9fdf8cd52d1816b
+// todo (stage 2): test endian
+static ocf__memory_view ocf__extract_font_data(CGFontRef cg_font) {
+    CFArrayRef tags;
+    CFIndex ntables;
+
+    size_t size;
+    void*  data;
+
+    ocf__memory_view view = { 0 };
+
+    bool cff = false;
+
+    assert(cg_font != NULL);
+
+    tags = CGFontCopyTableTags(cg_font);
+    if (!tags) {
+        return view;
+    }
+
+    ntables = CFArrayGetCount(tags);
+    size = sizeof(ocf__offset_table) + sizeof(ocf__table_record) * ntables;
+
+    assert(UINT16_MAX > ntables);
+
+    for (CFIndex i = 0; i < ntables; i++) {
+        uint32_t tag;
+        CFDataRef table;
+
+        tag = (uint32_t)(uintptr_t)CFArrayGetValueAtIndex(tags, i);
+        if (tag == 'CFF ') {
+            cff = true;
+        }
+
+        table = CGFontCopyTableForTag(cg_font, tag);
+        assert(table != NULL);
+
+        size += (CFDataGetLength(table) + 3) & ~3;
+        CFRelease(table);
+    }
+
+    data = calloc(1, size);
+    if (data) {
+        uint16_t search_range = 1;
+        uint16_t entry_selector = 0;
+
+        ocf__offset_table* table = data;
+        ocf__table_record* records = data + sizeof(ocf__offset_table);
+
+        void* offset = data + sizeof(ocf__offset_table) + sizeof(ocf__table_record) * ntables;
+
+        while (search_range * 2 <= ntables) {
+            search_range *= 2;
+            entry_selector++;
+        }
+
+        table->sfnt_version = cff ? 'OTTO' : CFSwapInt32HostToBig(0x10000);
+        table->num_tables = CFSwapInt16HostToBig((uint16_t)ntables);
+        table->search_range = CFSwapInt16HostToBig(search_range * 16);
+        table->entry_selector = CFSwapInt16HostToBig(entry_selector);
+
+        if (search_range * 16 >= 256) {
+            table->range_shift = CFSwapInt16HostToBig(ntables * 16 - search_range);
+        } else {
+            table->range_shift = CFSwapInt16HostToBig(ntables * 16 - search_range * 16);
+        }
+
+        for (CFIndex i = 0; i < ntables; i++) {
+            uint32_t tag = (uint32_t)(uintptr_t)CFArrayGetValueAtIndex(tags, i);
+
+            CFDataRef table = CGFontCopyTableForTag(cg_font, tag);
+            CFIndex   table_size;
+
+            uint32_t padded_size;
+
+            assert(table != NULL);
+
+            table_size = CFDataGetLength(table);
+            padded_size = (uint32_t)((table_size + 3) & ~3);
+
+            memcpy(offset, CFDataGetBytePtr(table), table_size);
+
+            records[i].tag = CFSwapInt32HostToBig(tag);
+            records[i].checksum = ocf__checksum((uint32_t*)offset, padded_size);
+            records[i].offset = CFSwapInt32HostToBig((uint32_t)(uintptr_t)(offset - data));
+            records[i].length = (uint32_t)table_size;
+
+            offset += padded_size;
+            CFRelease(table);
+        }
+    }
+
+    view.size = size;
+    view.data = data;
+
+    CFRelease(tags);
+    return view;
+}
+oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
+    oc__font_impl* impl;
+    CGFontRef cg_font;
+
+    ocf__memory_view view;
+
+    (void)desired_size;
+    (void)dpi;
+    (void)oface;
+
+    if (!font) {
+        return oc_error_invalid_param;
+    }
+
+    impl = oc__parentof(oc__font_impl, font, font);
+    cg_font = CTFontCopyGraphicsFont(impl->ct_face, NULL);
+
+    if (!cg_font) {
+        return oc_error_out_of_memory;
+    }
+
+    view = ocf__extract_font_data(cg_font);
+    CGFontRelease(cg_font);
+
+    if (view.size == 0) {
+        return oc_error_out_of_memory;
+    }
+
+    free(view.data);
+    return oc_error_ok;
 }
 #endif
 

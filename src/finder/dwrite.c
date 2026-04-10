@@ -2,6 +2,7 @@
 #include "onecore.h"
 
 extern oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_face, oc_26p6 desired_size, uint16_t dpi, oc_face* oface);
+#define ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
 
 /* ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION */
 #include <initguid.h>
@@ -347,8 +348,7 @@ bool ocf_has_character(const oc_font* font, uint32_t character) {
     return result == S_OK && exists;
 }
 
-#ifdef ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
-// todo: add support for freetype
+#if defined(ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION)
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     oc_error err;
     HRESULT  result;
@@ -387,6 +387,12 @@ exit:
     *oface = face;
     return err;
 }
+#elif defined(ONECORE_FREETYPE_LOADER_IMPLEMENTATION)
+// todo: get bytes
+// but not sure how to handle memory,
+// who is responsible for freeing it
+// add a field font_data to impl
+// were we can set the pointer
 #endif
 
 size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {

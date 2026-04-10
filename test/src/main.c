@@ -61,7 +61,7 @@ void test_oc_init_collection(void) {
     ocf_free_collection(NULL);
 }
 
-static int cmpr(const void* a, const void* b) {
+static int compr(const void* a, const void* b) {
     const oc_font* afont = *(const oc_font**)a;
     const oc_font* bfont = *(const oc_font**)b;
 
@@ -81,30 +81,27 @@ void test_oc_load_fonts(void) {
     err = ocf_load_fonts(&col);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
-    qsort(col.fonts, col.nfonts, sizeof(oc_font*), cmpr);
+    qsort(col.fonts, col.nfonts, sizeof(oc_font*), compr);
 
     for (size_t i = 0; i < col.nfonts; i++) {
         oc_font* font = col.fonts[i];
-        // oc_face face;
-        // oc_error err;
 
         char   path[256];
         size_t amt = ocf_copy_path(font, path, 255);
         path[amt] = '\0';
 
         bool flag = ocf_has_character(font, 0x0104);
-        printf("%s: %s, %d, %d, %d", path, font->family, font->weight, font->slant, flag);
+        printf("%s: %s, %d, %d, %d\n", path, font->family, font->weight, font->slant, flag);
 
-        // err = ocf_open_font(font, 0, 0, &face);
-        // if (err == oc_error_invalid_pixel_size) {
-        // printf(" (fixed size)");
-        // } else {
-        // TEST_ASSERT_EQUAL(oc_error_ok, err);
-        // TEST_ASSERT_EQUAL(flag, !!ocl_get_char_index(&face, 0x0104));
+        oc_face face;
 
-        // ocl_free_face(&face);
-        // }
-        printf("\n");
+        err = ocf_open_font(col.fonts[0], 0, 0, &face);
+        if (err != oc_error_ok && err != oc_error_invalid_pixel_size) {
+            TEST_ASSERT(false);
+        }
+
+        ocl_free_face(&face);
+
     }
 
     ocf_free_collection(&col);
