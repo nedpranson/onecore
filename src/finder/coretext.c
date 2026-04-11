@@ -65,11 +65,12 @@ void ocf_free_collection(oc_collection* collection) {
         if (collection->impl->ct_fonts) {
             CFRelease(collection->impl->ct_fonts);
         }
-        free(collection);
+        free(collection->impl);
 #else
         if (collection->impl)
             CFRelease(collection->impl);
 #endif
+        memset(collection, 0, sizeof(*collection));
     }
 }
 
