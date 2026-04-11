@@ -22,7 +22,7 @@ struct oc_collection_impl {
 };
 
 typedef struct {
-    IDWriteFactory* dw_factory;
+    const oc_library* oc_library;
     IDWriteFont*    dw_font;
     oc_font         font;
 } oc__font_impl;
@@ -115,7 +115,7 @@ static const oc_slant oc__slant_map[] = {
     [DWRITE_FONT_STYLE_ITALIC] = oc_slant_italic,
 };
 
-static oc_font* oc__init_font(IDWriteFactory* dw_factory, IDWriteFont* dw_font, const char* family) {
+static oc_font* oc__init_font(const oc_library* oc_library, IDWriteFont* dw_font, const char* family) {
     DWRITE_FONT_WEIGHT weight;
     DWRITE_FONT_STYLE  style;
 
@@ -129,7 +129,7 @@ static oc_font* oc__init_font(IDWriteFactory* dw_factory, IDWriteFont* dw_font, 
         return NULL;
     }
 
-    impl->dw_factory = dw_factory;
+    impl->oc_library = oc_library;
     impl->dw_font = dw_font;
     impl->font.family = family;
     impl->font.weight = (uint16_t)weight;
@@ -293,7 +293,7 @@ oc_error ocf_load_fonts(oc_collection* collection) {
             hr = font_family->lpVtbl->GetFont(font_family, font_index, &dw_font);
             assert(hr == S_OK);
 
-            font = oc__init_font(dw_factory, dw_font, family);
+            font = oc__init_font(oc_library, dw_font, family);
             if (font == NULL) {
                 font_family->lpVtbl->Release(font_family);
                 oc__exit(oc_error_out_of_memory);
@@ -360,6 +360,8 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     HRESULT  result;
 
     oc__font_impl*   impl;
+
+    IDWriteFactory* dw_factory;
     IDWriteFontFace* dw_face;
 
     oc_face face = { 0 };
@@ -369,6 +371,7 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     }
 
     impl = oc__parentof(oc__font_impl, font, font);
+    dw_factory = (IDWriteFactory*)impl->oc_library; // this is true
     result = impl->dw_font->lpVtbl->CreateFontFace(impl->dw_font, &dw_face);
 
     switch (result) {
@@ -388,14 +391,12 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
         dpi = 72;
     }
 
-    err = oc__init_face(impl->dw_factory, dw_face, desired_size, dpi, &face);
+    err = oc__init_face(dw_factory, dw_face, desired_size, dpi, &face);
 exit:
     *oface = face;
     return err;
 }
 #elif defined(ONECORE_FREETYPE_LOADER_IMPLEMENTATION)
-#endif
-
 static void ocf__stream_close(FT_Stream stream) {
     IDWriteFontFileStream* dw_stream;
 
@@ -460,10 +461,17 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     UINT32      key_size;
 
     UINT64 file_size;
-    void*  file_data;
-
     UINT32  nfiles = 1;
+
     oc_face face = { 0 };
+
+    FT_Open_Args args = { 0 };
+    FT_Stream stream;
+
+    FT_Face ft_face;
+    FT_Error ft_err;
+
+    oc_open_params params;
 
     impl = oc__parentof(oc__font_impl, font, font);
     result = impl->dw_font->lpVtbl->CreateFontFace(impl->dw_font, &dw_face);
@@ -515,8 +523,11 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
         oc__exit(oc__unexpected(result));
     }
 
-    FT_Open_Args args = { 0 };
-    FT_Stream stream = calloc(1, sizeof(*stream));
+    stream = calloc(1, sizeof(*stream));
+    if (!stream) {
+        dw_stream->lpVtbl->Release(dw_stream);
+        oc__exit(oc_error_out_of_memory);
+    }
 
     stream->descriptor.pointer = dw_stream;
     stream->read = &ocf__stream_read;
@@ -526,15 +537,31 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     args.flags = FT_OPEN_STREAM;
     args.stream = stream;
 
-    // not sure how face indexes will work
-    FT_Open_Face(NULL, &args, 0, NULL);
+    // todo: how face indexes will work, loop them maybe
+    // todo: handle oom
+    ft_err = FT_Open_Face(impl->oc_library->ft_library, &args, 0, &ft_face);
+    switch(ft_err) {
+    case FT_Err_Ok:
+        break;
+    default:
+        oc__exit(oc__unexpected(ft_err));
+    }
 
-    // tood: use FT_StreamRec
+    params.face_index = 0;
+    params.desired_size = desired_size;
+    params.dpi = dpi;
 
+    params = oc__open_params_defaults(&params);
+    err = oc__init_face(ft_face, &params, &face);
+
+    if (err != oc_error_ok) {
+        FT_Done_Face(ft_face);
+    }
 exit:
     *oface = face;
     return err;
 }
+#endif
 
 size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
     oc__font_impl* impl;

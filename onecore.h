@@ -2053,7 +2053,7 @@ exit:
 #endif /* ONECORE_CORETEXT_LOADER_IMPLEMENTATION */
 
 #ifdef ONECORE_CORETEXT_FINDER_IMPLEMENTATION
-#include <CoreText/CoreText.h>
+#import <CoreText/CoreText.h>
 
 typedef struct {
     oc_library*         oc_library;
@@ -2319,6 +2319,11 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
 }
 #elif defined(ONECORE_FREETYPE_LOADER_IMPLEMENTATION)
 // todo (stage 2): handle memory only fonts!
+// when we will implement correct reconstruction function
+// we could use FT_StreamRec to stream data and emulate it
+// just build these ocf__offset_table ocf__table_record
+// give to freetype and forget
+// any other data we track on which tag we are and just give it back
 // typedef struct {
 //     int32_t  sfnt_version;
 //     uint16_t num_tables;
@@ -2432,7 +2437,7 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
 //             table_size = CFDataGetLength(table);
 //             padded_size = (uint32_t)((table_size + 3) & ~3);
 //
-//             memcpy(offset, CFDataGetBytePtr(table), table_size);
+//             memcpy(offset, CFDataGetBytePtr(table), table_size); // rly slow!
 //
 //             records[i].tag = CFSwapInt32HostToBig(tag);
 //             records[i].checksum = ocf__checksum((uint32_t*)offset, padded_size);
@@ -3529,7 +3534,7 @@ struct oc_collection_impl {
 };
 
 typedef struct {
-    IDWriteFactory* dw_factory;
+    const oc_library* oc_library;
     IDWriteFont*    dw_font;
     oc_font         font;
 } oc__font_impl;
@@ -3622,7 +3627,7 @@ static const oc_slant oc__slant_map[] = {
     [DWRITE_FONT_STYLE_ITALIC] = oc_slant_italic,
 };
 
-static oc_font* oc__init_font(IDWriteFactory* dw_factory, IDWriteFont* dw_font, const char* family) {
+static oc_font* oc__init_font(const oc_library* oc_library, IDWriteFont* dw_font, const char* family) {
     DWRITE_FONT_WEIGHT weight;
     DWRITE_FONT_STYLE  style;
 
@@ -3636,7 +3641,7 @@ static oc_font* oc__init_font(IDWriteFactory* dw_factory, IDWriteFont* dw_font, 
         return NULL;
     }
 
-    impl->dw_factory = dw_factory;
+    impl->oc_library = oc_library;
     impl->dw_font = dw_font;
     impl->font.family = family;
     impl->font.weight = (uint16_t)weight;
@@ -3800,7 +3805,7 @@ oc_error ocf_load_fonts(oc_collection* collection) {
             hr = font_family->lpVtbl->GetFont(font_family, font_index, &dw_font);
             assert(hr == S_OK);
 
-            font = oc__init_font(dw_factory, dw_font, family);
+            font = oc__init_font(oc_library, dw_font, family);
             if (font == NULL) {
                 font_family->lpVtbl->Release(font_family);
                 oc__exit(oc_error_out_of_memory);
@@ -3867,6 +3872,8 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     HRESULT  result;
 
     oc__font_impl*   impl;
+
+    IDWriteFactory* dw_factory;
     IDWriteFontFace* dw_face;
 
     oc_face face = { 0 };
@@ -3876,6 +3883,7 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     }
 
     impl = oc__parentof(oc__font_impl, font, font);
+    dw_factory = (IDWriteFactory*)impl->oc_library; // this is true
     result = impl->dw_font->lpVtbl->CreateFontFace(impl->dw_font, &dw_face);
 
     switch (result) {
@@ -3895,17 +3903,176 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
         dpi = 72;
     }
 
-    err = oc__init_face(impl->dw_factory, dw_face, desired_size, dpi, &face);
+    err = oc__init_face(dw_factory, dw_face, desired_size, dpi, &face);
 exit:
     *oface = face;
     return err;
 }
 #elif defined(ONECORE_FREETYPE_LOADER_IMPLEMENTATION)
-// todo: get bytes
-// but not sure how to handle memory,
-// who is responsible for freeing it
-// add a field font_data to impl
-// were we can set the pointer
+static void ocf__stream_close(FT_Stream stream) {
+    IDWriteFontFileStream* dw_stream;
+
+    assert(stream != NULL);
+
+    dw_stream = (IDWriteFontFileStream*)stream->descriptor.pointer;
+    dw_stream->lpVtbl->Release(dw_stream);
+
+    free(stream);
+}
+
+
+static unsigned long ocf__stream_read(
+    FT_Stream       stream,
+    unsigned long   offset,
+    unsigned char*  buffer,
+    unsigned long   count
+) {
+    IDWriteFontFileStream* dw_stream;
+    HRESULT result;
+
+    const void* fragement_start;
+    void* fragement_context;
+
+    assert(stream != NULL);
+
+    if (count == 0) {
+        return 0;
+    }
+
+    dw_stream = (IDWriteFontFileStream*)stream->descriptor.pointer;
+    result = dw_stream->lpVtbl->ReadFileFragment(
+        dw_stream,
+        &fragement_start,
+        offset,
+        count,
+        &fragement_context);
+
+    if (result != S_OK) {
+        return 0;
+    }
+    
+    memcpy(buffer, fragement_start, count);
+    dw_stream->lpVtbl->ReleaseFileFragment(dw_stream, fragement_context);
+
+    return count;
+}
+
+oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
+    oc__font_impl* impl;
+
+    HRESULT  result;
+    oc_error err;
+
+    IDWriteFontFace* dw_face;
+    IDWriteFontFile* dw_file;
+
+    IDWriteFontFileLoader* dw_loader;
+    IDWriteFontFileStream* dw_stream;
+
+    const void* key;
+    UINT32      key_size;
+
+    UINT64 file_size;
+    UINT32  nfiles = 1;
+
+    oc_face face = { 0 };
+
+    FT_Open_Args args = { 0 };
+    FT_Stream stream;
+
+    FT_Face ft_face;
+    FT_Error ft_err;
+
+    oc_open_params params;
+
+    impl = oc__parentof(oc__font_impl, font, font);
+    result = impl->dw_font->lpVtbl->CreateFontFace(impl->dw_font, &dw_face);
+
+    switch (result) {
+    case S_OK:
+        break;
+    case E_OUTOFMEMORY:
+        oc__exit(oc_error_out_of_memory);
+    default:
+        oc__exit(oc__unexpected(result));
+    }
+
+    result = dw_face->lpVtbl->GetFiles(dw_face, &nfiles, &dw_file);
+    dw_face->lpVtbl->Release(dw_face);
+
+    switch (result) {
+    case S_OK:
+        break;
+    case E_OUTOFMEMORY:
+        oc__exit(oc_error_out_of_memory);
+    default:
+        oc__exit(oc__unexpected(result));
+    }
+
+    result = dw_file->lpVtbl->GetReferenceKey(dw_file, &key, &key_size);
+    assert(result == S_OK);
+    
+    result = dw_file->lpVtbl->GetLoader(dw_file, &dw_loader);
+    dw_file->lpVtbl->Release(dw_file);
+
+    assert(result == S_OK);
+
+    result = dw_loader->lpVtbl->CreateStreamFromKey(dw_loader, key, key_size, &dw_stream);
+    dw_loader->lpVtbl->Release(dw_loader);
+
+    switch (result) {
+    case S_OK:
+        break;
+    case E_OUTOFMEMORY:
+        oc__exit(oc_error_out_of_memory);
+    default:
+        oc__exit(oc__unexpected(result));
+    }
+
+    result = dw_stream->lpVtbl->GetFileSize(dw_stream, &file_size);
+    if (result != S_OK) {
+        dw_stream->lpVtbl->Release(dw_stream);
+        oc__exit(oc__unexpected(result));
+    }
+
+    stream = calloc(1, sizeof(*stream));
+    if (!stream) {
+        dw_stream->lpVtbl->Release(dw_stream);
+        oc__exit(oc_error_out_of_memory);
+    }
+
+    stream->descriptor.pointer = dw_stream;
+    stream->read = &ocf__stream_read;
+    stream->close = &ocf__stream_close;
+    stream->size = (unsigned long)file_size;
+
+    args.flags = FT_OPEN_STREAM;
+    args.stream = stream;
+
+    // todo: how face indexes will work, loop them maybe
+    // todo: handle oom
+    ft_err = FT_Open_Face(impl->oc_library->ft_library, &args, 0, &ft_face);
+    switch(ft_err) {
+    case FT_Err_Ok:
+        break;
+    default:
+        oc__exit(oc__unexpected(ft_err));
+    }
+
+    params.face_index = 0;
+    params.desired_size = desired_size;
+    params.dpi = dpi;
+
+    params = oc__open_params_defaults(&params);
+    err = oc__init_face(ft_face, &params, &face);
+
+    if (err != oc_error_ok) {
+        FT_Done_Face(ft_face);
+    }
+exit:
+    *oface = face;
+    return err;
+}
 #endif
 
 size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
