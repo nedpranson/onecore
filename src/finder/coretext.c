@@ -8,12 +8,21 @@ extern oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_si
 #import <CoreText/CoreText.h>
 
 typedef struct {
-    oc_library*         oc_library;
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    const oc_library*         oc_library;
+#endif
     CTFontDescriptorRef ct_font;
     CTFontRef           ct_face;
     CFStringRef         ct_family;
     oc_font             font;
 } oc__font_impl;
+
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+struct oc_collection_impl {
+    const oc_library* oc_library;
+    CFArrayRef ct_fonts;
+};
+#endif
 
 static inline void oc__free_font_impl(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
@@ -30,7 +39,14 @@ oc_error ocf_init_collection(const oc_library* library, oc_collection* ocollecti
         err = oc_error_invalid_param;
         goto exit;
     }
-
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    collection.impl = malloc(sizeof(*collection.impl));
+    if (!collection.impl) {
+        err = oc_error_out_of_memory;
+        goto exit;
+    }
+    collection.impl->oc_library = library;
+#endif
 exit:
     if (ocollection)
         *ocollection = collection;
@@ -45,13 +61,19 @@ void ocf_free_collection(oc_collection* collection) {
 
         free(collection->fonts);
 
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+        if (collection->impl->ct_fonts) {
+            CFRelease(collection->impl->ct_fonts);
+        }
+        free(collection);
+#else
         if (collection->impl)
             CFRelease(collection->impl);
-        memset(collection, 0, sizeof(*collection));
+#endif
     }
 }
 
-static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
+static oc__font_impl* oc__init_font_impl(const oc_library* oc_library, CTFontDescriptorRef ct_font) {
     oc__font_impl* impl = NULL;
 
     CFDictionaryRef ct_traits = NULL;
@@ -67,6 +89,7 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
     uint32_t ct_symbolic;
 
     assert(ct_font != NULL);
+    (void)oc_library;
 
     // todo (stage 2): do some assumptions based on this assumption
     // is_immortal = CFGetRetainCount(obj) == 0x7FFFFFFFFFFFFFFF
@@ -110,6 +133,9 @@ static oc__font_impl* oc__init_font_impl(CTFontDescriptorRef ct_font) {
         goto exit;
     }
 
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    impl->oc_library = oc_library;
+#endif
     impl->ct_font = ct_font;
     impl->ct_family = ct_family;
     impl->ct_face = ct_face;
@@ -129,6 +155,7 @@ exit:
     return impl;
 }
 
+// todo: clean!
 oc_error ocf_load_fonts(oc_collection* collection) {
     oc_error err = oc_error_ok;
 
@@ -141,6 +168,11 @@ oc_error ocf_load_fonts(oc_collection* collection) {
     uint32_t  nfonts = 0;
 
     oc_collection tmp_collection;
+    const oc_library* oc_library = NULL;
+
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    CFArrayRef ct_fonts2;
+#endif
 
     if (!collection) {
         err = oc_error_invalid_param;
@@ -172,9 +204,13 @@ oc_error ocf_load_fonts(oc_collection* collection) {
         goto exit;
     }
 
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    oc_library = collection->impl->oc_library;
+#endif
+
     for (CFIndex i = 0; i < font_count; i++) {
         CTFontDescriptorRef ct_font = CFArrayGetValueAtIndex(ct_fonts, i);
-        oc__font_impl*      impl = oc__init_font_impl(ct_font);
+        oc__font_impl*      impl = oc__init_font_impl(oc_library, ct_font);
         if (impl == NULL) {
             err = oc_error_out_of_memory;
             goto exit;
@@ -183,11 +219,20 @@ oc_error ocf_load_fonts(oc_collection* collection) {
         fonts[nfonts++] = &impl->font;
     }
 done:
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    ct_fonts2 = ct_fonts;
+#else
     tmp_collection.impl = (oc_collection_impl*)ct_fonts;
+#endif
     tmp_collection.fonts = fonts;
     tmp_collection.nfonts = nfonts;
 
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    ct_fonts = collection->impl->ct_fonts;
+    collection->impl->ct_fonts = ct_fonts2;
+#else
     ct_fonts = (CFArrayRef)collection->impl;
+#endif
     fonts = collection->fonts;
     nfonts = collection->nfonts;
 
@@ -408,32 +453,38 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
 //     return view;
 // }
 
+static uint32_t ocf__font_index(CTFontRef font) {
+    CFNumberRef n = CTFontCopyAttribute(font, CFSTR("NSCTFontIndexAttribute"));
+    if (!n) {
+        return 0;
+    }
+
+    long idx;
+
+    CFNumberGetValue(n, kCFNumberNSIntegerType, &idx);
+    CFRelease(n);
+
+    return (uint32_t)idx;
+}
+
+// todo: zero init face on failure
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     oc__font_impl* impl;
     CFURLRef       url;
 
     CFStringRef path;
-    CFNumberRef index_obj;
 
-    long index;
+    uint32_t index;
     char buf[256];
 
     oc_open_params params;
-
 
     if (!font) {
         return oc_error_invalid_param;
     }
 
     impl = oc__parentof(oc__font_impl, font, font);
-    index_obj = CTFontCopyAttribute(impl->ct_face, CFSTR("NSCTFontIndexAttribute"));
-
-    if (!index_obj) {
-        return oc__unexpected(1);
-    }
-
-    CFNumberGetValue(index_obj, kCFNumberNSIntegerType, &index);
-    CFRelease(index_obj);
+    index = ocf__font_index(impl->ct_face);
 
     url = CTFontDescriptorCopyAttribute(impl->ct_font, kCTFontURLAttribute);
     if (url == NULL) {
