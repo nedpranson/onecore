@@ -5,7 +5,7 @@
 extern oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface);
 
 /* ONECORE_CORETEXT_FINDER_IMPLEMENTATION */
-#include <CoreText/CoreText.h>
+#import <CoreText/CoreText.h>
 
 typedef struct {
     oc_library*         oc_library;
@@ -271,6 +271,11 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
 }
 #elif defined(ONECORE_FREETYPE_LOADER_IMPLEMENTATION)
 // todo (stage 2): handle memory only fonts!
+// when we will implement correct reconstruction function
+// we could use FT_StreamRec to stream data and emulate it
+// just build these ocf__offset_table ocf__table_record
+// give to freetype and forget
+// any other data we track on which tag we are and just give it back
 // typedef struct {
 //     int32_t  sfnt_version;
 //     uint16_t num_tables;
@@ -384,7 +389,7 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
 //             table_size = CFDataGetLength(table);
 //             padded_size = (uint32_t)((table_size + 3) & ~3);
 //
-//             memcpy(offset, CFDataGetBytePtr(table), table_size);
+//             memcpy(offset, CFDataGetBytePtr(table), table_size); // rly slow!
 //
 //             records[i].tag = CFSwapInt32HostToBig(tag);
 //             records[i].checksum = ocf__checksum((uint32_t*)offset, padded_size);

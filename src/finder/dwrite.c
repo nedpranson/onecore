@@ -1,6 +1,12 @@
+#include "src/onecore.h"
+#include "winerror.h"
+#define OC__OVERRIDE_LIBRARY_IMPL
 #define ONECORE_IMPLEMENTATION
 #include "onecore.h"
+#include <ft2build.h>
+#include FT_FREETYPE_H
 
+#include <dwrite.h>
 extern oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_face, oc_26p6 desired_size, uint16_t dpi, oc_face* oface);
 #define ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
 
@@ -388,12 +394,147 @@ exit:
     return err;
 }
 #elif defined(ONECORE_FREETYPE_LOADER_IMPLEMENTATION)
-// todo: get bytes
-// but not sure how to handle memory,
-// who is responsible for freeing it
-// add a field font_data to impl
-// were we can set the pointer
 #endif
+
+static void ocf__stream_close(FT_Stream stream) {
+    IDWriteFontFileStream* dw_stream;
+
+    assert(stream != NULL);
+
+    dw_stream = (IDWriteFontFileStream*)stream->descriptor.pointer;
+    dw_stream->lpVtbl->Release(dw_stream);
+
+    free(stream);
+}
+
+
+static unsigned long ocf__stream_read(
+    FT_Stream       stream,
+    unsigned long   offset,
+    unsigned char*  buffer,
+    unsigned long   count
+) {
+    IDWriteFontFileStream* dw_stream;
+    HRESULT result;
+
+    const void* fragement_start;
+    void* fragement_context;
+
+    assert(stream != NULL);
+
+    if (count == 0) {
+        return 0;
+    }
+
+    dw_stream = (IDWriteFontFileStream*)stream->descriptor.pointer;
+    result = dw_stream->lpVtbl->ReadFileFragment(
+        dw_stream,
+        &fragement_start,
+        offset,
+        count,
+        &fragement_context);
+
+    if (result != S_OK) {
+        return 0;
+    }
+    
+    memcpy(buffer, fragement_start, count);
+    dw_stream->lpVtbl->ReleaseFileFragment(dw_stream, fragement_context);
+
+    return count;
+}
+
+oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
+    oc__font_impl* impl;
+
+    HRESULT  result;
+    oc_error err;
+
+    IDWriteFontFace* dw_face;
+    IDWriteFontFile* dw_file;
+
+    IDWriteFontFileLoader* dw_loader;
+    IDWriteFontFileStream* dw_stream;
+
+    const void* key;
+    UINT32      key_size;
+
+    UINT64 file_size;
+    void*  file_data;
+
+    UINT32  nfiles = 1;
+    oc_face face = { 0 };
+
+    impl = oc__parentof(oc__font_impl, font, font);
+    result = impl->dw_font->lpVtbl->CreateFontFace(impl->dw_font, &dw_face);
+
+    switch (result) {
+    case S_OK:
+        break;
+    case E_OUTOFMEMORY:
+        oc__exit(oc_error_out_of_memory);
+    default:
+        oc__exit(oc__unexpected(result));
+    }
+
+    result = dw_face->lpVtbl->GetFiles(dw_face, &nfiles, &dw_file);
+    dw_face->lpVtbl->Release(dw_face);
+
+    switch (result) {
+    case S_OK:
+        break;
+    case E_OUTOFMEMORY:
+        oc__exit(oc_error_out_of_memory);
+    default:
+        oc__exit(oc__unexpected(result));
+    }
+
+    result = dw_file->lpVtbl->GetReferenceKey(dw_file, &key, &key_size);
+    assert(result == S_OK);
+    
+    result = dw_file->lpVtbl->GetLoader(dw_file, &dw_loader);
+    dw_file->lpVtbl->Release(dw_file);
+
+    assert(result == S_OK);
+
+    result = dw_loader->lpVtbl->CreateStreamFromKey(dw_loader, key, key_size, &dw_stream);
+    dw_loader->lpVtbl->Release(dw_loader);
+
+    switch (result) {
+    case S_OK:
+        break;
+    case E_OUTOFMEMORY:
+        oc__exit(oc_error_out_of_memory);
+    default:
+        oc__exit(oc__unexpected(result));
+    }
+
+    result = dw_stream->lpVtbl->GetFileSize(dw_stream, &file_size);
+    if (result != S_OK) {
+        dw_stream->lpVtbl->Release(dw_stream);
+        oc__exit(oc__unexpected(result));
+    }
+
+    FT_Open_Args args = { 0 };
+    FT_Stream stream = calloc(1, sizeof(*stream));
+
+    stream->descriptor.pointer = dw_stream;
+    stream->read = &ocf__stream_read;
+    stream->close = &ocf__stream_close;
+    stream->size = (unsigned long)file_size;
+
+    args.flags = FT_OPEN_STREAM;
+    args.stream = stream;
+
+    // not sure how face indexes will work
+    FT_Open_Face(NULL, &args, 0, NULL);
+
+    // tood: use FT_StreamRec
+
+exit:
+    *oface = face;
+    return err;
+}
 
 size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
     oc__font_impl* impl;
