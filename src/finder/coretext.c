@@ -40,7 +40,7 @@ oc_error ocf_init_collection(const oc_library* library, oc_collection* ocollecti
         goto exit;
     }
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
-    collection.impl = malloc(sizeof(*collection.impl));
+    collection.impl = calloc(1, sizeof(oc_collection_impl));
     if (!collection.impl) {
         err = oc_error_out_of_memory;
         goto exit;
