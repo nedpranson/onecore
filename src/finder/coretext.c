@@ -242,7 +242,7 @@ bool ocf_has_character(const oc_font* font, uint32_t charcode) {
     return glyphs[0];
 }
 
-#if defined(ONECORE_CORETEXT_LOADER_IMPLEMENTATION)
+#ifdef ONECORE_CORETEXT_LOADER_IMPLEMENTATION
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     oc__font_impl* impl;
     oc_error       err;
@@ -269,7 +269,7 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
 
     return err;
 }
-#elif defined(ONECORE_FREETYPE_LOADER_IMPLEMENTATION)
+#else
 // todo (stage 2): handle memory only fonts!
 // when we will implement correct reconstruction function
 // we could use FT_StreamRec to stream data and emulate it
@@ -415,12 +415,11 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     CFStringRef path;
     CFNumberRef index_obj;
 
-    long   index;
-    size_t copy_len;
+    long index;
+    char buf[256];
 
     oc_open_params params;
 
-    char buf[256];
 
     if (!font) {
         return oc_error_invalid_param;
@@ -451,6 +450,7 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     CFStringGetCString(path, buf, sizeof(buf), kCFStringEncodingUTF8);
     CFRelease(path);
 
+    // todo: freetype indexes have more depth bla bla bla!
     params.face_index = (uint32_t)index;
     params.desired_size = desired_size;
     params.dpi = dpi;

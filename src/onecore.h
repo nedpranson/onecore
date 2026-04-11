@@ -384,8 +384,8 @@ oc_div_16p16(oc_16p16 a, oc_16p16 b);
 
 #ifdef ONECORE_IMPLEMENTATION
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
-#include <stdlib.h> 
 
 #ifdef NDEBUG
 #define oc__unexpected(e) oc_error_unexpected
