@@ -1,3 +1,4 @@
+#include <stdint.h>
 #define ONECORE_IMPLEMENTATION
 #define ONECORE_FREETYPE_LOADER_IMPLEMENTATION
 #include "onecore.h"
@@ -220,6 +221,7 @@ oc_error ocf_load_fonts(oc_collection* collection) {
         fonts[nfonts++] = &impl->font;
     }
 done:
+// todo: clean this shi up
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
     ct_fonts2 = ct_fonts;
 #else
@@ -229,15 +231,18 @@ done:
     tmp_collection.nfonts = nfonts;
 
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
-    ct_fonts = collection->impl->ct_fonts;
-    collection->impl->ct_fonts = ct_fonts2;
+    ct_fonts2 = collection->impl->ct_fonts;
 #else
     ct_fonts = (CFArrayRef)collection->impl;
 #endif
     fonts = collection->fonts;
     nfonts = collection->nfonts;
-
-    *collection = tmp_collection;
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    tmp_collection.impl = collection->impl;
+    collection->impl->ct_fonts = ct_fonts;
+    ct_fonts = ct_fonts2;
+#endif
+    *collection = tmp_collection; 
 exit:
     while (nfonts--)
         oc__free_font_impl(fonts[nfonts]);
@@ -322,20 +327,81 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
 // just build these ocf__offset_table ocf__table_record
 // give to freetype and forget
 // any other data we track on which tag we are and just give it back
-// typedef struct {
-//     int32_t  sfnt_version;
-//     uint16_t num_tables;
-//     uint16_t search_range;
-//     uint16_t entry_selector;
-//     uint16_t range_shift;
-// } ocf__offset_table;
-//
-// typedef struct {
-//     uint32_t tag;
-//     uint32_t checksum;
-//     uint32_t offset;
-//     uint32_t length;
-// } ocf__table_record;
+typedef struct {
+    int32_t  sfnt_version;
+    uint16_t num_tables;
+    uint16_t search_range;
+    uint16_t entry_selector;
+    uint16_t range_shift;
+} ocf__offset_table;
+
+typedef struct {
+    uint32_t tag;
+    uint32_t checksum;
+    uint32_t offset;
+    uint32_t length;
+} ocf__table_record;
+
+static void* ocf__make_head(CGFontRef cg_font, CFArrayRef tags, uint32_t* size) {
+    CFIndex ntags;
+
+    uint32_t file_size;
+    uint32_t head_size;
+
+    bool  cff = false;
+    void* head_data;
+
+    ocf__offset_table* table;
+    ocf__table_record* records;
+
+    assert(cg_font != NULL);
+    assert(tags != NULL);
+
+    ntags = CFArrayGetCount(tags);
+    assert(0 < ntags && ntags <= UINT16_MAX);
+
+    head_size = sizeof(ocf__offset_table) + sizeof(ocf__table_record) * ntags;
+    head_data = malloc(head_size);
+
+    if (!head_data) {
+        return NULL;
+    }
+
+    table = head_data;
+    records = head_data + sizeof(ocf__offset_table);
+
+    file_size = head_size;
+    for (CFIndex i = 0; i < ntags; i++) {
+        uint32_t tag = (uint32_t)(uintptr_t)CFArrayGetValueAtIndex(tags, i);
+
+        CFDataRef table = CGFontCopyTableForTag(cg_font, tag);
+        CFIndex   table_length = CFDataGetLength(table);
+
+        ocf__table_record* record = records + i;
+
+        if (tag == 'CFF ') {
+            cff = true;
+        }
+
+        record->tag = CFSwapInt32HostToBig(tag);
+        record->checksum = 0;
+        record->offset = CFSwapInt32HostToBig(file_size);
+        record->length = CFSwapInt32HostToBig((uint32_t)table_length);
+
+        file_size += (table_length + 3) & ~3;
+        CFRelease(table);
+    }
+
+    table->sfnt_version = cff ? 'OTTO' : CFSwapInt32HostToBig(0x10000);
+    table->num_tables = CFSwapInt16HostToBig((uint16_t)ntags);
+    table->search_range = 0;
+    table->entry_selector = 0;
+    table->range_shift = 0;
+
+    *size = file_size;
+    return head_data;
+}
+
 //
 //
 // typedef struct {
@@ -454,60 +520,112 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
 //     return view;
 // }
 
-static uint32_t ocf__font_index(CTFontRef font) {
-    CFNumberRef n = CTFontCopyAttribute(font, CFSTR("NSCTFontIndexAttribute"));
-    if (!n) {
+
+
+static unsigned long ocf__stream_read(
+    FT_Stream      stream,
+    unsigned long  offset,
+    unsigned char* buffer,
+    unsigned long  count) 
+{
+    ocf__offset_table* table;
+    ocf__table_record* records;
+
+    uint16_t ntags;
+
+    void*    ptr;
+    uint32_t len;
+
+    uint32_t head_size;
+
+    CFDataRef ct_table = NULL;
+    
+    assert(stream != NULL);
+    assert(stream->size >= offset && stream->size - offset >= count);
+
+    if (count == 0) {
         return 0;
     }
 
-    long idx;
+    // CFArrayRef tags
+    // void*      head
+    //dw_stream = (IDWriteFontFileStream*)stream->descriptor.pointer;
 
-    CFNumberGetValue(n, kCFNumberNSIntegerType, &idx);
-    CFRelease(n);
+    head_size = sizeof(*table) + sizeof(*records) * ntags;
+    if (head_size >= offset) {
+        ptr = NULL;
+        len = head_size - offset;
+    } else {
+        uint16_t lo = 0;
+        uint16_t hi = ntags;
 
-    return (uint32_t)idx;
+
+        while (lo < hi) {
+            uint16_t mid = lo + (hi - lo) >> 1;
+            if (records[mid].offset < offset) {
+                lo = mid + 1;
+            } else {
+                hi - mid;
+            }
+        }
+
+        assert(lo != ntags);
+
+        ct_table = CGFontCopyTableForTag(cg_font, CFSwapInt32BigToHost(tag));
+
+        ptr = CFDataGetBytePtr(ct_table);
+        len = CFDataGetLength(ct_table);
+
+    }
+
+    memcpy(buffer, ptr, OC__MIN(count, len));
+    if (ct_table) CFRelease(ct_table);
+
+    return OC__MIN(count, len);
 }
 
-// todo: zero init face on failure
 oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
     oc__font_impl* impl;
-    CFURLRef       url;
 
-    CFStringRef path;
+    CGFontRef  cg_font;
+    CFArrayRef tags
 
-    uint32_t index;
-    char buf[256];
+    oc_face face = { 0 };
+    oc_error err = oc_error_ok;
 
-    oc_open_params params;
+    void*    file_head;
+    uint32_t file_size;
 
     if (!font) {
         return oc_error_invalid_param;
     }
 
     impl = oc__parentof(oc__font_impl, font, font);
-    index = ocf__font_index(impl->ct_face);
+    assert(impl->ct_face != NULL); // todo: add these types asserts everywhere
 
-    url = CTFontDescriptorCopyAttribute(impl->ct_font, kCTFontURLAttribute);
-    if (url == NULL) {
-        return oc__unexpected(1);
+    cg_font = CTFontCopyGraphicsFont(impl->ct_face, NULL);
+    if (!cg_font) {
+        oc__exit(oc_error_out_of_memory);
     }
 
-    path = CFURLCopyFileSystemPath(url, kCFURLPOSIXPathStyle);
-    CFRelease(url);
-
-    if (path == NULL) {
-        return oc_error_out_of_memory;
+    tags = CGFontCopyTableTags(cg_font);
+    if (!tags) {
+        CFRelease(cg_font);
+        oc__exit(oc_error_out_of_memory);
     }
 
-    CFStringGetCString(path, buf, sizeof(buf), kCFStringEncodingUTF8);
-    CFRelease(path);
+    file_head = ocf__make_head(cg_font, tags, &file_size);
+    if (!file_head) {
+        CFRelease(tags);
+        CFRelease(cg_font);
+        oc__exit(oc_error_out_of_memory);
+    }
 
-    // todo: freetype indexes have more depth bla bla bla!
-    params.face_index = (uint32_t)index;
-    params.desired_size = desired_size;
-    params.dpi = dpi;
+    
 
-    return ocl_open_face(impl->oc_library, buf, &params, oface);
+exit:
+    *oface = face;
+    return err;
 }
 #endif
 
