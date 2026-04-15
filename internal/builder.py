@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 import pathlib
 
-output_path = pathlib.Path("onecore.h")
+output_path = pathlib.Path("../onecore.h")
 source_dir = pathlib.Path("src")
 
-onecore_h = source_dir / "onecore.h"
+onecore_h = (source_dir / "onecore.h").resolve()
 
 sources = [
     (source_dir / "loader/freetype.c", "ONECORE_FREETYPE_LOADER_IMPLEMENTATION"),

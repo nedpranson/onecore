@@ -135,7 +135,7 @@ pub fn build(b: *std.Build) void {
     lib_tests.root_module.addCSourceFile(.{ .file = unity.path("src/unity.c") });
 
     lib_tests.root_module.addIncludePath(b.path("test/src"));
-    lib_tests.root_module.addIncludePath(b.path(""));
+    lib_tests.root_module.addIncludePath(b.path("../"));
 
     lib_tests.root_module.addCSourceFile(.{
         .file = b.path("test/src/main.c"),
@@ -177,7 +177,7 @@ pub fn build(b: *std.Build) void {
     }
 
     example.root_module.addIncludePath(b.path("examples"));
-    example.root_module.addIncludePath(b.path(""));
+    example.root_module.addIncludePath(b.path("../"));
 
     example.root_module.addCSourceFile(.{ .file = b.path("examples/render_to_image.c") });
 

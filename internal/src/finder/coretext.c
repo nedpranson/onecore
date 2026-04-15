@@ -520,7 +520,17 @@ static void* ocf__make_head(CGFontRef cg_font, CFArrayRef tags, uint32_t* size) 
 //     return view;
 // }
 
+typedef struct {
+    CGFontRef font;
+    void*     head;
+} ocf__context;
 
+static void ocf__stream_close(FT_Stream stream) {
+    const ocf__context* context = stream->descriptor.pointer;
+
+    free(context->head);
+    CFRelease(context->font);
+}
 
 static unsigned long ocf__stream_read(
     FT_Stream      stream,
@@ -528,13 +538,15 @@ static unsigned long ocf__stream_read(
     unsigned char* buffer,
     unsigned long  count) 
 {
-    ocf__offset_table* table;
-    ocf__table_record* records;
+    const ocf__context* context;
+
+    const ocf__offset_table* table;
+    const ocf__table_record* records;
 
     uint16_t ntags;
 
-    void*    ptr;
-    uint32_t len;
+    const void* ptr;
+    uint32_t    len;
 
     uint32_t head_size;
 
@@ -547,11 +559,14 @@ static unsigned long ocf__stream_read(
         return 0;
     }
 
-    // CFArrayRef tags
-    // void*      head
-    //dw_stream = (IDWriteFontFileStream*)stream->descriptor.pointer;
+    context = stream->descriptor.pointer;
 
+    table = context->head;
+    records = context->head + sizeof(ocf__offset_table);
+
+    ntags = CFSwapInt16BigToHost(table->num_tables);
     head_size = sizeof(*table) + sizeof(*records) * ntags;
+
     if (head_size >= offset) {
         ptr = NULL;
         len = head_size - offset;
@@ -559,23 +574,21 @@ static unsigned long ocf__stream_read(
         uint16_t lo = 0;
         uint16_t hi = ntags;
 
-
         while (lo < hi) {
-            uint16_t mid = lo + (hi - lo) >> 1;
+            uint16_t mid = lo + ((hi - lo) >> 1);
             if (records[mid].offset < offset) {
                 lo = mid + 1;
             } else {
-                hi - mid;
+                hi = mid;
             }
         }
 
         assert(lo != ntags);
 
-        ct_table = CGFontCopyTableForTag(cg_font, CFSwapInt32BigToHost(tag));
+        ct_table = CGFontCopyTableForTag(context->font, CFSwapInt32BigToHost(records[lo].tag));
 
         ptr = CFDataGetBytePtr(ct_table);
         len = CFDataGetLength(ct_table);
-
     }
 
     memcpy(buffer, ptr, OC__MIN(count, len));
@@ -588,7 +601,7 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     oc__font_impl* impl;
 
     CGFontRef  cg_font;
-    CFArrayRef tags
+    CFArrayRef tags;
 
     oc_face face = { 0 };
     oc_error err = oc_error_ok;
@@ -596,9 +609,20 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     void*    file_head;
     uint32_t file_size;
 
+    ocf__context* context;
+
+    FT_Open_Args args = { 0 };
+    FT_Stream    stream;
+
+    FT_Face  ft_face;
+    FT_Error ft_err;
+
     if (!font) {
         return oc_error_invalid_param;
     }
+
+    (void)desired_size;
+    (void)dpi;
 
     impl = oc__parentof(oc__font_impl, font, font);
     assert(impl->ct_face != NULL); // todo: add these types asserts everywhere
@@ -615,14 +639,53 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     }
 
     file_head = ocf__make_head(cg_font, tags, &file_size);
+    CFRelease(tags);
+
     if (!file_head) {
-        CFRelease(tags);
         CFRelease(cg_font);
         oc__exit(oc_error_out_of_memory);
     }
 
-    
+    context = malloc(sizeof(*context));
+    if (!context) {
+        CFRelease(cg_font);
+        oc__exit(oc_error_out_of_memory);
+    }
 
+    context->font = cg_font;
+    context->head = file_head;
+
+    stream = calloc(1, sizeof(*stream));
+    if (!stream) {
+        free(file_head);
+        CFRelease(cg_font);
+        oc__exit(oc_error_out_of_memory);
+    }
+
+    stream->descriptor.pointer = context;
+    stream->read = &ocf__stream_read;
+    stream->close = &ocf__stream_close;
+    stream->size = file_size;
+
+    args.flags = FT_OPEN_STREAM;
+    args.stream = stream;
+
+    ft_err = FT_Open_Face((FT_Library)impl->oc_library, &args, 0, &ft_face);
+    switch (ft_err) {
+    case FT_Err_Ok:
+        break;
+    case FT_Err_Out_Of_Memory:
+        oc__exit(oc_error_out_of_memory);
+    case FT_Err_Invalid_File_Format:
+    case FT_Err_Unknown_File_Format:
+    case FT_Err_Invalid_Stream_Operation:
+        oc__exit(oc_error_failed_to_open);
+    default:
+        oc__exit(oc__unexpected(ft_err));
+    }
+
+    printf("did not err!\n");
+    FT_Done_Face(ft_face);
 exit:
     *oface = face;
     return err;
