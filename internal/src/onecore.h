@@ -23,6 +23,8 @@ typedef int32_t  oc_26p6;
 #define OC_LOAD_NO_FITTING (1l << 4) /* disable grid-fitting for 26.6 pixels */
 
 // todo: handle FT_Err_Invalid_Table
+// todo: make so if a person is lazy to handle errors
+//       every func should just noop and never crash
 
 #define OC_ERROR_LIST                                      \
     X(oc_error_ok, "no error")                             \

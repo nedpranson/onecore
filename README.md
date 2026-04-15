@@ -30,11 +30,24 @@ void example() {
     ocf_init_collection(&lib, &col);
     ocf_load_fonts(&col);
 
-     
+    // sort font descriptors
+    qsort(col.fonts, col.nfonts, sizeof(oc_font*), compr);
 
+    oc_face face;
+    ocf_open_font(col.fonts[0], 0, 0, &face);
+
+    uint16_t idx = ocl_get_char_index(&face, 'j');
+
+    oc_glyph_metrics* m;
+    ocl_get_glyph_metrics(&face, idx, OC_LOAD_DEFAULT, &m);
+
+    printf("w: %d, h: %d, bx: %d, by: %d, adv: %d\n",
+        m.width, m.height, m.bearing_x, m.bearing_y, m.advance);
+
+    ocl_free_face(&face);
     ocf_free_collection(&col);
     oc_free_library(&lib);
 }
 ```
 
-// for more docs read the sourcef file
+For more details, take a look directly at [onecore.h](https://github.com/nedpranson/onecore/blob/master/onecore.h).

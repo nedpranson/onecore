@@ -11,7 +11,7 @@ extern oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_si
 
 typedef struct {
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
-    const oc_library*         oc_library;
+    const oc_library* oc_library;
 #endif
     CTFontDescriptorRef ct_font;
     CTFontRef           ct_face;
@@ -22,7 +22,7 @@ typedef struct {
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
 struct oc_collection_impl {
     const oc_library* oc_library;
-    CFArrayRef ct_fonts;
+    CFArrayRef        ct_fonts;
 };
 #endif
 
@@ -170,7 +170,7 @@ oc_error ocf_load_fonts(oc_collection* collection) {
     oc_font** fonts = NULL;
     uint32_t  nfonts = 0;
 
-    oc_collection tmp_collection;
+    oc_collection     tmp_collection;
     const oc_library* oc_library = NULL;
 
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
@@ -243,7 +243,7 @@ done:
     collection->impl->ct_fonts = ct_fonts;
     ct_fonts = ct_fonts2;
 #endif
-    *collection = tmp_collection; 
+    *collection = tmp_collection;
 exit:
     while (nfonts--)
         oc__free_font_impl(fonts[nfonts]);
@@ -537,8 +537,7 @@ static unsigned long ocf__stream_read(
     FT_Stream      stream,
     unsigned long  offset,
     unsigned char* buffer,
-    unsigned long  count) 
-{
+    unsigned long  count) {
     const ocf__context* context;
 
     const ocf__offset_table* table;
@@ -552,7 +551,7 @@ static unsigned long ocf__stream_read(
     uint32_t head_size;
 
     CFDataRef ct_table = NULL;
-    
+
     assert(stream != NULL);
     assert(stream->size >= offset && stream->size - offset >= count);
 
@@ -593,7 +592,8 @@ static unsigned long ocf__stream_read(
     }
 
     memcpy(buffer, ptr, OC__MIN(count, len));
-    if (ct_table) CFRelease(ct_table);
+    if (ct_table)
+        CFRelease(ct_table);
 
     return OC__MIN(count, len);
 }
@@ -604,7 +604,7 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     CGFontRef  cg_font;
     CFArrayRef tags;
 
-    oc_face face = { 0 };
+    oc_face  face = { 0 };
     oc_error err = oc_error_ok;
 
     void*    file_head;
