@@ -1,3 +1,4 @@
+#include "freetype/freetype.h"
 #include <stdint.h>
 #define ONECORE_IMPLEMENTATION
 #define ONECORE_FREETYPE_LOADER_IMPLEMENTATION
@@ -568,7 +569,7 @@ static unsigned long ocf__stream_read(
     head_size = sizeof(*table) + sizeof(*records) * ntags;
 
     if (head_size >= offset) {
-        ptr = NULL;
+        ptr = context->head + offset;
         len = head_size - offset;
     } else {
         uint16_t lo = 0;
@@ -576,7 +577,7 @@ static unsigned long ocf__stream_read(
 
         while (lo < hi) {
             uint16_t mid = lo + ((hi - lo) >> 1);
-            if (records[mid].offset < offset) {
+            if (CFSwapInt32BigToHost(records[mid].offset) < offset) {
                 lo = mid + 1;
             } else {
                 hi = mid;
@@ -617,12 +618,11 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     FT_Face  ft_face;
     FT_Error ft_err;
 
+    oc_open_params params;
+
     if (!font) {
         return oc_error_invalid_param;
     }
-
-    (void)desired_size;
-    (void)dpi;
 
     impl = oc__parentof(oc__font_impl, font, font);
     assert(impl->ct_face != NULL); // todo: add these types asserts everywhere
@@ -684,8 +684,16 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
         oc__exit(oc__unexpected(ft_err));
     }
 
-    printf("did not err!\n");
-    FT_Done_Face(ft_face);
+    params.face_index = 0;
+    params.desired_size = desired_size;
+    params.dpi = dpi;
+
+    params = oc__open_params_defaults(&params);
+    err = oc__init_face(ft_face, &params, &face);
+
+    if (err != oc_error_ok) {
+        FT_Done_Face(ft_face);
+    }
 exit:
     *oface = face;
     return err;

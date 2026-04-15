@@ -22,6 +22,8 @@ typedef int32_t  oc_26p6;
 // #define OC_LOAD_COLOR (1l << 3)
 #define OC_LOAD_NO_FITTING (1l << 4) /* disable grid-fitting for 26.6 pixels */
 
+// todo: handle FT_Err_Invalid_Table
+
 #define OC_ERROR_LIST                                      \
     X(oc_error_ok, "no error")                             \
     X(oc_error_invalid_param, "invalid parameter")         \
