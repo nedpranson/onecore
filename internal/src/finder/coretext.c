@@ -321,7 +321,7 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
 
     return err;
 }
-#else
+#elif defined(ONECORE_FREETYPE_LOADER_IMPLEMENTATION)
 // todo (stage 2): handle memory only fonts!
 // when we will implement correct reconstruction function
 // we could use FT_StreamRec to stream data and emulate it
@@ -402,124 +402,6 @@ static void* ocf__make_head(CGFontRef cg_font, CFArrayRef tags, uint32_t* size) 
     *size = file_size;
     return head_data;
 }
-
-//
-//
-// typedef struct {
-//     size_t size;
-//     void*  data;
-// } ocf__memory_view;
-//
-// static uint32_t ocf__checksum(const uint32_t* table, uint32_t padded_size) {
-//     uint32_t sum = 0;
-//     padded_size >>= 2;
-//
-//     while (padded_size--) {
-//         sum += CFSwapInt32HostToBig(*table++);
-//     }
-//     return sum;
-// }
-//
-// // https://gist.github.com/netmaid/dd524da6a8b893c3f9fdf8cd52d1816b
-// // todo (stage 2): test endian
-// // this impl is slow did not test why, but my guess is calculating checksum without simd is expensive
-// // and calloc is expensive as we need to zero out memory faster would be to just set those padded pixels to 0 when needed
-// static ocf__memory_view ocf__extract_font_data(CGFontRef cg_font) {
-//     CFArrayRef tags;
-//     CFIndex ntables;
-//
-//     size_t size;
-//     void*  data;
-//
-//     ocf__memory_view view = { 0 };
-//
-//     bool cff = false;
-//
-//     assert(cg_font != NULL);
-//
-//     tags = CGFontCopyTableTags(cg_font);
-//     if (!tags) {
-//         return view;
-//     }
-//
-//     ntables = CFArrayGetCount(tags);
-//     size = sizeof(ocf__offset_table) + sizeof(ocf__table_record) * ntables;
-//
-//     assert(UINT16_MAX > ntables);
-//
-//     for (CFIndex i = 0; i < ntables; i++) {
-//         uint32_t tag;
-//         CFDataRef table;
-//
-//         tag = (uint32_t)(uintptr_t)CFArrayGetValueAtIndex(tags, i);
-//         if (tag == 'CFF ') {
-//             cff = true;
-//         }
-//
-//         table = CGFontCopyTableForTag(cg_font, tag);
-//         assert(table != NULL);
-//
-//         size += (CFDataGetLength(table) + 3) & ~3;
-//         CFRelease(table);
-//     }
-//
-//     data = calloc(1, size);
-//     if (data) {
-//         uint16_t search_range = 1;
-//         uint16_t entry_selector = 0;
-//
-//         ocf__offset_table* table = data;
-//         ocf__table_record* records = data + sizeof(ocf__offset_table);
-//
-//         void* offset = data + sizeof(ocf__offset_table) + sizeof(ocf__table_record) * ntables;
-//
-//         while (search_range * 2 <= ntables) {
-//             search_range *= 2;
-//             entry_selector++;
-//         }
-//
-//         table->sfnt_version = cff ? 'OTTO' : CFSwapInt32HostToBig(0x10000);
-//         table->num_tables = CFSwapInt16HostToBig((uint16_t)ntables);
-//         table->search_range = CFSwapInt16HostToBig(search_range * 16);
-//         table->entry_selector = CFSwapInt16HostToBig(entry_selector);
-//
-//         if (search_range * 16 >= 256) {
-//             table->range_shift = CFSwapInt16HostToBig(ntables * 16 - search_range);
-//         } else {
-//             table->range_shift = CFSwapInt16HostToBig(ntables * 16 - search_range * 16);
-//         }
-//
-//         for (CFIndex i = 0; i < ntables; i++) {
-//             uint32_t tag = (uint32_t)(uintptr_t)CFArrayGetValueAtIndex(tags, i);
-//
-//             CFDataRef table = CGFontCopyTableForTag(cg_font, tag);
-//             CFIndex   table_size;
-//
-//             uint32_t padded_size;
-//
-//             assert(table != NULL);
-//
-//             table_size = CFDataGetLength(table);
-//             padded_size = (uint32_t)((table_size + 3) & ~3);
-//
-//             memcpy(offset, CFDataGetBytePtr(table), table_size); // rly slow!
-//
-//             records[i].tag = CFSwapInt32HostToBig(tag);
-//             records[i].checksum = ocf__checksum((uint32_t*)offset, padded_size);
-//             records[i].offset = CFSwapInt32HostToBig((uint32_t)(uintptr_t)(offset - data));
-//             records[i].length = (uint32_t)table_size;
-//
-//             offset += padded_size;
-//             CFRelease(table);
-//         }
-//     }
-//
-//     view.size = size;
-//     view.data = data;
-//
-//     CFRelease(tags);
-//     return view;
-// }
 
 typedef struct {
     CGFontRef font;
