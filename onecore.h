@@ -2081,7 +2081,7 @@ exit:
 #endif /* ONECORE_CORETEXT_LOADER_IMPLEMENTATION */
 
 #ifdef ONECORE_CORETEXT_FINDER_IMPLEMENTATION
-#import <CoreText/CoreText.h>
+#include <CoreText/CoreText.h>
 
 typedef struct {
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
@@ -2803,7 +2803,7 @@ OC__IDWriteFontFileStream_ReadFileFragment(
         return E_FAIL;
     }
 
-    *fragment_start = this->memory_view.data + offset;
+    *fragment_start = (uint8_t*)this->memory_view.data + offset;
     return S_OK;
 }
 
@@ -3002,7 +3002,7 @@ static void STDMETHODCALLTYPE
 OC__ID2D1SimplifiedGeometrySink_SetFillMode(ID2D1SimplifiedGeometrySink* This, D2D1_FILL_MODE fillMode) {
     (void)This;
     (void)fillMode;
-};
+}
 
 static ULONG STDMETHODCALLTYPE
 OC__ID2D1SimplifiedGeometrySink_Release(IUnknown* This) {
@@ -3386,7 +3386,7 @@ oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, vo
     if (length == 0) {
         *size = table_size;
     } else {
-        memcpy(data, table_data + offset, length);
+        memcpy(data, (uint8_t*)table_data + offset, length);
     }
 
     dw_face->lpVtbl->ReleaseFontTable(dw_face, context);
