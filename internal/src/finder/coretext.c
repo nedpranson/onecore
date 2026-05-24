@@ -7,7 +7,7 @@
 extern oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface);
 
 /* ONECORE_CORETEXT_FINDER_IMPLEMENTATION */
-#import <CoreText/CoreText.h>
+#include <CoreText/CoreText.h>
 
 typedef struct {
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION

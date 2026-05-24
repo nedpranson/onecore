@@ -143,6 +143,8 @@ pub fn build(b: *std.Build) void {
             "-Wall",
             "-Wextra",
             "-Werror",
+            "-Wpedantic",
+            "-pedantic",
             "-std=c99",
         },
     });
