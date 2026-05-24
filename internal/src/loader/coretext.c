@@ -536,13 +536,6 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
         goto exit;
     }
 
-    // todo: try to clear buffer after creating context
-    if (pitch == extent.cols) {
-        memset(buffer, 0, (size_t)extent.rows * (size_t)extent.cols);
-    } else for (uint32_t y = 0; y < extent.rows; y++) {
-        memset(buffer + y * pitch, 0, extent.cols);
-    }
-
     context = CGBitmapContextCreate(
         buffer,
         extent.cols,
@@ -550,12 +543,19 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
         8,
         pitch,
         linear_gray,
-        kCGImageAlphaOnly);
+        kCGImageAlphaNone);
     CGColorSpaceRelease(linear_gray);
 
     if (context == NULL) {
         err = oc_error_out_of_memory;
         goto exit;
+    }
+
+    // todo: try to clear buffer after creating context
+    if (pitch == extent.cols) {
+        memset(buffer, 0, (size_t)extent.rows * (size_t)extent.cols);
+    } else for (uint32_t y = 0; y < extent.rows; y++) {
+        memset(buffer + y * pitch, 0, extent.cols);
     }
 
     rect.origin.x = 0;

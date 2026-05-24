@@ -950,7 +950,7 @@ void test_ocl_render_glyph(void) {
     int ramp_len = strlen(ramp);
 
     for (size_t y = 0; y < 12; y++) {
-        for (size_t x = 64; x < 64 + 12; x++) {
+        for (size_t x = 64; x < 64 + 10; x++) {
             int idx = (canvas[y * 128 + x] * (ramp_len - 1)) / 255;
             printf("%c%c", ramp[idx], ramp[idx]);
         }
