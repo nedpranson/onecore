@@ -56,7 +56,6 @@ typedef int32_t  oc_26p6;
     X(oc_error_table_missing, "table is missing")          \
     X(oc_error_out_of_memory, "out of memory")             \
     X(oc_error_failed_to_open, "failed to open")           \
-    X(oc_error_insufficient_buffer, "insufficient buffer") \
     X(oc_error_invalid_pixel_size, "invalid pixel size")   \
     X(oc_error_unexpected, "unexpected error")
 
@@ -310,7 +309,6 @@ ocl_get_glyph_cbox(
 // roadmap:
 // dwrite and coretext knows how to draw bezier curves hence theoretically hinting can be achieved with manual shapes rasterization,
 // essentially onecore would become freetype, but with native font file parsing and rendering engine
-
 /*
  * Rasterizes a glyph into the pixel buffer.
  *
@@ -323,7 +321,7 @@ ocl_render_glyph(
     uint16_t       index,
     oc_extent*     oextent,
     uint8_t*       buffer,
-    size_t         buffer_size);
+    size_t         pitch);
 
 // todo (stage 2): add hori kerning support
 // OCDEF oc_26p6

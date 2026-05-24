@@ -56,7 +56,6 @@ typedef int32_t  oc_26p6;
     X(oc_error_table_missing, "table is missing")          \
     X(oc_error_out_of_memory, "out of memory")             \
     X(oc_error_failed_to_open, "failed to open")           \
-    X(oc_error_insufficient_buffer, "insufficient buffer") \
     X(oc_error_invalid_pixel_size, "invalid pixel size")   \
     X(oc_error_unexpected, "unexpected error")
 
@@ -310,7 +309,6 @@ ocl_get_glyph_cbox(
 // roadmap:
 // dwrite and coretext knows how to draw bezier curves hence theoretically hinting can be achieved with manual shapes rasterization,
 // essentially onecore would become freetype, but with native font file parsing and rendering engine
-
 /*
  * Rasterizes a glyph into the pixel buffer.
  *
@@ -323,7 +321,7 @@ ocl_render_glyph(
     uint16_t       index,
     oc_extent*     oextent,
     uint8_t*       buffer,
-    size_t         buffer_size);
+    size_t         pitch);
 
 // todo (stage 2): add hori kerning support
 // OCDEF oc_26p6
@@ -1092,7 +1090,7 @@ exit:
     return false;
 }
 
-oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
+oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {
     FT_Face           ft_face;
     oc__mutex_impl_t* lock;
     FT_Error          ft_err;
@@ -1100,8 +1098,6 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
     FT_Glyph          ft_glyph = NULL;
     oc_error          err = oc_error_ok;
     oc_extent         extent = { 0 };
-
-    size_t length;
 
     if (!(face && oextent)) {
         oc__exit(oc_error_invalid_param);
@@ -1140,11 +1136,6 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
         oc__exit_critical(oc_error_ok);
     }
 
-    length = (size_t)extent.rows * (size_t)extent.cols;
-    if (buffer_size < length) {
-        oc__exit_critical(oc_error_insufficient_buffer);
-    }
-
     ft_err = FT_Get_Glyph(ft_face->glyph, &ft_glyph);
     oc__mutex_impl_unlock(lock);
 
@@ -1166,8 +1157,11 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
     assert(((FT_BitmapGlyph)ft_glyph)->bitmap.width == extent.cols);
     assert((FT_UInt)((FT_BitmapGlyph)ft_glyph)->bitmap.pitch == extent.cols);
 
-    memcpy(buffer, ((FT_BitmapGlyph)ft_glyph)->bitmap.buffer, length);
-
+    if (extent.cols == pitch) {
+        memcpy(buffer, ((FT_BitmapGlyph)ft_glyph)->bitmap.buffer, (size_t)extent.rows * (size_t)extent.cols);
+    } else for (uint32_t y = 0; y < extent.rows; y++) {
+        memcpy(buffer + y * pitch, ((FT_BitmapGlyph)ft_glyph)->bitmap.buffer + y * extent.cols, extent.cols);
+    }
 exit:
     if (ft_glyph)
         FT_Done_Glyph(ft_glyph);
@@ -1959,7 +1953,7 @@ bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs
     return true;
 }
 
-oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
+oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {
     oc_error err = oc_error_ok;
 
     CTFontRef ct_font;
@@ -1974,7 +1968,6 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
     CGPoint         pos;
 
     oc_extent extent = { 0 };
-    size_t    length;
 
     if (!(face && oextent)) {
         err = oc_error_invalid_param;
@@ -2012,26 +2005,25 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
         goto exit;
     }
 
-    length = (size_t)extent.rows * (size_t)extent.cols;
-    if (buffer_size < length) {
-        err = oc_error_insufficient_buffer;
-        goto exit;
-    }
-
     linear_gray = CGColorSpaceCreateWithName(kCGColorSpaceLinearGray);
     if (linear_gray == NULL) {
         err = oc_error_out_of_memory;
         goto exit;
     }
 
-    memset(buffer, 0, length);
+    // todo: try to clear buffer after creating context
+    if (pitch == extent.cols) {
+        memset(buffer, 0, (size_t)extent.rows * (size_t)extent.cols);
+    } else for (uint32_t y = 0; y < extent.rows; y++) {
+        memset(buffer + y * pitch, 0, extent.cols);
+    }
 
     context = CGBitmapContextCreate(
         buffer,
         extent.cols,
         extent.rows,
         8,
-        extent.cols,
+        pitch,
         linear_gray,
         kCGImageAlphaOnly);
     CGColorSpaceRelease(linear_gray);
@@ -3538,7 +3530,7 @@ bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs
     return true;
 }
 
-oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
+oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {
     oc_error err = oc_error_ok;
     HRESULT  dw_err = S_OK;
 
@@ -3595,11 +3587,6 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
         goto exit;
     }
 
-    length = (size_t)extent.rows * (size_t)extent.cols;
-    if (buffer_size < length) {
-        oc__exit(oc_error_insufficient_buffer);
-    }
-
     transform.m11 = 1.0f;
     transform.m12 = 0.0f;
     transform.m21 = 0.0f;
@@ -3631,7 +3618,9 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
         oc__exit(oc__unexpected(err));
     }
 
-    bitmap = malloc(length * 3);
+    length = (size_t)extent.rows * (size_t)extent.cols * 3;
+    bitmap = malloc(length);
+
     if (bitmap == NULL) {
         oc__exit(oc_error_out_of_memory);
     }
@@ -3647,18 +3636,20 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
         DWRITE_TEXTURE_CLEARTYPE_3x1,
         &bounds,
         bitmap,
-        length * 3);
+        length);
 
     if (err != S_OK) {
         oc__exit(oc__unexpected(err));
     }
 
-    for (uint32_t i = 0; i < length; i++) {
-        uint8_t r = bitmap[i * 3 + 0];
-        uint8_t g = bitmap[i * 3 + 1];
-        uint8_t b = bitmap[i * 3 + 2];
+    for (uint32_t y = 0; y < extent.rows; y++) {
+        for (uint32_t x = 0; x < extent.cols; x++) {
+            uint8_t r = *bitmap++;
+            uint8_t g = *bitmap++;
+            uint8_t b = *bitmap++;
 
-        buffer[i] = (r + b + g) / 3.0f;
+            buffer[y * pitch + x] = (r + b + g) / 3;
+        }
     }
 exit:
     if (bitmap)

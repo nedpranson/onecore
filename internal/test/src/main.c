@@ -339,14 +339,14 @@ void test_oc_test_sizes(void) {
     idx = ocl_get_char_index(&g_arial_ttf, 'G');
     TEST_ASSERT_EQUAL_INT16(42, idx);
 
-    ocl_render_glyph(&g_arial_ttf, idx, &extent, bitmap_a, sizeof(bitmap_a));
+    ocl_render_glyph(&g_arial_ttf, idx, &extent, bitmap_a, 12);
     TEST_ASSERT_EQUAL_UINT32(13, extent.rows);
     TEST_ASSERT_EQUAL_UINT32(12, extent.cols);
 
     idx = ocl_get_char_index(&face, 'G');
     TEST_ASSERT_EQUAL_INT16(42, idx);
 
-    ocl_render_glyph(&face, idx, &extent, bitmap_b, sizeof(bitmap_b));
+    ocl_render_glyph(&face, idx, &extent, bitmap_b, 12);
     TEST_ASSERT_EQUAL_UINT32(13, extent.rows);
     TEST_ASSERT_EQUAL_UINT32(12, extent.cols);
 
@@ -891,16 +891,13 @@ void test_ocl_render_glyph(void) {
     TEST_ASSERT_EQUAL_UINT32(12, size.rows);
     TEST_ASSERT_EQUAL_UINT32(3, size.cols);
 
-    err = ocl_render_glyph(&g_arial_ttf, idx, &size, buffer, 10);
-    TEST_ASSERT_EQUAL(oc_error_insufficient_buffer, err);
-
-    err = ocl_render_glyph(&g_arial_ttf, idx, NULL, buffer, sizeof(buffer));
+    err = ocl_render_glyph(&g_arial_ttf, idx, NULL, buffer, 3);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
     size.rows = 0;
     size.cols = 0;
 
-    err = ocl_render_glyph(&g_arial_ttf, idx, &size, buffer, sizeof(buffer));
+    err = ocl_render_glyph(&g_arial_ttf, idx, &size, buffer, 3);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     TEST_ASSERT_EQUAL_UINT32(12, size.rows);
     TEST_ASSERT_EQUAL_UINT32(3, size.cols);
@@ -917,16 +914,16 @@ void test_ocl_render_glyph(void) {
     err = ocl_render_glyph(&g_arial_ttf, idx, &size, buf, 0);
     TEST_ASSERT_EQUAL(err, oc_error_ok);
 
-    err = ocl_render_glyph(&g_arial_ttf, idx, &size, buf, sizeof(buf));
+    err = ocl_render_glyph(&g_arial_ttf, idx, &size, buf, 2);
     TEST_ASSERT_EQUAL(err, oc_error_ok);
 
-    err = ocl_render_glyph(&g_arial_ttf, 4444, &size, NULL, 0);
+    err = ocl_render_glyph(&g_arial_ttf, 4444, &size, NULL, 3);
     TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
     idx = ocl_get_char_index(&g_arial_ttf, 'l');
     TEST_ASSERT_EQUAL_INT16(79, idx);
 
-    err = ocl_render_glyph(&g_arial_ttf, idx, &size, NULL, 0);
+    err = ocl_render_glyph(&g_arial_ttf, idx, &size, NULL, 3);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     TEST_ASSERT_EQUAL_UINT32(12, size.rows);
     TEST_ASSERT_EQUAL_UINT32(2, size.cols);
@@ -934,11 +931,64 @@ void test_ocl_render_glyph(void) {
     idx = ocl_get_char_index(&g_arial_ttf, 'c');
     TEST_ASSERT_EQUAL_INT16(70, idx);
 
-    err = ocl_render_glyph(&g_arial_ttf, idx, &size, NULL, 0);
+    err = ocl_render_glyph(&g_arial_ttf, idx, &size, NULL, 3);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     TEST_ASSERT_EQUAL_UINT32(10, size.rows);
     TEST_ASSERT_EQUAL_UINT32(8, size.cols);
+
+    // tood: test pitch smaller then cols
+    uint8_t canvas[128 * 128];
+    idx = ocl_get_char_index(&g_arial_ttf, 'S');
+    TEST_ASSERT_EQUAL_INT16(54, idx);
+
+    err = ocl_render_glyph(&g_arial_ttf, idx, &size, canvas + 64, 128);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+    TEST_ASSERT_EQUAL_UINT32(13, size.rows);
+    TEST_ASSERT_EQUAL_UINT32(10, size.cols);
+
+    const char *ramp = " .:-=+*#%@";
+    int ramp_len = strlen(ramp);
+
+    for (size_t y = 0; y < 12; y++) {
+        for (size_t x = 64; x < 64 + 12; x++) {
+            int idx = (canvas[y * 128 + x] * (ramp_len - 1)) / 255;
+            printf("%c%c", ramp[idx], ramp[idx]);
+        }
+        printf("\n");
+    }
 }
+
+/*
+linux:
+
+      --++++==..
+    ##%%****%%%%==
+  ++%%..      ++%%..
+  ##**          ##--
+  ++%%--
+    ##@@%%**==..
+      ::++##@@@@++
+              ==%%==
+..**..          **##
+  %%++          ##**
+  ==@@**::..::**%%::
+    --%%@@@@@@##::
+
+wine:
+
+    ::**%%%%##++
+  ::%%==    ..**##
+  ****          @@--
+  ####
+  ==@@**--
+    ==%%@@%%##==
+        --++%%@@%%..
+              --%%++
+                **##
+..@@::          **++
+  **%%--..  ..--%%..
+    --**%%%%%%++..
+ */
 
 int main(void) {
     UNITY_BEGIN();

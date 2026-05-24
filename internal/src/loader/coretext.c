@@ -478,7 +478,7 @@ bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs
     return true;
 }
 
-oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
+oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {
     oc_error err = oc_error_ok;
 
     CTFontRef ct_font;
@@ -493,7 +493,6 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
     CGPoint         pos;
 
     oc_extent extent = { 0 };
-    size_t    length;
 
     if (!(face && oextent)) {
         err = oc_error_invalid_param;
@@ -531,26 +530,25 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
         goto exit;
     }
 
-    length = (size_t)extent.rows * (size_t)extent.cols;
-    if (buffer_size < length) {
-        err = oc_error_insufficient_buffer;
-        goto exit;
-    }
-
     linear_gray = CGColorSpaceCreateWithName(kCGColorSpaceLinearGray);
     if (linear_gray == NULL) {
         err = oc_error_out_of_memory;
         goto exit;
     }
 
-    memset(buffer, 0, length);
+    // todo: try to clear buffer after creating context
+    if (pitch == extent.cols) {
+        memset(buffer, 0, (size_t)extent.rows * (size_t)extent.cols);
+    } else for (uint32_t y = 0; y < extent.rows; y++) {
+        memset(buffer + y * pitch, 0, extent.cols);
+    }
 
     context = CGBitmapContextCreate(
         buffer,
         extent.cols,
         extent.rows,
         8,
-        extent.cols,
+        pitch,
         linear_gray,
         kCGImageAlphaOnly);
     CGColorSpaceRelease(linear_gray);

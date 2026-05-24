@@ -573,7 +573,7 @@ exit:
     return false;
 }
 
-oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
+oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {
     FT_Face           ft_face;
     oc__mutex_impl_t* lock;
     FT_Error          ft_err;
@@ -581,8 +581,6 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
     FT_Glyph          ft_glyph = NULL;
     oc_error          err = oc_error_ok;
     oc_extent         extent = { 0 };
-
-    size_t length;
 
     if (!(face && oextent)) {
         oc__exit(oc_error_invalid_param);
@@ -621,11 +619,6 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
         oc__exit_critical(oc_error_ok);
     }
 
-    length = (size_t)extent.rows * (size_t)extent.cols;
-    if (buffer_size < length) {
-        oc__exit_critical(oc_error_insufficient_buffer);
-    }
-
     ft_err = FT_Get_Glyph(ft_face->glyph, &ft_glyph);
     oc__mutex_impl_unlock(lock);
 
@@ -647,8 +640,11 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
     assert(((FT_BitmapGlyph)ft_glyph)->bitmap.width == extent.cols);
     assert((FT_UInt)((FT_BitmapGlyph)ft_glyph)->bitmap.pitch == extent.cols);
 
-    memcpy(buffer, ((FT_BitmapGlyph)ft_glyph)->bitmap.buffer, length);
-
+    if (extent.cols == pitch) {
+        memcpy(buffer, ((FT_BitmapGlyph)ft_glyph)->bitmap.buffer, (size_t)extent.rows * (size_t)extent.cols);
+    } else for (uint32_t y = 0; y < extent.rows; y++) {
+        memcpy(buffer + y * pitch, ((FT_BitmapGlyph)ft_glyph)->bitmap.buffer + y * extent.cols, extent.cols);
+    }
 exit:
     if (ft_glyph)
         FT_Done_Glyph(ft_glyph);

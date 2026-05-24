@@ -825,7 +825,7 @@ bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs
     return true;
 }
 
-oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t buffer_size) {
+oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {
     oc_error err = oc_error_ok;
     HRESULT  dw_err = S_OK;
 
@@ -882,11 +882,6 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
         goto exit;
     }
 
-    length = (size_t)extent.rows * (size_t)extent.cols;
-    if (buffer_size < length) {
-        oc__exit(oc_error_insufficient_buffer);
-    }
-
     transform.m11 = 1.0f;
     transform.m12 = 0.0f;
     transform.m21 = 0.0f;
@@ -918,7 +913,9 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
         oc__exit(oc__unexpected(err));
     }
 
-    bitmap = malloc(length * 3);
+    length = (size_t)extent.rows * (size_t)extent.cols * 3;
+    bitmap = malloc(length);
+
     if (bitmap == NULL) {
         oc__exit(oc_error_out_of_memory);
     }
@@ -934,18 +931,20 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
         DWRITE_TEXTURE_CLEARTYPE_3x1,
         &bounds,
         bitmap,
-        length * 3);
+        length);
 
     if (err != S_OK) {
         oc__exit(oc__unexpected(err));
     }
 
-    for (uint32_t i = 0; i < length; i++) {
-        uint8_t r = bitmap[i * 3 + 0];
-        uint8_t g = bitmap[i * 3 + 1];
-        uint8_t b = bitmap[i * 3 + 2];
+    for (uint32_t y = 0; y < extent.rows; y++) {
+        for (uint32_t x = 0; x < extent.cols; x++) {
+            uint8_t r = *bitmap++;
+            uint8_t g = *bitmap++;
+            uint8_t b = *bitmap++;
 
-        buffer[i] = (r + b + g) / 3.0f;
+            buffer[y * pitch + x] = (r + b + g) / 3;
+        }
     }
 exit:
     if (bitmap)
