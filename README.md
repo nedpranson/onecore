@@ -23,11 +23,11 @@ select exactly one C/C++ source file to instantiate the code.
 
 ```c
 void example() {
-    oc_library lib;
-    oc_init_library(&lib);
+    oc_library* lib;
+    oc_init_library(lib);
 
     oc_collection col;
-    ocf_init_collection(&lib, &col);
+    ocf_init_collection(lib, &col);
     ocf_load_fonts(&col);
 
     // sort font descriptors
@@ -46,7 +46,7 @@ void example() {
 
     ocl_free_face(&face);
     ocf_free_collection(&col);
-    oc_free_library(&lib);
+    oc_free_library(lib);
 }
 ```
 
