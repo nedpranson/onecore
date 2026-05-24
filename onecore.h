@@ -3546,6 +3546,8 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
     uint8_t* bitmap = NULL;
     size_t   length;
 
+    uint8_t* idx;
+
     if (!(face && oextent)) {
         oc__exit(oc_error_invalid_param);
     }
@@ -3637,11 +3639,12 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
         oc__exit(oc__unexpected(err));
     }
 
+    idx = bitmap;
     for (uint32_t y = 0; y < extent.rows; y++) {
         for (uint32_t x = 0; x < extent.cols; x++) {
-            uint8_t r = *bitmap++;
-            uint8_t g = *bitmap++;
-            uint8_t b = *bitmap++;
+            uint8_t r = *idx++;
+            uint8_t g = *idx++;
+            uint8_t b = *idx++;
 
             buffer[y * pitch + x] = (r + b + g) / 3;
         }
