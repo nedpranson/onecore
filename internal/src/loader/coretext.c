@@ -551,19 +551,14 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
         goto exit;
     }
 
-    // todo: try to clear buffer after creating context
-    if (pitch == extent.cols) {
-        memset(buffer, 0, (size_t)extent.rows * (size_t)extent.cols);
-    } else for (uint32_t y = 0; y < extent.rows; y++) {
-        memset(buffer + y * pitch, 0, extent.cols);
-    }
-
     rect.origin.x = 0;
     rect.origin.y = 0;
     rect.size.height = extent.rows;
     rect.size.width = extent.cols;
 
     // https://github.com/ghostty-org/ghostty/blob/main/src/font/face/coretext.zig#L478
+
+    CGContextClearRect(context, rect);
 
     CGContextSetGrayFillColor(context, 0.0, 0.0);
     CGContextFillRect(context, rect);
