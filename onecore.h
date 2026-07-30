@@ -104,6 +104,8 @@ typedef struct {
     oc_26p6 advance;   /* advance width */
 } oc_glyph_metrics;
 
+// size_metrics, ocl_get_size_metrics
+
 typedef struct {
     uint32_t rows; /* number of extent rows */
     uint32_t cols; /* number of pixels in extent row */
@@ -117,8 +119,8 @@ typedef struct {
 } oc_bbox;
 
 typedef struct {
-    int32_t x;
-    int32_t y;
+    oc_26p6 x;
+    oc_26p6 y;
 } oc_point;
 
 typedef void (*oc_outline_start_figure)(oc_point at, void* user);
@@ -302,6 +304,21 @@ ocl_get_glyph_cbox(
     oc_load_flags  flags,
     oc_bbox*       ocbox);
 
+// when we will have rendering implemented we will not need to store the size of current face
+// it would be better to have some `size_t` that will habe ppem, scale, ascent, descent
+// this way one face will have multiple sizes when rasterizing a glyph we could just pass that &size
+// or to get glyph metrics we can pass that size again and nil could be initial base size
+/* 
+ocl_open_face(library, path, NULL, &face);
+ocl_init_size(&face, 12 << 6, 96, &size);
+
+// it would even be thread-safe though it looks cursed and does not solve the main problem
+// we want to be able to render any glyph by its index and size lock free and without mem allocations
+ocl_render_glyph(&face, &size, index, &extent, buffer, pitch);
+*/
+
+// todo: update outline logic and enable hinting for them
+
 // todo (stage 2): now we're rendering these glyphs from [0;0] position which is convenient, but it does lose some extra draw data
 //       make so an user could specify how to draw this glyph mb allow to pass matricies and origins mb just some flags??
 // todo (stage 2): it is needed to make this method more complicated, now we cannot pass origin where to draw or matricies, nothing
@@ -337,6 +354,7 @@ OCDEF bool
 ocl_get_outline(
     const oc_face*          face,
     uint16_t                index,
+    oc_load_flags           flags,
     const oc_outline_funcs* funcs,
     void*                   user);
 
@@ -954,7 +972,7 @@ static int oc__conic_to(const FT_Vector* x2control, const FT_Vector* x2to, void*
     oc__point_2f forigin = { (float)ctx->x2origin.x * 0.5f, (float)ctx->x2origin.y * 0.5f };
     oc__point_2f fto = { (float)x2to->x * 0.5f, (float)x2to->y * 0.5f };
 
-    // comes extremely closes to dwrites internal implemintation
+    // comes extremely close to dwrites internal implemintation
     // but is not 100% perfect
     oc__point_2f cubic[2];
     cubic[0].x = forigin.x + (float)(x2control->x - ctx->x2origin.x) / 3.0f;
@@ -1031,12 +1049,13 @@ exit:
         *ocbox = cbox;
 }
 
-bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
+bool ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, const oc_outline_funcs* funcs, void* user) {
     FT_Error            err;
     FT_Face             ft_face;
     oc__mutex_impl_t*   lock;
     FT_GlyphSlot        glyph;
     FT_Outline          outline;
+    FT_Int32            ft_load_flags = FT_LOAD_NO_BITMAP;
     oc__outline_context context = { 0 };
 
     if (!(face && funcs)) {
@@ -1046,8 +1065,17 @@ bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs
     ft_face = face->impl->ft_face;
     lock = &face->impl->lock;
 
+    if (flags & OC_LOAD_NO_SCALE) {
+        flags |= OC_LOAD_NO_FITTING;
+        ft_load_flags |= FT_LOAD_NO_SCALE;
+    }
+
+    if (flags & OC_LOAD_NO_HINTING) {
+        ft_load_flags |= FT_LOAD_NO_HINTING;
+    }
+
     oc__mutex_impl_lock(lock);
-    err = FT_Load_Glyph(ft_face, index, FT_LOAD_NO_SCALE | FT_LOAD_NO_BITMAP);
+    err = FT_Load_Glyph(ft_face, index, ft_load_flags);
     if (err != FT_Err_Ok) {
         goto exit_critical;
     }

@@ -1,3 +1,4 @@
+#include "internal/src/onecore.h"
 #define ONECORE_IMPLEMENTATION
 #define OC__OVERRIDE_LIBRARY_IMPL
 #include "onecore.h"
@@ -437,7 +438,7 @@ static int oc__conic_to(const FT_Vector* x2control, const FT_Vector* x2to, void*
     oc__point_2f forigin = { (float)ctx->x2origin.x * 0.5f, (float)ctx->x2origin.y * 0.5f };
     oc__point_2f fto = { (float)x2to->x * 0.5f, (float)x2to->y * 0.5f };
 
-    // comes extremely closes to dwrites internal implemintation
+    // comes extremely close to dwrites internal implemintation
     // but is not 100% perfect
     oc__point_2f cubic[2];
     cubic[0].x = forigin.x + (float)(x2control->x - ctx->x2origin.x) / 3.0f;
@@ -514,12 +515,13 @@ exit:
         *ocbox = cbox;
 }
 
-bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
+bool ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, const oc_outline_funcs* funcs, void* user) {
     FT_Error            err;
     FT_Face             ft_face;
     oc__mutex_impl_t*   lock;
     FT_GlyphSlot        glyph;
     FT_Outline          outline;
+    FT_Int32            ft_load_flags = FT_LOAD_NO_BITMAP;
     oc__outline_context context = { 0 };
 
     if (!(face && funcs)) {
@@ -529,8 +531,17 @@ bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs
     ft_face = face->impl->ft_face;
     lock = &face->impl->lock;
 
+    if (flags & OC_LOAD_NO_SCALE) {
+        flags |= OC_LOAD_NO_FITTING;
+        ft_load_flags |= FT_LOAD_NO_SCALE;
+    }
+
+    if (flags & OC_LOAD_NO_HINTING) {
+        ft_load_flags |= FT_LOAD_NO_HINTING;
+    }
+
     oc__mutex_impl_lock(lock);
-    err = FT_Load_Glyph(ft_face, index, FT_LOAD_NO_SCALE | FT_LOAD_NO_BITMAP);
+    err = FT_Load_Glyph(ft_face, index, ft_load_flags);
     if (err != FT_Err_Ok) {
         goto exit_critical;
     }
