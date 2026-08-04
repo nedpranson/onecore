@@ -149,10 +149,6 @@ typedef struct {
     // -> monoscope
 } oc_font;
 
-// typedef struct {
-//     void* internals;
-// } oc_library;
-
 typedef struct {
     oc_face_impl* impl;
 
@@ -357,6 +353,11 @@ ocl_get_outline(
     oc_load_flags           flags,
     const oc_outline_funcs* funcs,
     void*                   user);
+
+OCDEF void
+ocl_print_raw_outline(
+    const oc_face* face,
+    uint16_t       index);
 
 /*
  * Loads any SFNT font table into client memory.
@@ -1083,6 +1084,9 @@ bool ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, c
     glyph = ft_face->glyph;
     outline = glyph->outline;
 
+    // TODO: fix this race condition
+    // as outline ptr fields can be overwritten
+
     if (glyph->format != FT_GLYPH_FORMAT_OUTLINE && glyph->format != FT_GLYPH_FORMAT_COMPOSITE) {
         goto exit_critical;
     }
@@ -1116,6 +1120,56 @@ exit_critical:
     oc__mutex_impl_unlock(lock);
 exit:
     return false;
+}
+
+void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
+    FT_Error            err;
+    FT_Face             ft_face;
+    FT_GlyphSlot        glyph;
+    FT_Outline          outline;
+    
+    if (!face) {
+        return;
+    }
+
+    ft_face = face->impl->ft_face;
+    err = FT_Load_Glyph(ft_face, index, FT_LOAD_NO_BITMAP | FT_LOAD_NO_SCALE);
+
+    if (err != FT_Err_Ok) {
+        return;
+    }
+
+    glyph = ft_face->glyph;
+    outline = glyph->outline;
+
+    if (glyph->format != FT_GLYPH_FORMAT_OUTLINE && glyph->format != FT_GLYPH_FORMAT_COMPOSITE) {
+        return;
+    }
+
+    int start = 0;
+    for (int c = 0; c < outline.n_contours; c++) {
+        int end = outline.contours[c];
+
+        printf("contour %d:\n", c);
+
+        for (int i = start; i <= end; i++) {
+            FT_Vector p = outline.points[i];
+            char tag = outline.tags[i];
+
+            printf(
+                "  point %d: (%ld, %ld), %s\n",
+                i,
+                p.x,
+                p.y,
+                FT_CURVE_TAG(tag) == FT_CURVE_TAG_ON ? "on" :
+                FT_CURVE_TAG(tag) == FT_CURVE_TAG_CONIC ? "conic" :
+                FT_CURVE_TAG(tag) == FT_CURVE_TAG_CUBIC ? "cubic" :
+                "unk"
+            );
+        }
+
+        start = end + 1;
+    }
 }
 
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {
@@ -1954,10 +2008,47 @@ static void oc__path_applier(void* info, const CGPathElement* element) {
     }
 }
 
-bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
+static void oc__path_applier2(void* info, const CGPathElement* element) {
+    (void)info;
+
+    switch (element->type) {
+    case kCGPathElementMoveToPoint: {
+        CGPoint p = element->points[0];
+        printf("MoveTo: (%.2f, %.2f)\n", p.x, p.y);
+    } break;
+
+    case kCGPathElementAddLineToPoint: {
+        CGPoint p = element->points[0];
+        printf("LineTo: (%.2f, %.2f)\n", p.x, p.y);
+    } break;
+
+    case kCGPathElementAddQuadCurveToPoint: {
+        CGPoint c = element->points[0];
+        CGPoint p = element->points[1];
+        printf("QuadCurve: control (%.2f, %.2f) → (%.2f, %.2f)\n",
+               c.x, c.y, p.x, p.y);
+    } break;
+
+    case kCGPathElementAddCurveToPoint: {
+        CGPoint c1 = element->points[0];
+        CGPoint c2 = element->points[1];
+        CGPoint p  = element->points[2];
+        printf("Curve: c1 (%.2f, %.2f)  c2 (%.2f, %.2f) → (%.2f, %.2f)\n",
+               c1.x, c1.y, c2.x, c2.y, p.x, p.y);
+    } break;
+
+    case kCGPathElementCloseSubpath: {
+        printf("CloseSubpath\n");
+    } break;
+    }
+}
+
+bool ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, const oc_outline_funcs* funcs, void* user) {
     CTFontRef           ct_font;
     CGPathRef           outline;
     oc__outline_context context = { 0 };
+
+    (void)flags;
 
     if (!(face && funcs)) {
         return false;
@@ -1979,6 +2070,18 @@ bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs
     CGPathRelease(outline);
 
     return true;
+}
+
+
+void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
+    CTFontRef           ct_font;
+    CGPathRef           outline;
+
+    ct_font = (CTFontRef)face->impl;
+    outline = CTFontCreatePathForGlyph(ct_font, index, NULL);
+
+    CGPathApply(outline, NULL, oc__path_applier2);
+    CGPathRelease(outline);
 }
 
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {
