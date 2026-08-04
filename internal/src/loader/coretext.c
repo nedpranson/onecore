@@ -451,33 +451,41 @@ static void oc__path_applier(void* info, const CGPathElement* element) {
     }
 }
 
+typedef struct {
+    CGFloat fsize;
+    CGFloat fupem;
+} oc__outline_context2;
+
 static void oc__path_applier2(void* info, const CGPathElement* element) {
-    (void)info;
+    oc__outline_context2* ctx = (oc__outline_context2*)info;
+
+    CGFloat fppem = ctx->fsize;
+    CGFloat fupem = ctx->fupem;
 
     switch (element->type) {
     case kCGPathElementMoveToPoint: {
         CGPoint p = element->points[0];
-        printf("MoveTo: (%.2f, %.2f)\n", p.x, p.y);
+        printf("MoveTo: (%f, %f)\n", p.x * fupem / fppem, p.y * fupem / fppem);
     } break;
 
     case kCGPathElementAddLineToPoint: {
         CGPoint p = element->points[0];
-        printf("LineTo: (%.2f, %.2f)\n", p.x, p.y);
+        printf("LineTo: (%f, %f)\n", p.x * fupem / fppem, p.y * fupem / fppem);
     } break;
 
     case kCGPathElementAddQuadCurveToPoint: {
         CGPoint c = element->points[0];
         CGPoint p = element->points[1];
-        printf("QuadCurve: control (%.2f, %.2f) → (%.2f, %.2f)\n",
-               c.x, c.y, p.x, p.y);
+        printf("QuadCurve: control (%f, %f) → (%f, %f)\n",
+               c.x * fupem / fppem, c.y * fupem / fppem, p.x * fupem / fppem, p.y * fupem / fppem);
     } break;
 
     case kCGPathElementAddCurveToPoint: {
         CGPoint c1 = element->points[0];
         CGPoint c2 = element->points[1];
         CGPoint p  = element->points[2];
-        printf("Curve: c1 (%.2f, %.2f)  c2 (%.2f, %.2f) → (%.2f, %.2f)\n",
-               c1.x, c1.y, c2.x, c2.y, p.x, p.y);
+        printf("Curve: c1 (%f, %f)  c2 (%f, %f) → (%f, %f)\n",
+               c1.x * fupem / fppem, c1.y * fupem / fppem, c2.x * fupem / fppem, c2.y * fupem / fppem, p.x * fupem / fppem, p.y * fupem / fppem);
     } break;
 
     case kCGPathElementCloseSubpath: {
@@ -517,13 +525,18 @@ bool ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, c
 
 
 void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
-    CTFontRef           ct_font;
-    CGPathRef           outline;
+    CTFontRef ct_font;
+    CGPathRef outline;
+
+    oc__outline_context2 ctx = { 0 };
 
     ct_font = (CTFontRef)face->impl;
     outline = CTFontCreatePathForGlyph(ct_font, index, NULL);
 
-    CGPathApply(outline, NULL, oc__path_applier2);
+    ctx.fsize = CTFontGetSize(ct_font);
+    ctx.fupem = CTFontGetUnitsPerEm(ct_font);
+
+    CGPathApply(outline, &ctx, oc__path_applier2);
     CGPathRelease(outline);
 }
 
