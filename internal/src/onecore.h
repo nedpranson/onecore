@@ -149,10 +149,6 @@ typedef struct {
     // -> monoscope
 } oc_font;
 
-// typedef struct {
-//     void* internals;
-// } oc_library;
-
 typedef struct {
     oc_face_impl* impl;
 
@@ -357,6 +353,11 @@ ocl_get_outline(
     oc_load_flags           flags,
     const oc_outline_funcs* funcs,
     void*                   user);
+
+OCDEF void
+ocl_print_raw_outline(
+    const oc_face* face,
+    uint16_t       index);
 
 /*
  * Loads any SFNT font table into client memory.

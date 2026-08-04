@@ -936,6 +936,8 @@ void test_ocl_get_outline(void) {
     ok = ocl_get_outline(&g_arial_ttf, idx, OC_LOAD_DEFAULT, &funcs, &ctx);
     TEST_ASSERT_EQUAL(ok, true);
     TEST_ASSERT_EQUAL(ctx.checks_end, ctx.checks);
+
+    ocl_print_raw_outline(&g_arial_ttf, idx);
 }
 
 // todo: make everything backend indipendent!

@@ -451,10 +451,47 @@ static void oc__path_applier(void* info, const CGPathElement* element) {
     }
 }
 
-bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
+static void oc__path_applier2(void* info, const CGPathElement* element) {
+    (void)info;
+
+    switch (element->type) {
+    case kCGPathElementMoveToPoint: {
+        CGPoint p = element->points[0];
+        printf("MoveTo: (%.2f, %.2f)\n", p.x, p.y);
+    } break;
+
+    case kCGPathElementAddLineToPoint: {
+        CGPoint p = element->points[0];
+        printf("LineTo: (%.2f, %.2f)\n", p.x, p.y);
+    } break;
+
+    case kCGPathElementAddQuadCurveToPoint: {
+        CGPoint c = element->points[0];
+        CGPoint p = element->points[1];
+        printf("QuadCurve: control (%.2f, %.2f) → (%.2f, %.2f)\n",
+               c.x, c.y, p.x, p.y);
+    } break;
+
+    case kCGPathElementAddCurveToPoint: {
+        CGPoint c1 = element->points[0];
+        CGPoint c2 = element->points[1];
+        CGPoint p  = element->points[2];
+        printf("Curve: c1 (%.2f, %.2f)  c2 (%.2f, %.2f) → (%.2f, %.2f)\n",
+               c1.x, c1.y, c2.x, c2.y, p.x, p.y);
+    } break;
+
+    case kCGPathElementCloseSubpath: {
+        printf("CloseSubpath\n");
+    } break;
+    }
+}
+
+bool ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, const oc_outline_funcs* funcs, void* user) {
     CTFontRef           ct_font;
     CGPathRef           outline;
     oc__outline_context context = { 0 };
+
+    (void)flags;
 
     if (!(face && funcs)) {
         return false;
@@ -476,6 +513,18 @@ bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs
     CGPathRelease(outline);
 
     return true;
+}
+
+
+void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
+    CTFontRef           ct_font;
+    CGPathRef           outline;
+
+    ct_font = (CTFontRef)face->impl;
+    outline = CTFontCreatePathForGlyph(ct_font, index, NULL);
+
+    CGPathApply(outline, NULL, oc__path_applier2);
+    CGPathRelease(outline);
 }
 
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {

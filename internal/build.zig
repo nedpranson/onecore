@@ -75,10 +75,9 @@ pub fn build(b: *std.Build) void {
         .root_module = b.createModule(.{
             .target = target,
             .optimize = optimize,
+            .link_libc = true,
         }),
     });
-
-    lib_tests.root_module.link_libc = true;
 
     switch (font_backend) {
         .FreeTypeFontConfig => {
@@ -159,10 +158,9 @@ pub fn build(b: *std.Build) void {
         .root_module = b.createModule(.{
             .target = target,
             .optimize = optimize,
+            .link_libc = true,
         }),
     });
-
-    example.root_module.link_libc = true;
 
     switch (builtin.os.tag) {
         .windows => example.root_module.linkSystemLibrary("dwrite", .{}),
