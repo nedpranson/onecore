@@ -1,4 +1,3 @@
-#include "freetype/ftimage.h"
 #include "internal/src/onecore.h"
 #define ONECORE_IMPLEMENTATION
 #define OC__OVERRIDE_LIBRARY_IMPL
@@ -612,30 +611,40 @@ void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
         return;
     }
 
-    int start = 0;
-    for (int c = 0; c < outline.n_contours; c++) {
-        int end = outline.contours[c];
-
-        printf("contour %d:\n", c);
-
-        for (int i = start; i <= end; i++) {
-            FT_Vector p = outline.points[i];
-            char tag = outline.tags[i];
-
-            printf(
-                "  point %d: (%ld, %ld), %s\n",
-                i,
-                p.x,
-                p.y,
-                FT_CURVE_TAG(tag) == FT_CURVE_TAG_ON ? "on" :
-                FT_CURVE_TAG(tag) == FT_CURVE_TAG_CONIC ? "conic" :
-                FT_CURVE_TAG(tag) == FT_CURVE_TAG_CUBIC ? "cubic" :
-                "unk"
-            );
-        }
-
-        start = end + 1;
+    printf("contours(%d):\n", outline.n_contours);
+    for (int i = 0; i < outline.n_contours; i++) {
+        printf("  end(%d)\n", outline.contours[i]);
     }
+
+    printf("points(%d):\n", outline.n_points);
+    for (int i = 0; i < outline.n_points; i++) {
+        printf("  tag(%d) point(%ld, %ld)\n", (int)outline.tags[i], outline.points[i].x, outline.points[i].y);
+    }
+
+    // int start = 0;
+    // for (int c = 0; c < outline.n_contours; c++) {
+    //     int end = outline.contours[c];
+    //
+    //     printf("contour %d:\n", c);
+    //
+    //     for (int i = start; i <= end; i++) {
+    //         FT_Vector p = outline.points[i];
+    //         char tag = outline.tags[i];
+    //
+    //         printf(
+    //             "  point %d: (%ld, %ld), %s\n",
+    //             i,
+    //             p.x,
+    //             p.y,
+    //             FT_CURVE_TAG(tag) == FT_CURVE_TAG_ON ? "on" :
+    //             FT_CURVE_TAG(tag) == FT_CURVE_TAG_CONIC ? "conic" :
+    //             FT_CURVE_TAG(tag) == FT_CURVE_TAG_CUBIC ? "cubic" :
+    //             "unk"
+    //         );
+    //     }
+    //
+    //     start = end + 1;
+    // }
 }
 
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {
