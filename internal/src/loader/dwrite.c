@@ -788,10 +788,12 @@ exit:
         *ocbox = cbox;
 }
 
-bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs* funcs, void* user) {
+bool ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, const oc_outline_funcs* funcs, void* user) {
     HRESULT                         err;
     ULONG                           refs;
     OC__ID2D1SimplifiedGeometrySink geometry_sink = { 0 };
+
+    (void)flags;
 
     if (!(face && funcs)) {
         return false;
@@ -823,6 +825,180 @@ bool ocl_get_outline(const oc_face* face, uint16_t index, const oc_outline_funcs
     assert(refs == 0);
 
     return true;
+}
+
+typedef struct {
+    const ID2D1SimplifiedGeometrySinkVtbl* lpVtbl;
+
+    D2D1_POINT_2F origin;
+    LONG          ref_count;
+} OC__ID2D1SimplifiedGeometrySink2;
+
+static HRESULT STDMETHODCALLTYPE
+OC__ID2D1SimplifiedGeometrySink_Close2(ID2D1SimplifiedGeometrySink* This) {
+    (void)This;
+    return S_OK;
+}
+
+static void STDMETHODCALLTYPE
+OC__ID2D1SimplifiedGeometrySink_EndFigure2(ID2D1SimplifiedGeometrySink* This, D2D1_FIGURE_END figureEnd) {
+    OC__ID2D1SimplifiedGeometrySink2* this = (OC__ID2D1SimplifiedGeometrySink2*)This;
+
+    (void)this;
+    (void)figureEnd;
+}
+
+static void STDMETHODCALLTYPE
+OC__ID2D1SimplifiedGeometrySink_AddBeziers2(ID2D1SimplifiedGeometrySink* This, const D2D1_BEZIER_SEGMENT* beziers, UINT beziersCount) {
+    OC__ID2D1SimplifiedGeometrySink2* this = (OC__ID2D1SimplifiedGeometrySink2*)This;
+
+    for (UINT32 i = 0; i < beziersCount; i++) {
+        D2D1_POINT_2F C1 = beziers[i].point1;
+        D2D1_POINT_2F C2 = beziers[i].point2;
+
+        D2D1_POINT_2F E = beziers[i].point3;
+        D2D1_POINT_2F S = this->origin;
+
+        C1.y *= -1;
+        C2.y *= -1;
+        E.y *= -1;
+        S.y *= -1;
+
+        float qx1 = (3.0f * C1.x - S.x) * 0.5f;
+        float qy1 = (3.0f * C1.y - S.y) * 0.5f;
+
+        float qx2 = (3.0f * C2.x - E.x) * 0.5f;
+        float qy2 = (3.0f * C2.y - E.y) * 0.5f;
+
+        float dx = qx1 - qx2;
+        float dy = qy1 - qy2;
+
+        float dist2 = dx*dx + dy*dy;
+
+        // const float EPS2 = 0.05 * 0.05;
+
+        // printf("pt1: (%f, %f), pt2: (%f, %f), pt3: (%f, %f)\n",
+        //        beziers[i].point1.x, -beziers[i].point1.y,
+        //        beziers[i].point2.x, -beziers[i].point2.y,
+        //        beziers[i].point3.x, -beziers[i].point3.y);
+
+
+        printf("pt1: (%f, %f), pt2: (%f, %f), dist: %f\n",
+               qx1, qy1,
+               E.x, E.y,
+               dist2);
+
+        this->origin = beziers[i].point3;
+    }
+}
+
+static void STDMETHODCALLTYPE
+OC__ID2D1SimplifiedGeometrySink_AddLines2(ID2D1SimplifiedGeometrySink* This, const D2D1_POINT_2F* points, UINT pointsCount) {
+    OC__ID2D1SimplifiedGeometrySink2* this = (OC__ID2D1SimplifiedGeometrySink2*)This;
+
+    for (UINT32 i = 0; i < pointsCount; i++) {
+        printf("pt: (%f, %f)\n", points[i].x, -points[i].y);
+    }
+    this->origin = points[pointsCount - 1];
+}
+
+static void STDMETHODCALLTYPE
+OC__ID2D1SimplifiedGeometrySink_BeginFigure2(ID2D1SimplifiedGeometrySink* This, D2D1_POINT_2F startPoint, D2D1_FIGURE_BEGIN figureBegin) {
+    OC__ID2D1SimplifiedGeometrySink* this = (OC__ID2D1SimplifiedGeometrySink*)This;
+    (void)figureBegin;
+
+    printf("pt: (%f, %f)\n", startPoint.x, -startPoint.y);
+    this->origin = startPoint;
+}
+
+static void STDMETHODCALLTYPE
+OC__ID2D1SimplifiedGeometrySink_SetSegmentFlags2(ID2D1SimplifiedGeometrySink* This, D2D1_PATH_SEGMENT vertexFlags) {
+    (void)This;
+    (void)vertexFlags;
+}
+
+static void STDMETHODCALLTYPE
+OC__ID2D1SimplifiedGeometrySink_SetFillMode2(ID2D1SimplifiedGeometrySink* This, D2D1_FILL_MODE fillMode) {
+    (void)This;
+    (void)fillMode;
+}
+
+static ULONG STDMETHODCALLTYPE
+OC__ID2D1SimplifiedGeometrySink_Release2(IUnknown* This) {
+    OC__ID2D1SimplifiedGeometrySink2* this = (OC__ID2D1SimplifiedGeometrySink2*)This;
+
+    LONG refs = InterlockedDecrement(&this->ref_count);
+    assert(refs != -1);
+    return refs;
+}
+
+static ULONG STDMETHODCALLTYPE
+OC__ID2D1SimplifiedGeometrySink_AddRef2(IUnknown* This) {
+    OC__ID2D1SimplifiedGeometrySink2* this = (OC__ID2D1SimplifiedGeometrySink2*)This;
+    return InterlockedIncrement(&this->ref_count);
+}
+
+static HRESULT STDMETHODCALLTYPE
+OC__ID2D1SimplifiedGeometrySink_QueryInterface2(IUnknown* This, REFIID riid, void** ppvObject) {
+    if (ppvObject == NULL) {
+        return E_POINTER;
+    }
+    *ppvObject = NULL;
+
+    if (IsEqualIID(riid, &IID_IUnknown) || IsEqualIID(riid, &IID_IDWriteFontFileLoader)) {
+        OC__ID2D1SimplifiedGeometrySink_AddRef2(This);
+        *ppvObject = This;
+        return S_OK;
+    }
+
+    return E_NOINTERFACE;
+}
+
+static const ID2D1SimplifiedGeometrySinkVtbl OC__ID2D1SimplifiedGeometrySinkVtbl2 = {
+    { OC__ID2D1SimplifiedGeometrySink_QueryInterface2,
+        OC__ID2D1SimplifiedGeometrySink_AddRef2,
+        OC__ID2D1SimplifiedGeometrySink_Release2 },
+    OC__ID2D1SimplifiedGeometrySink_SetFillMode2,
+    OC__ID2D1SimplifiedGeometrySink_SetSegmentFlags2,
+    OC__ID2D1SimplifiedGeometrySink_BeginFigure2,
+    OC__ID2D1SimplifiedGeometrySink_AddLines2,
+    OC__ID2D1SimplifiedGeometrySink_AddBeziers2,
+    OC__ID2D1SimplifiedGeometrySink_EndFigure2,
+    OC__ID2D1SimplifiedGeometrySink_Close2,
+};
+
+void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
+    HRESULT err;
+    ULONG   refs;
+
+    OC__ID2D1SimplifiedGeometrySink2 sink = { 0 };
+
+    if (!face) {
+        return;
+    }
+
+    sink.lpVtbl = &OC__ID2D1SimplifiedGeometrySinkVtbl2;
+    sink.ref_count = 1;
+
+    err = face->impl->dw_face->lpVtbl->GetGlyphRunOutline(
+        face->impl->dw_face,
+        face->upem,
+        &index,
+        NULL,
+        NULL,
+        1,
+        FALSE,
+        FALSE,
+        (IDWriteGeometrySink*)&sink);
+
+    if (err != S_OK) {
+        return;
+    }
+
+    refs = sink.lpVtbl->Base.Release((IUnknown*)&sink);
+
+    (void)refs;
+    assert(refs == 0);
 }
 
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {

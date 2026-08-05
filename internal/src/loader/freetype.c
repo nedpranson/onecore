@@ -1,4 +1,5 @@
 #include "internal/src/onecore.h"
+#include <stdio.h>
 #define ONECORE_IMPLEMENTATION
 #define OC__OVERRIDE_LIBRARY_IMPL
 #include "onecore.h"

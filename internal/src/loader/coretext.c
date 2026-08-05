@@ -577,8 +577,7 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
         { element->points[0].x * ctx->fupem / ctx->fppem * 2.0, element->points[0].y * ctx->fupem / ctx->fppem * 2.0 },
         { element->points[1].x * ctx->fupem / ctx->fppem * 2.0, element->points[1].y * ctx->fupem / ctx->fppem * 2.0 },
         { element->points[2].x * ctx->fupem / ctx->fppem * 2.0, element->points[2].y * ctx->fupem / ctx->fppem * 2.0 },
-
-        element->type
+          element->type
     };
 
     // todo: do not forget to check oom
