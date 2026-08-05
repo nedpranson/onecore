@@ -573,11 +573,13 @@ static inline oc_point oc__point_bsr(oc_point pt, uint8_t amt) {
 static void oc__walk_applier(void* info, const CGPathElement* element) {
     oc__applier_context* ctx = (oc__applier_context*)info;
 
-    oc_point pt1 = { element->points[0].x * ctx->fupem / ctx->fppem * 2.0, element->points[0].y * ctx->fupem / ctx->fppem * 2.0 };
-    oc_point pt2 = { element->points[1].x * ctx->fupem / ctx->fppem * 2.0, element->points[1].y * ctx->fupem / ctx->fppem * 2.0 };
-    oc_point pt3 = { element->points[2].x * ctx->fupem / ctx->fppem * 2.0, element->points[2].y * ctx->fupem / ctx->fppem * 2.0 };
+    oc__path_element next_element = { 
+        { element->points[0].x * ctx->fupem / ctx->fppem * 2.0, element->points[0].y * ctx->fupem / ctx->fppem * 2.0 },
+        { element->points[1].x * ctx->fupem / ctx->fppem * 2.0, element->points[1].y * ctx->fupem / ctx->fppem * 2.0 },
+        { element->points[2].x * ctx->fupem / ctx->fppem * 2.0, element->points[2].y * ctx->fupem / ctx->fppem * 2.0 },
 
-    oc__path_element next_element = { pt1, pt2, pt3, element->type };
+        element->type
+    };
 
     // todo: do not forget to check oom
     switch (ctx->element.type) {
@@ -589,30 +591,30 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
         //     }
         // }
 
-        oc__append(ctx->points, oc__point_bsr(pt1, 1));
+        oc__append(ctx->points, oc__point_bsr(ctx->element.pt1, 1));
         oc__append(ctx->tags, OC__CURVE_TAG_ON);
 
-        ctx->start_point = pt1;
+        ctx->start_point = ctx->element.pt1;
         break;
     case kCGPathElementAddLineToPoint:
-        if (!oc__points_equal(pt1, ctx->start_point)) {
-            oc__append(ctx->points, oc__point_bsr(pt1, 1));
+        if (!oc__points_equal(ctx->element.pt1, ctx->start_point)) {
+            oc__append(ctx->points, oc__point_bsr(ctx->element.pt1, 1));
             oc__append(ctx->tags, OC__CURVE_TAG_ON);
         }
         break;
     case kCGPathElementAddQuadCurveToPoint:
-        oc__append(ctx->points, oc__point_bsr(pt1, 1));
+        oc__append(ctx->points, oc__point_bsr(ctx->element.pt1, 1));
         oc__append(ctx->tags, OC__CURVE_TAG_CONIC);
 
         bool implicit = false;
-        bool closing = oc__points_equal(pt2, ctx->start_point);
+        bool closing = oc__points_equal(ctx->element.pt2, ctx->start_point);
 
         if (next_element.type == kCGPathElementAddQuadCurveToPoint) {
-            implicit = oc__is_midpoint(pt2, pt1, next_element.pt1);
+            implicit = oc__is_midpoint(ctx->element.pt2, ctx->element.pt1, next_element.pt1);
         }
 
         if (!implicit && !closing) {
-            oc__append(ctx->points, oc__point_bsr(pt2, 1));
+            oc__append(ctx->points, oc__point_bsr(ctx->element.pt2, 1));
             oc__append(ctx->tags, OC__CURVE_TAG_ON);
         }
         break;
