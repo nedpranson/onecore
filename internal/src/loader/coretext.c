@@ -571,6 +571,10 @@ static inline bool oc__is_midpoint(oc_point pt, oc_point a, oc_point b) {
     return pt.x == midx && pt.y == midy;
 }
 
+static inline bool oc__points_equal(oc_point a, oc_point b) {
+    return a.x == b.x && a.y == b.y;
+}
+
 static void oc__walk_applier(void* info, const CGPathElement* element) {
     oc__applier_context* ctx = (oc__applier_context*)info;
 
@@ -595,13 +599,17 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
         ctx->start_point = ctx->element.points[0];
         break;
     case kCGPathElementAddLineToPoint:
+        if (!oc__points_equal(ctx->element.points[0], ctx->start_point)) {
+            oc__append(ctx->points, ctx->element.points[0]);
+            oc__append(ctx->tags, OC__CURVE_TAG_ON);
+        }
         break;
     case kCGPathElementAddQuadCurveToPoint:
         oc__append(ctx->points, ctx->element.points[0]);
         oc__append(ctx->tags, OC__CURVE_TAG_CONIC);
 
         bool implicit = false;
-        bool closing = ctx->element.points[1].x == ctx->start_point.x && ctx->element.points[1].y == ctx->start_point.y;
+        bool closing = oc__points_equal(ctx->element.points[1], ctx->start_point);
 
         if (next_element.type == kCGPathElementAddQuadCurveToPoint) {
             implicit = oc__is_midpoint(ctx->element.points[1], ctx->element.points[0], next_element.points[0]);
@@ -611,7 +619,6 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
             oc__append(ctx->points, ctx->element.points[1]);
             oc__append(ctx->tags, OC__CURVE_TAG_ON);
         }
-
         break;
     case kCGPathElementAddCurveToPoint:
         // todo:
