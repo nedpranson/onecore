@@ -2163,9 +2163,6 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
     case kCGPathElementAddLineToPoint:
         break;
     case kCGPathElementAddQuadCurveToPoint:
-        // todo:
-        break;
-    case kCGPathElementAddCurveToPoint:
         oc__append(ctx->points, ctx->element.points[0]);
         oc__append(ctx->tags, OC__CURVE_TAG_CONIC);
 
@@ -2181,6 +2178,9 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
             oc__append(ctx->tags, OC__CURVE_TAG_ON);
         }
 
+        break;
+    case kCGPathElementAddCurveToPoint:
+        // todo:
         break;
     case kCGPathElementCloseSubpath:
         break;
