@@ -531,19 +531,6 @@ static inline void* oc__grow_impl(void* arr, size_t size, size_t new_cap) {
     return arr;
 }
 
-// we need dynamic array type
-// oc__make($type) -> *type
-// oc__free($ptr)
-// oc__len($ptr) -> usize
-// oc__cap($ptr) -> usize
-// oc__append($ptr, ...) -> bool
-/*
-    int* arr = oc__make(int);
-    oc__append(arr, 67, 69);
-    printf("len: %ld, cap: %ld\n", oc__len(arr), oc__cap(arr));
-    oc__free(arr);
-*/
-
 #define OC__CURVE_TAG_ON    0x1
 #define OC__CURVE_TAG_CONIC 0x0
 #define OC__CURVE_TAG_CUBIC 0x2
@@ -566,9 +553,9 @@ typedef struct {
 } oc__applier_context;
 
 static inline bool oc__is_midpoint(oc_point pt, oc_point a, oc_point b) {
-    oc_26p6 midx = (a.x + b.x) / 2;
-    oc_26p6 midy = (a.y + b.y) / 2;
-    return pt.x == midx && pt.y == midy;
+    uint64_t sumx = (uint64_t)a.x + (uint64_t)b.x;
+    uint64_t sumy = (uint64_t)a.y + (uint64_t)b.y;
+    return (uint64_t)pt.x * 2 == sumx && (uint64_t)pt.y * 2 == sumy;
 }
 
 static inline bool oc__points_equal(oc_point a, oc_point b) {
@@ -580,19 +567,23 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
 
     oc__path_element next_element = {
         {
-            { element->points[0].x * ctx->fupem / ctx->fppem, element->points[0].y * ctx->fupem / ctx->fppem },
-            { element->points[1].x * ctx->fupem / ctx->fppem, element->points[1].y * ctx->fupem / ctx->fppem },
-            { element->points[2].x * ctx->fupem / ctx->fppem, element->points[2].y * ctx->fupem / ctx->fppem },
+            { element->points[0].x * ctx->fupem / ctx->fppem * 2.0, element->points[0].y * ctx->fupem / ctx->fppem * 2.0 },
+            { element->points[1].x * ctx->fupem / ctx->fppem * 2.0, element->points[1].y * ctx->fupem / ctx->fppem * 2.0 },
+            { element->points[2].x * ctx->fupem / ctx->fppem * 2.0, element->points[2].y * ctx->fupem / ctx->fppem * 2.0 },
         },
         element->type,
     };
 
-    //printf("pt1: (%d, %d), pt2: (%d, %d), pt3: (%d, %d)\n", pt1.x, pt1.y, pt2.x, pt2.y, pt3.x, pt3.y);
-
     // todo: do not forget to check oom
-    // [i][i+1] -> [ctx->element][next_element]
     switch (ctx->element.type) {
     case kCGPathElementMoveToPoint:
+        // maybe this can happen
+        // if (final_count > 0) {
+        //     if (contour_count == 0 || contour_ends[contour_count - 1] != final_count - 1) {
+        //         contour_ends[contour_count++] = final_count - 1;
+        //     }
+        // }
+
         oc__append(ctx->points, ctx->element.points[0]);
         oc__append(ctx->tags, OC__CURVE_TAG_ON);
 
@@ -624,6 +615,8 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
         // todo:
         break;
     case kCGPathElementCloseSubpath:
+        assert(oc__len(ctx->points) > 0);
+        oc__append(ctx->contours, oc__len(ctx->points) - 1);
         break;
     case -1:
         break;
@@ -655,6 +648,12 @@ void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
     CGPathApply(outline, &ctx, oc__walk_applier);
     CGPathRelease(outline);
 
+    assert(ctx.element.type == kCGPathElementCloseSubpath);
+    // todo: check if it is even possible to get Close without any points
+    if (oc__len(ctx.points) > 0) {
+        oc__append(ctx.contours, oc__len(ctx.points) - 1);
+    }
+
     printf("contours(%ld):\n", oc__len(ctx.contours));
     for (size_t i = 0; i < oc__len(ctx.contours); i++) {
         printf("  end(%d)\n", ctx.contours[i]);
@@ -662,7 +661,7 @@ void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
 
     printf("points(%ld):\n", oc__len(ctx.points));
     for (size_t i = 0; i < oc__len(ctx.points); i++) {
-        printf("  tag(%d) point(%d, %d)\n", (int)ctx.tags[i], ctx.points[i].x, ctx.points[i].y);
+        printf("  tag(%d) point(%d, %d)\n", (int)ctx.tags[i], ctx.points[i].x >> 1, ctx.points[i].y >> 1);
     }
 
     oc__free(ctx.tags);
@@ -691,6 +690,7 @@ void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
 // }
 //
 // static inline bool is_midpoint(CGPoint pt, CGPoint a, CGPoint b) {
+//     printf("pt: (%f, %f), a: (%f, %f), b: (%f, %f)\n", pt.x, pt.y, a.x, a.y, b.x, b.y);
 //     double midx = (a.x + b.x) * 0.5;
 //     double midy = (a.y + b.y) * 0.5;
 //     return (fabs(pt.x - midx) < 0.05) && (fabs(pt.y - midy) < 0.05);
