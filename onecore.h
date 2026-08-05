@@ -2167,9 +2167,9 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
         oc__append(ctx->tags, OC__CURVE_TAG_CONIC);
 
         bool implicit = false;
-        bool closing = ctx->element.points[1].x != ctx->start_point.x && ctx->element.points[1].y != ctx->start_point.y;
+        bool closing = ctx->element.points[1].x == ctx->start_point.x && ctx->element.points[1].y == ctx->start_point.y;
 
-        if (next_element.type == kCGPathElementAddCurveToPoint) {
+        if (next_element.type == kCGPathElementAddQuadCurveToPoint) {
             implicit = oc__is_midpoint(ctx->element.points[1], ctx->element.points[0], next_element.points[0]);
         }
 
