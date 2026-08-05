@@ -2047,170 +2047,293 @@ bool ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, c
     return true;
 }
 
-// AI generated slop but it does seem to work
-
 typedef struct {
-    int type;        // 0 = move, 1 = line, 2 = quad, 3 = close
-    CGPoint pt;      // for move/line (Font Units)
-    CGPoint ctrl;    // for quad (Font Units)
-    CGPoint end;     // for quad (Font Units)
-} oc_path_elem;
+    size_t len;
+    size_t cap;
+} oc__array;
 
-typedef struct {
-    oc_path_elem* elements;
-    size_t count;
-    size_t capacity;
-    CGFloat scale;
-} oc_elem_buffer;
+#define oc__head(arr)      ((oc__array*)(arr) - 1)
+#define oc__make(type)     ((type)NULL)
+#define oc__free(arr)      ((void) ((arr) ? free(oc__head(arr)) : (void)0), (arr)=NULL)
+#define oc__len(arr)       ((arr) ? oc__head(arr)->len : 0)
+#define oc__cap(arr)       ((arr) ? oc__head(arr)->cap : 0)
+#define oc__grow(arr, cap) oc__grow_impl(arr, sizeof(*arr), cap)
 
-static inline bool points_equal_approx(CGPoint a, CGPoint b) {
-    return (fabs(a.x - b.x) < 0.05) && (fabs(a.y - b.y) < 0.05);
-}
+#define oc__append(arr, val) \
+    ((arr = oc__grow(arr, oc__len(arr) + 1)), \
+     (arr) ? ((arr)[oc__head(arr)->len++] = (val), 1) : 0)
 
-static inline bool is_midpoint(CGPoint pt, CGPoint a, CGPoint b) {
-    double midx = (a.x + b.x) * 0.5;
-    double midy = (a.y + b.y) * 0.5;
-    return (fabs(pt.x - midx) < 0.05) && (fabs(pt.y - midy) < 0.05);
-}
+// note: this impl will not preserve arr on oom
+static inline void* oc__grow_impl(void* arr, size_t size, size_t new_cap) {
+    void* new_arr = NULL;
 
-static void oc__collect_applier(void* info, const CGPathElement* element) {
-    oc_elem_buffer* buf = (oc_elem_buffer*)info;
-    CGFloat s = buf->scale;
+    size_t len = oc__len(arr);
+    size_t cap = oc__cap(arr);
 
-    if (buf->count >= buf->capacity) {
-        buf->capacity = buf->capacity ? buf->capacity * 2 : 128;
-        buf->elements = realloc(buf->elements, buf->capacity * sizeof(oc_path_elem));
+    if (cap >= new_cap) {
+        return arr;
     }
+
+    // note: it would be better to ensure init_cap is atleast one byte
+    //       when we will use an type with bigger size then 128, we should update
+    size_t init_cap = 128 / size;
+    new_cap += new_cap / 2 + init_cap;
+
+    // note: we ignore alignment for now as for basic types it will be fine
+    //       though when we will use structs with bigger allignment then 16, we should update
+    oc__array* new_head = malloc(sizeof(*new_head) + new_cap * size);
+    if (new_head) {
+        new_arr = new_head + 1;
+
+        new_head->len = len;
+        new_head->cap = new_cap;
+
+        memcpy(new_arr, arr, len * size);
+
+        oc__free(arr);
+        return new_head + 1;
+    }
+
+    return arr;
+}
+
+// we need dynamic array type
+// oc__make($type) -> *type
+// oc__free($ptr)
+// oc__len($ptr) -> usize
+// oc__cap($ptr) -> usize
+// oc__append($ptr, ...) -> bool
+/*
+    int* arr = oc__make(int);
+    oc__append(arr, 67, 69);
+    printf("len: %ld, cap: %ld\n", oc__len(arr), oc__cap(arr));
+    oc__free(arr);
+*/
+
+#define OC__CURVE_TAG_ON    0x1
+#define OC__CURVE_TAG_CONIC 0x0
+#define OC__CURVE_TAG_CUBIC 0x2
+
+typedef struct {
+    CGFloat fsize;
+    CGFloat fupem;
+
+    uint8_t*  tags;
+    oc_point* points;
+    uint16_t* contours;
+} oc__applier_context;
+
+static void oc__walk_applier(void* info, const CGPathElement* element) {
+    oc__applier_context* ctx = (oc__applier_context*)info;
+
+    oc_point pt1 = { element->points[0].x * ctx->fupem / ctx->fupem, element->points[0].y * ctx->fupem / ctx->fupem };
+    oc_point pt2 = { element->points[1].x * ctx->fupem / ctx->fupem, element->points[1].y * ctx->fupem / ctx->fupem };
+    oc_point pt3 = { element->points[2].x * ctx->fupem / ctx->fupem, element->points[2].y * ctx->fupem / ctx->fupem };
+
+    printf("pt1: (%d, %d), pt2: (%d, %d), pt3: (%d, %d)\n", pt1.x, pt1.y, pt2.x, pt2.y, pt3.x, pt3.y);
 
     switch (element->type) {
     case kCGPathElementMoveToPoint:
-        buf->elements[buf->count++] = (oc_path_elem){
-            .type = 0,
-            .pt = CGPointMake(element->points[0].x * s, element->points[0].y * s)
-        };
         break;
-
     case kCGPathElementAddLineToPoint:
-        buf->elements[buf->count++] = (oc_path_elem){
-            .type = 1,
-            .pt = CGPointMake(element->points[0].x * s, element->points[0].y * s)
-        };
         break;
-
     case kCGPathElementAddQuadCurveToPoint:
-        buf->elements[buf->count++] = (oc_path_elem){
-            .type = 2,
-            .ctrl = CGPointMake(element->points[0].x * s, element->points[0].y * s),
-            .end  = CGPointMake(element->points[1].x * s, element->points[1].y * s)
-        };
+        // todo:
         break;
-
+    case kCGPathElementAddCurveToPoint:
+        break;
     case kCGPathElementCloseSubpath:
-        buf->elements[buf->count++] = (oc_path_elem){ .type = 3 };
-        break;
-
-    default:
         break;
     }
 }
-
-typedef struct {
-    CGPoint pt;
-    int tag;
-} oc_final_pt;
 
 void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
-    if (!face || !face->impl) return;
+    CTFontRef           ct_font;
+    CGPathRef           outline;
+    oc__applier_context ctx = { 0 };
 
-    CTFontRef ct_font = (CTFontRef)face->impl;
-    CGPathRef outline = CTFontCreatePathForGlyph(ct_font, index, NULL);
-    if (!outline) return;
-
-    CGFloat fsize = CTFontGetSize(ct_font);
-    CGFloat fupem = CTFontGetUnitsPerEm(ct_font);
-
-    oc_elem_buffer buf = { 0 };
-    buf.scale = fupem / fsize;
-
-    CGPathApply(outline, &buf, oc__collect_applier);
-
-    oc_final_pt* final_points = malloc(buf.count * 2 * sizeof(oc_final_pt));
-    int final_count = 0;
-
-    int* contour_ends = malloc(buf.count * sizeof(int));
-    int contour_count = 0;
-
-    CGPoint contour_start_pt = CGPointZero;
-
-    for (size_t i = 0; i < buf.count; i++) {
-        switch (buf.elements[i].type) {
-        case 0: // MoveTo
-            if (final_count > 0) {
-                if (contour_count == 0 || contour_ends[contour_count - 1] != final_count - 1) {
-                    contour_ends[contour_count++] = final_count - 1;
-                }
-            }
-            contour_start_pt = buf.elements[i].pt;
-            final_points[final_count++] = (oc_final_pt){buf.elements[i].pt, 1};
-            break;
-
-        case 1: // LineTo
-            // Ignore if LineTo just repeats the start point at the end of the contour
-            if (!points_equal_approx(buf.elements[i].pt, contour_start_pt)) {
-                final_points[final_count++] = (oc_final_pt){buf.elements[i].pt, 1};
-            }
-            break;
-
-        case 2: // QuadCurve
-            // Off-curve control point is ALWAYS pushed as tag(0)
-            final_points[final_count++] = (oc_final_pt){buf.elements[i].ctrl, 0};
-
-            // Check if end point is an implicit midpoint OR duplicate of starting point
-            bool is_implicit = false;
-            if (i + 1 < buf.count && buf.elements[i + 1].type == 2) {
-                if (is_midpoint(buf.elements[i].end, buf.elements[i].ctrl, buf.elements[i + 1].ctrl)) {
-                    is_implicit = true;
-                }
-            }
-
-            bool is_closing_start_pt = points_equal_approx(buf.elements[i].end, contour_start_pt);
-
-            // Skip pushing endpoint if it's synthetic OR if it's wrapping back to point #0
-            if (!is_implicit && !is_closing_start_pt) {
-                final_points[final_count++] = (oc_final_pt){buf.elements[i].end, 1};
-            }
-            break;
-
-        case 3: // CloseSubpath
-            if (final_count > 0) {
-                contour_ends[contour_count++] = final_count - 1;
-            }
-            break;
-        }
+    if (!face) {
+        return;
     }
 
-    if (final_count > 0 && (contour_count == 0 || contour_ends[contour_count - 1] != final_count - 1)) {
-        contour_ends[contour_count++] = final_count - 1;
+    ct_font = (CTFontRef)face->impl;
+    outline = CTFontCreatePathForGlyph(ct_font, index, NULL);
+
+    if (!outline) {
+        return;
     }
 
-    // Output exact FreeType format
-    printf("contours(%d):\n", contour_count);
-    for (int i = 0; i < contour_count; i++) {
-        printf("  end(%d)\n", contour_ends[i]);
-    }
+    ctx.fsize = CTFontGetSize(ct_font);
+    ctx.fupem = CTFontGetUnitsPerEm(ct_font);
 
-    printf("points(%d):\n", final_count);
-    for (int i = 0; i < final_count; i++) {
-        long x = (long)round(final_points[i].pt.x);
-        long y = (long)round(final_points[i].pt.y);
-        printf("  tag(%d) point(%ld, %ld)\n", final_points[i].tag, x, y);
-    }
-
-    free(final_points);
-    free(contour_ends);
-    free(buf.elements);
+    CGPathApply(outline, &ctx, oc__walk_applier);
     CGPathRelease(outline);
 }
+
+// AI generated slop but it does seem to work
+
+// typedef struct {
+//     int type;        // 0 = move, 1 = line, 2 = quad, 3 = close
+//     CGPoint pt;      // for move/line (Font Units)
+//     CGPoint ctrl;    // for quad (Font Units)
+//     CGPoint end;     // for quad (Font Units)
+// } oc_path_elem;
+//
+// typedef struct {
+//     oc_path_elem* elements;
+//     size_t count;
+//     size_t capacity;
+//     CGFloat scale;
+// } oc_elem_buffer;
+//
+// static inline bool points_equal_approx(CGPoint a, CGPoint b) {
+//     return (fabs(a.x - b.x) < 0.05) && (fabs(a.y - b.y) < 0.05);
+// }
+//
+// static inline bool is_midpoint(CGPoint pt, CGPoint a, CGPoint b) {
+//     double midx = (a.x + b.x) * 0.5;
+//     double midy = (a.y + b.y) * 0.5;
+//     return (fabs(pt.x - midx) < 0.05) && (fabs(pt.y - midy) < 0.05);
+// }
+//
+// static void oc__collect_applier(void* info, const CGPathElement* element) {
+//     oc_elem_buffer* buf = (oc_elem_buffer*)info;
+//     CGFloat s = buf->scale;
+//
+//     if (buf->count >= buf->capacity) {
+//         buf->capacity = buf->capacity ? buf->capacity * 2 : 128;
+//         buf->elements = realloc(buf->elements, buf->capacity * sizeof(oc_path_elem));
+//     }
+//
+//     switch (element->type) {
+//     case kCGPathElementMoveToPoint:
+//         buf->elements[buf->count++] = (oc_path_elem){
+//             .type = 0,
+//             .pt = CGPointMake(element->points[0].x * s, element->points[0].y * s)
+//         };
+//         break;
+//
+//     case kCGPathElementAddLineToPoint:
+//         buf->elements[buf->count++] = (oc_path_elem){
+//             .type = 1,
+//             .pt = CGPointMake(element->points[0].x * s, element->points[0].y * s)
+//         };
+//         break;
+//
+//     case kCGPathElementAddQuadCurveToPoint:
+//         buf->elements[buf->count++] = (oc_path_elem){
+//             .type = 2,
+//             .ctrl = CGPointMake(element->points[0].x * s, element->points[0].y * s),
+//             .end  = CGPointMake(element->points[1].x * s, element->points[1].y * s)
+//         };
+//         break;
+//
+//     case kCGPathElementCloseSubpath:
+//         buf->elements[buf->count++] = (oc_path_elem){ .type = 3 };
+//         break;
+//
+//     default:
+//         break;
+//     }
+// }
+//
+// typedef struct {
+//     CGPoint pt;
+//     int tag;
+// } oc_final_pt;
+//
+// void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
+//     if (!face || !face->impl) return;
+//
+//     CTFontRef ct_font = (CTFontRef)face->impl;
+//     CGPathRef outline = CTFontCreatePathForGlyph(ct_font, index, NULL);
+//     if (!outline) return;
+//
+//     CGFloat fsize = CTFontGetSize(ct_font);
+//     CGFloat fupem = CTFontGetUnitsPerEm(ct_font);
+//
+//     oc_elem_buffer buf = { 0 };
+//     buf.scale = fupem / fsize;
+//
+//     CGPathApply(outline, &buf, oc__collect_applier);
+//
+//     oc_final_pt* final_points = malloc(buf.count * 2 * sizeof(oc_final_pt));
+//     int final_count = 0;
+//
+//     int* contour_ends = malloc(buf.count * sizeof(int));
+//     int contour_count = 0;
+//
+//     CGPoint contour_start_pt = CGPointZero;
+//
+//     for (size_t i = 0; i < buf.count; i++) {
+//         switch (buf.elements[i].type) {
+//         case 0: // MoveTo
+//             if (final_count > 0) {
+//                 if (contour_count == 0 || contour_ends[contour_count - 1] != final_count - 1) {
+//                     contour_ends[contour_count++] = final_count - 1;
+//                 }
+//             }
+//             contour_start_pt = buf.elements[i].pt;
+//             final_points[final_count++] = (oc_final_pt){buf.elements[i].pt, 1};
+//             break;
+//
+//         case 1: // LineTo
+//             // Ignore if LineTo just repeats the start point at the end of the contour
+//             if (!points_equal_approx(buf.elements[i].pt, contour_start_pt)) {
+//                 final_points[final_count++] = (oc_final_pt){buf.elements[i].pt, 1};
+//             }
+//             break;
+//
+//         case 2: // QuadCurve
+//             // Off-curve control point is ALWAYS pushed as tag(0)
+//             final_points[final_count++] = (oc_final_pt){buf.elements[i].ctrl, 0};
+//
+//             // Check if end point is an implicit midpoint OR duplicate of starting point
+//             bool is_implicit = false;
+//             if (i + 1 < buf.count && buf.elements[i + 1].type == 2) {
+//                 if (is_midpoint(buf.elements[i].end, buf.elements[i].ctrl, buf.elements[i + 1].ctrl)) {
+//                     is_implicit = true;
+//                 }
+//             }
+//
+//             bool is_closing_start_pt = points_equal_approx(buf.elements[i].end, contour_start_pt);
+//
+//             // Skip pushing endpoint if it's synthetic OR if it's wrapping back to point #0
+//             if (!is_implicit && !is_closing_start_pt) {
+//                 final_points[final_count++] = (oc_final_pt){buf.elements[i].end, 1};
+//             }
+//             break;
+//
+//         case 3: // CloseSubpath
+//             if (final_count > 0) {
+//                 contour_ends[contour_count++] = final_count - 1;
+//             }
+//             break;
+//         }
+//     }
+//
+//     if (final_count > 0 && (contour_count == 0 || contour_ends[contour_count - 1] != final_count - 1)) {
+//         contour_ends[contour_count++] = final_count - 1;
+//     }
+//
+//     // Output exact FreeType format
+//     printf("contours(%d):\n", contour_count);
+//     for (int i = 0; i < contour_count; i++) {
+//         printf("  end(%d)\n", contour_ends[i]);
+//     }
+//
+//     printf("points(%d):\n", final_count);
+//     for (int i = 0; i < final_count; i++) {
+//         long x = (long)round(final_points[i].pt.x);
+//         long y = (long)round(final_points[i].pt.y);
+//         printf("  tag(%d) point(%ld, %ld)\n", final_points[i].tag, x, y);
+//     }
+//
+//     free(final_points);
+//     free(contour_ends);
+//     free(buf.elements);
+//     CGPathRelease(outline);
+// }
 
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {
     oc_error err = oc_error_ok;
