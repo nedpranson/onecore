@@ -2115,25 +2115,50 @@ static inline void* oc__grow_impl(void* arr, size_t size, size_t new_cap) {
 #define OC__CURVE_TAG_CUBIC 0x2
 
 typedef struct {
-    CGFloat fsize;
-    CGFloat fupem;
+    oc_point          points[3];
+    CGPathElementType type;
+} oc__path_element;
 
+typedef struct {
     uint8_t*  tags;
     oc_point* points;
     uint16_t* contours;
+
+    oc__path_element element;
+    oc_point         start_point;
+
+    CGFloat fppem;
+    CGFloat fupem;
 } oc__applier_context;
+
+static inline bool oc__is_midpoint(oc_point pt, oc_point a, oc_point b) {
+    oc_26p6 midx = (a.x + b.x) / 2;
+    oc_26p6 midy = (a.y + b.y) / 2;
+    return pt.x == midx && pt.y == midy;
+}
 
 static void oc__walk_applier(void* info, const CGPathElement* element) {
     oc__applier_context* ctx = (oc__applier_context*)info;
 
-    oc_point pt1 = { element->points[0].x * ctx->fupem / ctx->fupem, element->points[0].y * ctx->fupem / ctx->fupem };
-    oc_point pt2 = { element->points[1].x * ctx->fupem / ctx->fupem, element->points[1].y * ctx->fupem / ctx->fupem };
-    oc_point pt3 = { element->points[2].x * ctx->fupem / ctx->fupem, element->points[2].y * ctx->fupem / ctx->fupem };
+    oc__path_element next_element = {
+        {
+            { element->points[0].x * ctx->fupem / ctx->fppem, element->points[0].y * ctx->fupem / ctx->fppem },
+            { element->points[1].x * ctx->fupem / ctx->fppem, element->points[1].y * ctx->fupem / ctx->fppem },
+            { element->points[2].x * ctx->fupem / ctx->fppem, element->points[2].y * ctx->fupem / ctx->fppem },
+        },
+        element->type,
+    };
 
-    printf("pt1: (%d, %d), pt2: (%d, %d), pt3: (%d, %d)\n", pt1.x, pt1.y, pt2.x, pt2.y, pt3.x, pt3.y);
+    //printf("pt1: (%d, %d), pt2: (%d, %d), pt3: (%d, %d)\n", pt1.x, pt1.y, pt2.x, pt2.y, pt3.x, pt3.y);
 
-    switch (element->type) {
+    // todo: do not forget to check oom
+    // [i][i+1] -> [ctx->element][next_element]
+    switch (ctx->element.type) {
     case kCGPathElementMoveToPoint:
+        oc__append(ctx->points, ctx->element.points[0]);
+        oc__append(ctx->tags, OC__CURVE_TAG_ON);
+
+        ctx->start_point = ctx->element.points[0];
         break;
     case kCGPathElementAddLineToPoint:
         break;
@@ -2141,10 +2166,29 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
         // todo:
         break;
     case kCGPathElementAddCurveToPoint:
+        oc__append(ctx->points, ctx->element.points[0]);
+        oc__append(ctx->tags, OC__CURVE_TAG_CONIC);
+
+        bool implicit = false;
+        bool closing = ctx->element.points[1].x != ctx->start_point.x && ctx->element.points[1].y != ctx->start_point.y;
+
+        if (next_element.type == kCGPathElementAddCurveToPoint) {
+            implicit = oc__is_midpoint(ctx->element.points[1], ctx->element.points[0], next_element.points[0]);
+        }
+
+        if (!implicit && !closing) {
+            oc__append(ctx->points, ctx->element.points[1]);
+            oc__append(ctx->tags, OC__CURVE_TAG_ON);
+        }
+
         break;
     case kCGPathElementCloseSubpath:
         break;
+    case -1:
+        break;
     }
+
+    ctx->element = next_element;
 }
 
 void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
@@ -2163,11 +2207,26 @@ void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
         return;
     }
 
-    ctx.fsize = CTFontGetSize(ct_font);
+    ctx.fppem = CTFontGetSize(ct_font);
     ctx.fupem = CTFontGetUnitsPerEm(ct_font);
+    ctx.element.type = -1;
 
     CGPathApply(outline, &ctx, oc__walk_applier);
     CGPathRelease(outline);
+
+    printf("contours(%ld):\n", oc__len(ctx.contours));
+    for (size_t i = 0; i < oc__len(ctx.contours); i++) {
+        printf("  end(%d)\n", ctx.contours[i]);
+    }
+
+    printf("points(%ld):\n", oc__len(ctx.points));
+    for (size_t i = 0; i < oc__len(ctx.points); i++) {
+        printf("  tag(%d) point(%d, %d)\n", (int)ctx.tags[i], ctx.points[i].x, ctx.points[i].y);
+    }
+
+    oc__free(ctx.tags);
+    oc__free(ctx.points);
+    oc__free(ctx.contours);
 }
 
 // AI generated slop but it does seem to work
@@ -2290,7 +2349,7 @@ void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
 //
 //             // Check if end point is an implicit midpoint OR duplicate of starting point
 //             bool is_implicit = false;
-//             if (i + 1 < buf.count && buf.elements[i + 1].type == 2) {
+//             if (i + 1 < buf.count && buf.elements[i + 1].type == 2) { // need to know one in advance
 //                 if (is_midpoint(buf.elements[i].end, buf.elements[i].ctrl, buf.elements[i + 1].ctrl)) {
 //                     is_implicit = true;
 //                 }
