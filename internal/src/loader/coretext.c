@@ -482,60 +482,6 @@ bool ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, c
 }
 
 typedef struct {
-    size_t len;
-    size_t cap;
-} oc__array;
-
-#define oc__head(arr)      ((oc__array*)(arr) - 1)
-#define oc__make(type)     ((type)NULL)
-#define oc__free(arr)      ((void) ((arr) ? free(oc__head(arr)) : (void)0), (arr)=NULL)
-#define oc__len(arr)       ((arr) ? oc__head(arr)->len : 0)
-#define oc__cap(arr)       ((arr) ? oc__head(arr)->cap : 0)
-#define oc__grow(arr, cap) oc__grow_impl(arr, sizeof(*arr), cap)
-
-#define oc__append(arr, val) \
-    ((arr = oc__grow(arr, oc__len(arr) + 1)), \
-     (arr) ? ((arr)[oc__head(arr)->len++] = (val), 1) : 0)
-
-// note: this impl will not preserve arr on oom
-static inline void* oc__grow_impl(void* arr, size_t size, size_t new_cap) {
-    void* new_arr = NULL;
-
-    size_t len = oc__len(arr);
-    size_t cap = oc__cap(arr);
-
-    if (cap >= new_cap) {
-        return arr;
-    }
-
-    // note: it would be better to ensure init_cap is atleast one byte
-    //       when we will use an type with bigger size then 128, we should update
-    size_t init_cap = 128 / size;
-    new_cap += new_cap / 2 + init_cap;
-
-    // note: we ignore alignment for now as for basic types it will be fine
-    //       though when we will use structs with bigger allignment then 16, we should update
-    oc__array* new_head = malloc(sizeof(*new_head) + new_cap * size);
-    if (new_head) {
-        new_arr = new_head + 1;
-
-        new_head->len = len;
-        new_head->cap = new_cap;
-
-        memcpy(new_arr, arr, len * size);
-
-        oc__free(arr);
-        return new_head + 1;
-    }
-
-    return arr;
-}
-
-#define OC__CURVE_TAG_ON    0x1
-#define OC__CURVE_TAG_CONIC 0x0
-#define OC__CURVE_TAG_CUBIC 0x2
-
-typedef struct {
     oc_point          pt1;
     oc_point          pt2;
     oc_point          pt3;
@@ -548,27 +494,11 @@ typedef struct {
     uint16_t* contours;
 
     oc__path_element element;
-    oc_point         start_point;
+    oc_point         start;
 
     CGFloat fppem;
     CGFloat fupem;
 } oc__applier_context;
-
-static inline bool oc__is_midpoint(oc_point pt, oc_point a, oc_point b) {
-    uint64_t sumx = (uint64_t)a.x + (uint64_t)b.x;
-    uint64_t sumy = (uint64_t)a.y + (uint64_t)b.y;
-    return (uint64_t)pt.x * 2 == sumx && (uint64_t)pt.y * 2 == sumy;
-}
-
-static inline bool oc__points_equal(oc_point a, oc_point b) {
-    return a.x == b.x && a.y == b.y;
-}
-
-static inline oc_point oc__point_bsr(oc_point pt, uint8_t amt) {
-    pt.x >>= amt;
-    pt.y >>= amt;
-    return pt;
-}
 
 static void oc__walk_applier(void* info, const CGPathElement* element) {
     oc__applier_context* ctx = (oc__applier_context*)info;
@@ -579,6 +509,9 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
         { element->points[2].x * ctx->fupem / ctx->fppem * 2.0, element->points[2].y * ctx->fupem / ctx->fppem * 2.0 },
           element->type
     };
+
+    bool implicit;
+    bool closing;
 
     // todo: do not forget to check oom
     switch (ctx->element.type) {
@@ -593,10 +526,10 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
         oc__append(ctx->points, oc__point_bsr(ctx->element.pt1, 1));
         oc__append(ctx->tags, OC__CURVE_TAG_ON);
 
-        ctx->start_point = ctx->element.pt1;
+        ctx->start = ctx->element.pt1;
         break;
     case kCGPathElementAddLineToPoint:
-        if (!oc__points_equal(ctx->element.pt1, ctx->start_point)) {
+        if (!oc__points_equal(ctx->element.pt1, ctx->start)) {
             oc__append(ctx->points, oc__point_bsr(ctx->element.pt1, 1));
             oc__append(ctx->tags, OC__CURVE_TAG_ON);
         }
@@ -605,8 +538,12 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
         oc__append(ctx->points, oc__point_bsr(ctx->element.pt1, 1));
         oc__append(ctx->tags, OC__CURVE_TAG_CONIC);
 
-        bool implicit = false;
-        bool closing = oc__points_equal(ctx->element.pt2, ctx->start_point);
+        implicit = false;
+        closing = false;
+
+        if (next_element.type == kCGPathElementCloseSubpath) {
+            closing = oc__points_equal(ctx->element.pt2, ctx->start);
+        }
 
         if (next_element.type == kCGPathElementAddQuadCurveToPoint) {
             implicit = oc__is_midpoint(ctx->element.pt2, ctx->element.pt1, next_element.pt1);
@@ -618,13 +555,27 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
         }
         break;
     case kCGPathElementAddCurveToPoint:
-        // todo:
+        oc__append(ctx->points, oc__point_bsr(ctx->element.pt1, 1));
+        oc__append(ctx->points, oc__point_bsr(ctx->element.pt2, 1));
+
+        oc__append(ctx->tags, OC__CURVE_TAG_CUBIC);
+        oc__append(ctx->tags, OC__CURVE_TAG_CUBIC);
+            
+        closing = false;
+        if (next_element.type == kCGPathElementCloseSubpath) {
+            closing = oc__points_equal(ctx->element.pt3, ctx->start);
+        }
+
+        if (!closing) {
+            oc__append(ctx->points, oc__point_bsr(ctx->element.pt3, 1));
+            oc__append(ctx->tags, OC__CURVE_TAG_ON);
+        }
         break;
     case kCGPathElementCloseSubpath:
         assert(oc__len(ctx->points) > 0);
         oc__append(ctx->contours, oc__len(ctx->points) - 1);
         break;
-    case -1:
+    default:
         break;
     }
 

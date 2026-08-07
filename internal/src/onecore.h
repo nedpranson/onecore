@@ -443,14 +443,14 @@ static inline oc_error oc__unexpected_impl(long err, const char* file, int line)
 #define oc__unexpected(e) oc__unexpected_impl((long)e, __FILE__, __LINE__)
 #endif /* NDEBUG */
 
-#define oc__parentof(type, ptr, member) \
-    ((type*)((char*)(ptr) - offsetof(type, member)))
+#define oc__parentof(type, ptr, member) ((type*)((char*)(ptr) - offsetof(type, member)))
 
-#define OC__MAX(a, b) \
-    ((a) > (b) ? (a) : (b))
+#define OC__MAX(a, b) ((a) > (b) ? (a) : (b))
+#define OC__MIN(a, b) ((a) < (b) ? (a) : (b))
 
-#define OC__MIN(a, b) \
-    ((a) < (b) ? (a) : (b))
+#define OC__CURVE_TAG_ON    0x1
+#define OC__CURVE_TAG_CONIC 0x0
+#define OC__CURVE_TAG_CUBIC 0x2
 
 #define oc__exit(e) \
     do {            \
@@ -536,6 +536,69 @@ static inline void oc__fit_metrics(oc_glyph_metrics* pmetrics) {
     pmetrics->advance = OC_26P6_ROUND(pmetrics->advance);
 }
 
+typedef struct {
+    size_t len;
+    size_t cap;
+} oc__array;
+
+#define oc__head(arr)      ((oc__array*)(arr) - 1)
+#define oc__make(type)     ((type)NULL)
+#define oc__free(arr)      ((void) ((arr) ? free(oc__head(arr)) : (void)0), (arr)=NULL)
+#define oc__len(arr)       ((arr) ? oc__head(arr)->len : 0)
+#define oc__cap(arr)       ((arr) ? oc__head(arr)->cap : 0)
+#define oc__grow(arr, cap) oc__grow_impl(arr, sizeof(*arr), cap)
+
+#define oc__append(arr, val) \
+    ((arr = oc__grow(arr, oc__len(arr) + 1)), \
+     (arr) ? ((arr)[oc__head(arr)->len++] = (val), 1) : 0)
+
+// note: this impl will not preserve arr on oom
+static inline void* oc__grow_impl(void* arr, size_t size, size_t new_cap) {
+    void* new_arr = NULL;
+
+    size_t len = oc__len(arr);
+    size_t cap = oc__cap(arr);
+
+    if (cap >= new_cap) {
+        return arr;
+    }
+
+    size_t init_cap = OC__MAX(1, 128 / size);
+    new_cap += new_cap / 2 + init_cap;
+
+    // note: we ignore alignment for now as for basic types it will be fine
+    //       though when we will use structs with bigger allignment then 16, we should update
+    oc__array* new_head = malloc(sizeof(*new_head) + new_cap * size);
+    if (new_head) {
+        new_arr = new_head + 1;
+
+        new_head->len = len;
+        new_head->cap = new_cap;
+
+        memcpy(new_arr, arr, len * size);
+
+        oc__free(arr);
+        return new_head + 1;
+    }
+
+    return arr;
+}
+
+static inline bool oc__is_midpoint(oc_point pt, oc_point a, oc_point b) {
+    uint64_t sumx = (uint64_t)a.x + (uint64_t)b.x;
+    uint64_t sumy = (uint64_t)a.y + (uint64_t)b.y;
+    return (uint64_t)pt.x * 2 == sumx && (uint64_t)pt.y * 2 == sumy;
+}
+
+static inline bool oc__points_equal(oc_point a, oc_point b) {
+    return a.x == b.x && a.y == b.y;
+}
+
+static inline oc_point oc__point_bsr(oc_point pt, uint8_t amt) {
+    pt.x >>= amt;
+    pt.y >>= amt;
+    return pt;
+}
 #endif /* ONECORE_IMPLEMENTATION */
 
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION

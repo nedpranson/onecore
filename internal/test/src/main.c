@@ -938,6 +938,19 @@ void test_ocl_get_outline(void) {
     // TEST_ASSERT_EQUAL(ctx.checks_end, ctx.checks);
 
     ocl_print_raw_outline(&g_arial_ttf, idx);
+
+    oc_face face;
+    oc_error err;
+
+    err = ocl_open_face(g_library, "test/files/AGaramondPro-Regular.otf", NULL, &face);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    idx = ocl_get_char_index(&face, '?');
+    TEST_ASSERT_EQUAL_INT16(32, idx);
+
+    ocl_print_raw_outline(&face, idx);
+
+    ocl_free_face(&face);
 }
 
 // todo: make everything backend indipendent!

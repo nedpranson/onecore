@@ -1,3 +1,4 @@
+#include <stdio.h>
 #define ONECORE_IMPLEMENTATION
 #include "../onecore.h"
 
@@ -6,6 +7,7 @@
 
 #include <d2d1.h>
 #include <dwrite.h>
+#include <math.h>
 
 struct oc_face_impl {
     IDWriteFontFace* dw_face;
@@ -827,12 +829,116 @@ bool ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, c
     return true;
 }
 
+typedef enum {
+    oc__path_move,
+    oc__path_line,
+    oc__path_conic,
+    oc__path_cubic,
+    oc__path_close,
+} oc__path;
+
+typedef struct {
+    oc_point pt1;
+    oc_point pt2;
+    oc_point pt3;
+    oc__path type;
+} oc__path_element;
+
+typedef struct {
+    D2D1_POINT_2F pt1;
+    D2D1_POINT_2F pt2;
+    D2D1_POINT_2F pt3;
+    oc__path      type;
+} oc__path_felement;
+
+// cb -> any(make 'next_element') -> hdlr(eval 'curr_element')
 typedef struct {
     const ID2D1SimplifiedGeometrySinkVtbl* lpVtbl;
 
+    uint8_t*  tags;
+    oc_point* points;
+    uint16_t* contours;
+
+    oc__path_element element;
+
     D2D1_POINT_2F origin;
+    D2D1_POINT_2F start;
+
     LONG          ref_count;
 } OC__ID2D1SimplifiedGeometrySink2;
+
+static void oc__walk_outline(OC__ID2D1SimplifiedGeometrySink2* sink, const oc__path_felement* element) {
+    oc__path_element next_element = {
+        .pt1 = { element->pt1.x * 2.0f, element->pt1.y * -2.0f },
+        .pt2 = { element->pt2.x * 2.0f, element->pt2.y * -2.0f },
+        .pt3 = { element->pt3.x * 2.0f, element->pt3.y * -2.0f },
+        .type = element->type,
+    };
+
+    oc_point start = { sink->start.x * 2.0f, sink->start.y * -2.0f };
+    
+    bool implicit;
+    bool closing;
+
+    // todo: handle oom
+    switch (sink->element.type) {
+    case oc__path_move:
+        oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1));
+        oc__append(sink->tags, OC__CURVE_TAG_ON);
+        break;
+    case oc__path_line:
+        if (!oc__points_equal(sink->element.pt1, start)) {
+            oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1));
+            oc__append(sink->tags, OC__CURVE_TAG_ON);
+        }
+        break;
+    case oc__path_conic:
+        oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1));
+        oc__append(sink->tags, OC__CURVE_TAG_CONIC);
+
+        implicit = false;
+        closing = false;
+
+        if (next_element.type == oc__path_close) {
+            closing = oc__points_equal(sink->element.pt2, start);
+        }
+
+        if (next_element.type == oc__path_conic) {
+            implicit = oc__is_midpoint(sink->element.pt2, sink->element.pt1, next_element.pt1);
+        }
+
+        if (!implicit && !closing) {
+            oc__append(sink->points, oc__point_bsr(sink->element.pt2, 1));
+            oc__append(sink->tags, OC__CURVE_TAG_ON);
+        }
+        break;
+    case oc__path_cubic:
+        oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1));
+        oc__append(sink->points, oc__point_bsr(sink->element.pt2, 1));
+
+        oc__append(sink->tags, OC__CURVE_TAG_CUBIC);
+        oc__append(sink->tags, OC__CURVE_TAG_CUBIC);
+            
+        closing = false;
+        if (next_element.type == oc__path_close) {
+            closing = oc__points_equal(sink->element.pt3, start);
+        }
+
+        if (!closing) {
+            oc__append(sink->points, oc__point_bsr(sink->element.pt3, 1));
+            oc__append(sink->tags, OC__CURVE_TAG_ON);
+        }
+        break;
+    case oc__path_close:
+        assert(oc__len(sink->points) > 0);
+        oc__append(sink->contours, oc__len(sink->points) - 1);
+        break;
+    default:
+        break;
+    }
+
+    sink->element = next_element;
+}
 
 static HRESULT STDMETHODCALLTYPE
 OC__ID2D1SimplifiedGeometrySink_Close2(ID2D1SimplifiedGeometrySink* This) {
@@ -843,52 +949,48 @@ OC__ID2D1SimplifiedGeometrySink_Close2(ID2D1SimplifiedGeometrySink* This) {
 static void STDMETHODCALLTYPE
 OC__ID2D1SimplifiedGeometrySink_EndFigure2(ID2D1SimplifiedGeometrySink* This, D2D1_FIGURE_END figureEnd) {
     OC__ID2D1SimplifiedGeometrySink2* this = (OC__ID2D1SimplifiedGeometrySink2*)This;
-
-    (void)this;
     (void)figureEnd;
+
+    oc__path_felement element = { 0 };
+    element.type = oc__path_close;
+
+    oc__walk_outline(this, &element);
 }
 
 static void STDMETHODCALLTYPE
 OC__ID2D1SimplifiedGeometrySink_AddBeziers2(ID2D1SimplifiedGeometrySink* This, const D2D1_BEZIER_SEGMENT* beziers, UINT beziersCount) {
     OC__ID2D1SimplifiedGeometrySink2* this = (OC__ID2D1SimplifiedGeometrySink2*)This;
 
+    oc__path_felement element = { 0 };
     for (UINT32 i = 0; i < beziersCount; i++) {
-        D2D1_POINT_2F C1 = beziers[i].point1;
-        D2D1_POINT_2F C2 = beziers[i].point2;
+        D2D1_POINT_2F pt1 = beziers[i].point1;
+        D2D1_POINT_2F pt2 = beziers[i].point2;
+        D2D1_POINT_2F pt3 = beziers[i].point3;
 
-        D2D1_POINT_2F E = beziers[i].point3;
-        D2D1_POINT_2F S = this->origin;
+        D2D1_POINT_2F origin = this->origin;
 
-        C1.y *= -1;
-        C2.y *= -1;
-        E.y *= -1;
-        S.y *= -1;
+        float cx1 = (3.0f * pt1.x - origin.x) * 0.5f;
+        float cy1 = (3.0f * pt1.y - origin.y) * 0.5f;
 
-        float qx1 = (3.0f * C1.x - S.x) * 0.5f;
-        float qy1 = (3.0f * C1.y - S.y) * 0.5f;
+        float cx2 = (3.0f * pt2.x - pt3.x) * 0.5f;
+        float cy2 = (3.0f * pt2.y - pt3.y) * 0.5f;
 
-        float qx2 = (3.0f * C2.x - E.x) * 0.5f;
-        float qy2 = (3.0f * C2.y - E.y) * 0.5f;
+        float dx = cx1 - cx2;
+        float dy = cy1 - cy2;
 
-        float dx = qx1 - qx2;
-        float dy = qy1 - qy2;
+        if (dx * dx + dy * dy < 0.05f * 0.05f) {
+            element.pt1 = (D2D1_POINT_2F){ roundf(cx2), roundf(cy2) };
+            element.pt2 = pt3;
+            element.type = oc__path_conic;
+        } else {
+            element.pt1 = pt1;
+            element.pt2 = pt2;
+            element.pt3 = pt3;
+            element.type = oc__path_cubic;
+        }
 
-        float dist2 = dx*dx + dy*dy;
-
-        // const float EPS2 = 0.05 * 0.05;
-
-        // printf("pt1: (%f, %f), pt2: (%f, %f), pt3: (%f, %f)\n",
-        //        beziers[i].point1.x, -beziers[i].point1.y,
-        //        beziers[i].point2.x, -beziers[i].point2.y,
-        //        beziers[i].point3.x, -beziers[i].point3.y);
-
-
-        printf("pt1: (%f, %f), pt2: (%f, %f), dist: %f\n",
-               qx1, qy1,
-               E.x, E.y,
-               dist2);
-
-        this->origin = beziers[i].point3;
+        oc__walk_outline(this, &element);
+        this->origin = pt3;
     }
 }
 
@@ -896,19 +998,30 @@ static void STDMETHODCALLTYPE
 OC__ID2D1SimplifiedGeometrySink_AddLines2(ID2D1SimplifiedGeometrySink* This, const D2D1_POINT_2F* points, UINT pointsCount) {
     OC__ID2D1SimplifiedGeometrySink2* this = (OC__ID2D1SimplifiedGeometrySink2*)This;
 
+    oc__path_felement element = { 0 };
+    element.type = oc__path_line;
+
     for (UINT32 i = 0; i < pointsCount; i++) {
-        printf("pt: (%f, %f)\n", points[i].x, -points[i].y);
+        element.pt1 = points[i];
+        oc__walk_outline(this, &element);
+
+        this->origin = points[i];
     }
-    this->origin = points[pointsCount - 1];
 }
 
 static void STDMETHODCALLTYPE
 OC__ID2D1SimplifiedGeometrySink_BeginFigure2(ID2D1SimplifiedGeometrySink* This, D2D1_POINT_2F startPoint, D2D1_FIGURE_BEGIN figureBegin) {
-    OC__ID2D1SimplifiedGeometrySink* this = (OC__ID2D1SimplifiedGeometrySink*)This;
+    OC__ID2D1SimplifiedGeometrySink2* this = (OC__ID2D1SimplifiedGeometrySink2*)This;
     (void)figureBegin;
 
-    printf("pt: (%f, %f)\n", startPoint.x, -startPoint.y);
+    oc__path_felement element = { 0 };
+    element.type = oc__path_move;
+    element.pt1 = startPoint;
+
+    oc__walk_outline(this, &element);
+
     this->origin = startPoint;
+    this->start = startPoint;
 }
 
 static void STDMETHODCALLTYPE
@@ -978,6 +1091,7 @@ void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
     }
 
     sink.lpVtbl = &OC__ID2D1SimplifiedGeometrySinkVtbl2;
+    sink.element.type = -1;
     sink.ref_count = 1;
 
     err = face->impl->dw_face->lpVtbl->GetGlyphRunOutline(
@@ -995,10 +1109,29 @@ void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
         return;
     }
 
+    // todo: check if it is even possible to get Close without any points, like ' ' char
+    if (oc__len(sink.points) > 0) {
+        oc__append(sink.contours, oc__len(sink.points) - 1);
+    }
+
+    printf("contours(%lld):\n", oc__len(sink.contours));
+    for (size_t i = 0; i < oc__len(sink.contours); i++) {
+        printf("  end(%d)\n", sink.contours[i]);
+    }
+
+    printf("points(%lld):\n", oc__len(sink.points));
+    for (size_t i = 0; i < oc__len(sink.points); i++) {
+        printf("  tag(%d) point(%d, %d)\n", (int)sink.tags[i], sink.points[i].x, sink.points[i].y);
+    }
+
     refs = sink.lpVtbl->Base.Release((IUnknown*)&sink);
 
     (void)refs;
     assert(refs == 0);
+
+    oc__free(sink.tags);
+    oc__free(sink.points);
+    oc__free(sink.contours);
 }
 
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {
