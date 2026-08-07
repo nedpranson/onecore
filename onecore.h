@@ -1,5 +1,5 @@
 /* onecore.h - v0.0.1 - public domain, initial release 2026-4-16
- * 
+ *
  * MIT License
  *
  * Copyright (c) 2026 Nedas Pranskūnas
@@ -38,8 +38,8 @@ typedef int32_t  oc_26p6;
 #define OCDEF
 #endif
 
-#define OC_LOAD_DEFAULT 0x0          /* load scaled and fitted metrics */
-#define OC_LOAD_NO_SCALE (1l << 0)   /* use font units directly */
+#define OC_LOAD_DEFAULT    0x0       /* load scaled and fitted metrics */
+#define OC_LOAD_NO_SCALE   (1l << 0) /* use font units directly */
 #define OC_LOAD_NO_HINTING (1l << 1) /* disable hinting (does nothing for now) */
 // todo (stage 2): add these flags
 // #define OC_LOAD_VERTICAL (1l << 2)
@@ -50,22 +50,22 @@ typedef int32_t  oc_26p6;
 // todo: make so if a person is lazy to handle errors
 //       every func should just noop and never crash
 
-#define OC_ERROR_LIST                                      \
-    X(oc_error_ok, "no error")                             \
-    X(oc_error_invalid_param, "invalid parameter")         \
-    X(oc_error_table_missing, "table is missing")          \
-    X(oc_error_out_of_memory, "out of memory")             \
-    X(oc_error_failed_to_open, "failed to open")           \
-    X(oc_error_invalid_pixel_size, "invalid pixel size")   \
+#define OC_ERROR_LIST                                    \
+    X(oc_error_ok, "no error")                           \
+    X(oc_error_invalid_param, "invalid parameter")       \
+    X(oc_error_table_missing, "table is missing")        \
+    X(oc_error_out_of_memory, "out of memory")           \
+    X(oc_error_failed_to_open, "failed to open")         \
+    X(oc_error_invalid_pixel_size, "invalid pixel size") \
     X(oc_error_unexpected, "unexpected error")
 
 /* Converts four-letter tags that are used to label TrueType tables. */
 #define OC_MAKE_TAG(x1, x2, x3, x4) \
     (((uint32_t)(uint8_t)x1) << 24 | ((uint32_t)(uint8_t)x2) << 16 | ((uint32_t)(uint8_t)x3) << 8 | ((uint32_t)(uint8_t)x4))
 
-#define OC_26P6_FLOOR(x) ((int32_t)(x) & ~63)
-#define OC_26P6_ROUND(x) OC_26P6_FLOOR((int32_t)(x) + 32)
-#define OC_26P6_CEIL(x) OC_26P6_FLOOR((int32_t)(x) + 63)
+#define OC_26P6_FLOOR(x)  ((int32_t)(x) & ~63)
+#define OC_26P6_ROUND(x)  OC_26P6_FLOOR((int32_t)(x) + 32)
+#define OC_26P6_CEIL(x)   OC_26P6_FLOOR((int32_t)(x) + 63)
 #define OC_26P6_ADD(a, b) (int32_t)((uint32_t)(a) + (uint32_t)(b))
 #define OC_26P6_SUB(a, b) (int32_t)((uint32_t)(a) - (uint32_t)(b))
 
@@ -304,7 +304,7 @@ ocl_get_glyph_cbox(
 // it would be better to have some `size_t` that will habe ppem, scale, ascent, descent
 // this way one face will have multiple sizes when rasterizing a glyph we could just pass that &size
 // or to get glyph metrics we can pass that size again and nil could be initial base size
-/* 
+/*
 ocl_open_face(library, path, NULL, &face);
 ocl_init_size(&face, 12 << 6, 96, &size);
 
@@ -543,14 +543,14 @@ typedef struct {
 
 #define oc__head(arr)      ((oc__array*)(arr) - 1)
 #define oc__make(type)     ((type)NULL)
-#define oc__free(arr)      ((void) ((arr) ? free(oc__head(arr)) : (void)0), (arr)=NULL)
+#define oc__free(arr)      ((void)((arr) ? free(oc__head(arr)) : (void)0), (arr) = NULL)
 #define oc__len(arr)       ((arr) ? oc__head(arr)->len : 0)
 #define oc__cap(arr)       ((arr) ? oc__head(arr)->cap : 0)
 #define oc__grow(arr, cap) oc__grow_impl(arr, sizeof(*arr), cap)
 
-#define oc__append(arr, val) \
+#define oc__append(arr, val)                  \
     ((arr = oc__grow(arr, oc__len(arr) + 1)), \
-     (arr) ? ((arr)[oc__head(arr)->len++] = (val), 1) : 0)
+        (arr) ? ((arr)[oc__head(arr)->len++] = (val), 1) : 0)
 
 // note: this impl will not preserve arr on oom
 static inline void* oc__grow_impl(void* arr, size_t size, size_t new_cap) {
@@ -612,17 +612,17 @@ static inline oc_point oc__point_bsr(oc_point pt, uint8_t amt) {
 #include <windows.h>
 
 typedef SRWLOCK oc__mutex_impl_t;
-#define oc__mutex_impl_init(m) InitializeSRWLock(m)
-#define oc__mutex_impl_lock(m) AcquireSRWLockExclusive(m)
-#define oc__mutex_impl_unlock(m) ReleaseSRWLockExclusive(m)
+#define oc__mutex_impl_init(m)    InitializeSRWLock(m)
+#define oc__mutex_impl_lock(m)    AcquireSRWLockExclusive(m)
+#define oc__mutex_impl_unlock(m)  ReleaseSRWLockExclusive(m)
 #define oc__mutex_impl_destroy(m) ((void)0)
 #else
 #include <pthread.h>
 
 typedef pthread_mutex_t oc__mutex_impl_t;
-#define oc__mutex_impl_init(m) pthread_mutex_init(m, NULL)
-#define oc__mutex_impl_lock(m) pthread_mutex_lock(m)
-#define oc__mutex_impl_unlock(m) pthread_mutex_unlock(m)
+#define oc__mutex_impl_init(m)    pthread_mutex_init(m, NULL)
+#define oc__mutex_impl_lock(m)    pthread_mutex_lock(m)
+#define oc__mutex_impl_unlock(m)  pthread_mutex_unlock(m)
 #define oc__mutex_impl_destroy(m) pthread_mutex_destroy(m)
 #endif
 
@@ -1186,11 +1186,11 @@ exit:
 }
 
 void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
-    FT_Error            err;
-    FT_Face             ft_face;
-    FT_GlyphSlot        glyph;
-    FT_Outline          outline;
-    
+    FT_Error     err;
+    FT_Face      ft_face;
+    FT_GlyphSlot glyph;
+    FT_Outline   outline;
+
     if (!face) {
         return;
     }
@@ -1289,9 +1289,10 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
 
     if (extent.cols == pitch) {
         memcpy(buffer, ((FT_BitmapGlyph)ft_glyph)->bitmap.buffer, (size_t)extent.rows * (size_t)extent.cols);
-    } else for (uint32_t y = 0; y < extent.rows; y++) {
-        memcpy(buffer + y * pitch, ((FT_BitmapGlyph)ft_glyph)->bitmap.buffer + y * extent.cols, extent.cols);
-    }
+    } else
+        for (uint32_t y = 0; y < extent.rows; y++) {
+            memcpy(buffer + y * pitch, ((FT_BitmapGlyph)ft_glyph)->bitmap.buffer + y * extent.cols, extent.cols);
+        }
 exit:
     if (ft_glyph)
         FT_Done_Glyph(ft_glyph);
@@ -2107,11 +2108,11 @@ typedef struct {
 static void oc__walk_applier(void* info, const CGPathElement* element) {
     oc__applier_context* ctx = (oc__applier_context*)info;
 
-    oc__path_element next_element = { 
+    oc__path_element next_element = {
         { element->points[0].x * ctx->fupem / ctx->fppem * 2.0, element->points[0].y * ctx->fupem / ctx->fppem * 2.0 },
         { element->points[1].x * ctx->fupem / ctx->fppem * 2.0, element->points[1].y * ctx->fupem / ctx->fppem * 2.0 },
         { element->points[2].x * ctx->fupem / ctx->fppem * 2.0, element->points[2].y * ctx->fupem / ctx->fppem * 2.0 },
-          element->type
+        element->type
     };
 
     bool implicit;
@@ -2164,7 +2165,7 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
 
         oc__append(ctx->tags, OC__CURVE_TAG_CUBIC);
         oc__append(ctx->tags, OC__CURVE_TAG_CUBIC);
-            
+
         closing = false;
         if (next_element.type == kCGPathElementCloseSubpath) {
             closing = oc__points_equal(ctx->element.pt3, ctx->start);
@@ -3840,7 +3841,7 @@ typedef struct {
     D2D1_POINT_2F origin;
     D2D1_POINT_2F start;
 
-    LONG          ref_count;
+    LONG ref_count;
 } OC__ID2D1SimplifiedGeometrySink2;
 
 static void oc__walk_outline(OC__ID2D1SimplifiedGeometrySink2* sink, const oc__path_felement* element) {
@@ -3852,7 +3853,7 @@ static void oc__walk_outline(OC__ID2D1SimplifiedGeometrySink2* sink, const oc__p
     };
 
     oc_point start = { sink->start.x * 2.0f, sink->start.y * -2.0f };
-    
+
     bool implicit;
     bool closing;
 
@@ -3894,7 +3895,7 @@ static void oc__walk_outline(OC__ID2D1SimplifiedGeometrySink2* sink, const oc__p
 
         oc__append(sink->tags, OC__CURVE_TAG_CUBIC);
         oc__append(sink->tags, OC__CURVE_TAG_CUBIC);
-            
+
         closing = false;
         if (next_element.type == oc__path_close) {
             closing = oc__points_equal(sink->element.pt3, start);
@@ -3955,7 +3956,7 @@ OC__ID2D1SimplifiedGeometrySink_AddBeziers2(ID2D1SimplifiedGeometrySink* This, c
         float dy = cy1 - cy2;
 
         if (dx * dx + dy * dy < 0.05f * 0.05f) {
-            element.pt1 = (D2D1_POINT_2F){ roundf(cx2), roundf(cy2) };
+            element.pt1 = (D2D1_POINT_2F) { roundf(cx2), roundf(cy2) };
             element.pt2 = pt3;
             element.type = oc__path_conic;
         } else {

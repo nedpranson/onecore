@@ -503,11 +503,11 @@ typedef struct {
 static void oc__walk_applier(void* info, const CGPathElement* element) {
     oc__applier_context* ctx = (oc__applier_context*)info;
 
-    oc__path_element next_element = { 
+    oc__path_element next_element = {
         { element->points[0].x * ctx->fupem / ctx->fppem * 2.0, element->points[0].y * ctx->fupem / ctx->fppem * 2.0 },
         { element->points[1].x * ctx->fupem / ctx->fppem * 2.0, element->points[1].y * ctx->fupem / ctx->fppem * 2.0 },
         { element->points[2].x * ctx->fupem / ctx->fppem * 2.0, element->points[2].y * ctx->fupem / ctx->fppem * 2.0 },
-          element->type
+        element->type
     };
 
     bool implicit;
@@ -560,7 +560,7 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
 
         oc__append(ctx->tags, OC__CURVE_TAG_CUBIC);
         oc__append(ctx->tags, OC__CURVE_TAG_CUBIC);
-            
+
         closing = false;
         if (next_element.type == kCGPathElementCloseSubpath) {
             closing = oc__points_equal(ctx->element.pt3, ctx->start);

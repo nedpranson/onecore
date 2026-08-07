@@ -15,17 +15,17 @@
 #include <windows.h>
 
 typedef SRWLOCK oc__mutex_impl_t;
-#define oc__mutex_impl_init(m) InitializeSRWLock(m)
-#define oc__mutex_impl_lock(m) AcquireSRWLockExclusive(m)
-#define oc__mutex_impl_unlock(m) ReleaseSRWLockExclusive(m)
+#define oc__mutex_impl_init(m)    InitializeSRWLock(m)
+#define oc__mutex_impl_lock(m)    AcquireSRWLockExclusive(m)
+#define oc__mutex_impl_unlock(m)  ReleaseSRWLockExclusive(m)
 #define oc__mutex_impl_destroy(m) ((void)0)
 #else
 #include <pthread.h>
 
 typedef pthread_mutex_t oc__mutex_impl_t;
-#define oc__mutex_impl_init(m) pthread_mutex_init(m, NULL)
-#define oc__mutex_impl_lock(m) pthread_mutex_lock(m)
-#define oc__mutex_impl_unlock(m) pthread_mutex_unlock(m)
+#define oc__mutex_impl_init(m)    pthread_mutex_init(m, NULL)
+#define oc__mutex_impl_lock(m)    pthread_mutex_lock(m)
+#define oc__mutex_impl_unlock(m)  pthread_mutex_unlock(m)
 #define oc__mutex_impl_destroy(m) pthread_mutex_destroy(m)
 #endif
 
@@ -589,11 +589,11 @@ exit:
 }
 
 void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
-    FT_Error            err;
-    FT_Face             ft_face;
-    FT_GlyphSlot        glyph;
-    FT_Outline          outline;
-    
+    FT_Error     err;
+    FT_Face      ft_face;
+    FT_GlyphSlot glyph;
+    FT_Outline   outline;
+
     if (!face) {
         return;
     }
@@ -692,9 +692,10 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
 
     if (extent.cols == pitch) {
         memcpy(buffer, ((FT_BitmapGlyph)ft_glyph)->bitmap.buffer, (size_t)extent.rows * (size_t)extent.cols);
-    } else for (uint32_t y = 0; y < extent.rows; y++) {
-        memcpy(buffer + y * pitch, ((FT_BitmapGlyph)ft_glyph)->bitmap.buffer + y * extent.cols, extent.cols);
-    }
+    } else
+        for (uint32_t y = 0; y < extent.rows; y++) {
+            memcpy(buffer + y * pitch, ((FT_BitmapGlyph)ft_glyph)->bitmap.buffer + y * extent.cols, extent.cols);
+        }
 exit:
     if (ft_glyph)
         FT_Done_Glyph(ft_glyph);

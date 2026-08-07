@@ -1,5 +1,5 @@
 /* onecore.h - v0.0.1 - public domain, initial release 2026-4-16
- * 
+ *
  * MIT License
  *
  * Copyright (c) 2026 Nedas Pranskūnas
@@ -38,8 +38,8 @@ typedef int32_t  oc_26p6;
 #define OCDEF
 #endif
 
-#define OC_LOAD_DEFAULT 0x0          /* load scaled and fitted metrics */
-#define OC_LOAD_NO_SCALE (1l << 0)   /* use font units directly */
+#define OC_LOAD_DEFAULT    0x0       /* load scaled and fitted metrics */
+#define OC_LOAD_NO_SCALE   (1l << 0) /* use font units directly */
 #define OC_LOAD_NO_HINTING (1l << 1) /* disable hinting (does nothing for now) */
 // todo (stage 2): add these flags
 // #define OC_LOAD_VERTICAL (1l << 2)
@@ -50,22 +50,22 @@ typedef int32_t  oc_26p6;
 // todo: make so if a person is lazy to handle errors
 //       every func should just noop and never crash
 
-#define OC_ERROR_LIST                                      \
-    X(oc_error_ok, "no error")                             \
-    X(oc_error_invalid_param, "invalid parameter")         \
-    X(oc_error_table_missing, "table is missing")          \
-    X(oc_error_out_of_memory, "out of memory")             \
-    X(oc_error_failed_to_open, "failed to open")           \
-    X(oc_error_invalid_pixel_size, "invalid pixel size")   \
+#define OC_ERROR_LIST                                    \
+    X(oc_error_ok, "no error")                           \
+    X(oc_error_invalid_param, "invalid parameter")       \
+    X(oc_error_table_missing, "table is missing")        \
+    X(oc_error_out_of_memory, "out of memory")           \
+    X(oc_error_failed_to_open, "failed to open")         \
+    X(oc_error_invalid_pixel_size, "invalid pixel size") \
     X(oc_error_unexpected, "unexpected error")
 
 /* Converts four-letter tags that are used to label TrueType tables. */
 #define OC_MAKE_TAG(x1, x2, x3, x4) \
     (((uint32_t)(uint8_t)x1) << 24 | ((uint32_t)(uint8_t)x2) << 16 | ((uint32_t)(uint8_t)x3) << 8 | ((uint32_t)(uint8_t)x4))
 
-#define OC_26P6_FLOOR(x) ((int32_t)(x) & ~63)
-#define OC_26P6_ROUND(x) OC_26P6_FLOOR((int32_t)(x) + 32)
-#define OC_26P6_CEIL(x) OC_26P6_FLOOR((int32_t)(x) + 63)
+#define OC_26P6_FLOOR(x)  ((int32_t)(x) & ~63)
+#define OC_26P6_ROUND(x)  OC_26P6_FLOOR((int32_t)(x) + 32)
+#define OC_26P6_CEIL(x)   OC_26P6_FLOOR((int32_t)(x) + 63)
 #define OC_26P6_ADD(a, b) (int32_t)((uint32_t)(a) + (uint32_t)(b))
 #define OC_26P6_SUB(a, b) (int32_t)((uint32_t)(a) - (uint32_t)(b))
 
@@ -304,7 +304,7 @@ ocl_get_glyph_cbox(
 // it would be better to have some `size_t` that will habe ppem, scale, ascent, descent
 // this way one face will have multiple sizes when rasterizing a glyph we could just pass that &size
 // or to get glyph metrics we can pass that size again and nil could be initial base size
-/* 
+/*
 ocl_open_face(library, path, NULL, &face);
 ocl_init_size(&face, 12 << 6, 96, &size);
 
@@ -543,14 +543,14 @@ typedef struct {
 
 #define oc__head(arr)      ((oc__array*)(arr) - 1)
 #define oc__make(type)     ((type)NULL)
-#define oc__free(arr)      ((void) ((arr) ? free(oc__head(arr)) : (void)0), (arr)=NULL)
+#define oc__free(arr)      ((void)((arr) ? free(oc__head(arr)) : (void)0), (arr) = NULL)
 #define oc__len(arr)       ((arr) ? oc__head(arr)->len : 0)
 #define oc__cap(arr)       ((arr) ? oc__head(arr)->cap : 0)
 #define oc__grow(arr, cap) oc__grow_impl(arr, sizeof(*arr), cap)
 
-#define oc__append(arr, val) \
+#define oc__append(arr, val)                  \
     ((arr = oc__grow(arr, oc__len(arr) + 1)), \
-     (arr) ? ((arr)[oc__head(arr)->len++] = (val), 1) : 0)
+        (arr) ? ((arr)[oc__head(arr)->len++] = (val), 1) : 0)
 
 // note: this impl will not preserve arr on oom
 static inline void* oc__grow_impl(void* arr, size_t size, size_t new_cap) {

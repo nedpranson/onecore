@@ -864,7 +864,7 @@ typedef struct {
     D2D1_POINT_2F origin;
     D2D1_POINT_2F start;
 
-    LONG          ref_count;
+    LONG ref_count;
 } OC__ID2D1SimplifiedGeometrySink2;
 
 static void oc__walk_outline(OC__ID2D1SimplifiedGeometrySink2* sink, const oc__path_felement* element) {
@@ -876,7 +876,7 @@ static void oc__walk_outline(OC__ID2D1SimplifiedGeometrySink2* sink, const oc__p
     };
 
     oc_point start = { sink->start.x * 2.0f, sink->start.y * -2.0f };
-    
+
     bool implicit;
     bool closing;
 
@@ -918,7 +918,7 @@ static void oc__walk_outline(OC__ID2D1SimplifiedGeometrySink2* sink, const oc__p
 
         oc__append(sink->tags, OC__CURVE_TAG_CUBIC);
         oc__append(sink->tags, OC__CURVE_TAG_CUBIC);
-            
+
         closing = false;
         if (next_element.type == oc__path_close) {
             closing = oc__points_equal(sink->element.pt3, start);
@@ -979,7 +979,7 @@ OC__ID2D1SimplifiedGeometrySink_AddBeziers2(ID2D1SimplifiedGeometrySink* This, c
         float dy = cy1 - cy2;
 
         if (dx * dx + dy * dy < 0.05f * 0.05f) {
-            element.pt1 = (D2D1_POINT_2F){ roundf(cx2), roundf(cy2) };
+            element.pt1 = (D2D1_POINT_2F) { roundf(cx2), roundf(cy2) };
             element.pt2 = pt3;
             element.type = oc__path_conic;
         } else {
