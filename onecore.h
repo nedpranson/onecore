@@ -123,17 +123,13 @@ typedef struct {
     oc_26p6 y;
 } oc_point;
 
-typedef void (*oc_outline_start_figure)(oc_point at, void* user);
-typedef void (*oc_outline_end_figure)(void* user);
-typedef void (*oc_outline_line_to)(oc_point to, void* user);
-typedef void (*oc_outline_cubic_to)(oc_point c1, oc_point c2, oc_point to, void* user);
-
 typedef struct {
-    oc_outline_start_figure start_figure; /* new figure emitter */
-    oc_outline_end_figure   end_figure;   /* figure end emitter */
-    oc_outline_line_to      line_to;      /* segment emitter */
-    oc_outline_cubic_to     cubic_to;     /* third-order bezier arc emitter */
-} oc_outline_funcs;
+    uint8_t*  tags;
+    oc_point* points;
+    uint16_t* contours;
+    uint16_t  npoints;
+    uint16_t  ncontours;
+} oc_outline;
 
 typedef struct oc_face_impl       oc_face_impl;
 typedef struct oc_collection_impl oc_collection_impl;
@@ -300,6 +296,9 @@ ocl_get_glyph_cbox(
     oc_load_flags  flags,
     oc_bbox*       ocbox);
 
+// use outline as the glyph, so maybe oc_outline or oc_glyph
+// get bbox from outline, get metrics from the outline
+
 // when we will have rendering implemented we will not need to store the size of current face
 // it would be better to have some `size_t` that will habe ppem, scale, ascent, descent
 // this way one face will have multiple sizes when rasterizing a glyph we could just pass that &size
@@ -346,13 +345,15 @@ ocl_render_glyph(
  * Walk over an outline's structure to decompose it into individual
  * segments and bezier arcs.
  */
-OCDEF bool
+OCDEF oc_error
 ocl_get_outline(
-    const oc_face*          face,
-    uint16_t                index,
-    oc_load_flags           flags,
-    const oc_outline_funcs* funcs,
-    void*                   user);
+    const oc_face* face,
+    uint16_t       index,
+    oc_load_flags  flags,
+    oc_outline*    ooutline);
+
+OCDEF void
+ocl_free_outline(oc_outline* outline);
 
 OCDEF void
 ocl_print_raw_outline(
@@ -992,85 +993,6 @@ exit:
         *ometrics = metrics;
 }
 
-typedef struct {
-    const oc_outline_funcs* funcs;
-    void*                   ctx;
-
-    FT_Vector x2origin;
-    bool      figure_started;
-} oc__outline_context;
-
-static int oc__move_to(const FT_Vector* to, void* user) {
-    oc__outline_context* ctx = (oc__outline_context*)user;
-    oc_point             point = { (int32_t)(to->x >> 1), (int32_t)(to->y >> 1) };
-
-    if (ctx->figure_started) {
-        ctx->funcs->end_figure(ctx->ctx);
-    }
-
-    ctx->funcs->start_figure(point, ctx->ctx);
-    ctx->x2origin = *to;
-    ctx->figure_started = true;
-
-    return 0;
-}
-
-static int oc__line_to(const FT_Vector* x2to, void* user) {
-    oc__outline_context* ctx = (oc__outline_context*)user;
-    oc_point             point = { (int32_t)(x2to->x >> 1), (int32_t)(x2to->y >> 1) };
-
-    ctx->funcs->line_to(point, ctx->ctx);
-    ctx->x2origin = *x2to;
-
-    return 0;
-}
-
-typedef struct {
-    float x;
-    float y;
-} oc__point_2f;
-
-static int oc__conic_to(const FT_Vector* x2control, const FT_Vector* x2to, void* user) {
-    oc__outline_context* ctx = (oc__outline_context*)user;
-
-    oc__point_2f forigin = { (float)ctx->x2origin.x * 0.5f, (float)ctx->x2origin.y * 0.5f };
-    oc__point_2f fto = { (float)x2to->x * 0.5f, (float)x2to->y * 0.5f };
-
-    // comes extremely close to dwrites internal implemintation
-    // but is not 100% perfect
-    oc__point_2f cubic[2];
-    cubic[0].x = forigin.x + (float)(x2control->x - ctx->x2origin.x) / 3.0f;
-    cubic[0].y = forigin.y + (float)(x2control->y - ctx->x2origin.y) / 3.0f;
-    cubic[1].x = fto.x + (float)(x2control->x - x2to->x) / 3.0f;
-    cubic[1].y = fto.y + (float)(x2control->y - x2to->y) / 3.0f;
-
-    oc_point points[3] = {
-        { (int32_t)cubic[0].x, (int32_t)cubic[0].y },
-        { (int32_t)cubic[1].x, (int32_t)cubic[1].y },
-        { (int32_t)(x2to->x >> 1), (int32_t)(x2to->y >> 1) }
-    };
-
-    ctx->funcs->cubic_to(points[0], points[1], points[2], ctx->ctx);
-    ctx->x2origin = *x2to;
-
-    return 0;
-}
-
-static int oc__cubic_to(const FT_Vector* x2c1, const FT_Vector* x2c2, const FT_Vector* x2to, void* user) {
-    oc__outline_context* ctx = (oc__outline_context*)user;
-
-    oc_point points[3] = {
-        { (int32_t)(x2c1->x >> 1), (int32_t)(x2c1->y >> 1) },
-        { (int32_t)(x2c2->x >> 1), (int32_t)(x2c2->y >> 1) },
-        { (int32_t)(x2to->x >> 1), (int32_t)(x2to->y >> 1) }
-    };
-
-    ctx->funcs->cubic_to(points[0], points[1], points[2], ctx->ctx);
-    ctx->x2origin = *x2to;
-
-    return 0;
-}
-
 void ocl_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
     FT_Error          err;
     FT_Face           ft_face;
@@ -1113,17 +1035,24 @@ exit:
         *ocbox = cbox;
 }
 
-bool ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, const oc_outline_funcs* funcs, void* user) {
-    FT_Error            err;
-    FT_Face             ft_face;
-    oc__mutex_impl_t*   lock;
-    FT_GlyphSlot        glyph;
-    FT_Outline          outline;
-    FT_Int32            ft_load_flags = FT_LOAD_NO_BITMAP;
-    oc__outline_context context = { 0 };
+oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, oc_outline* ooutline) {
+    FT_Error     ft_err;
+    FT_Face      ft_face;
+    FT_GlyphSlot ft_glyph;
+    FT_Outline   ft_outline;
 
-    if (!(face && funcs)) {
-        goto exit;
+    oc__mutex_impl_t* lock;
+
+    uint8_t* tags = NULL;
+    oc_point* points = NULL;
+    uint16_t* contours = NULL;
+
+    oc_error   err = oc_error_ok;
+    FT_Int32   ft_load_flags = FT_LOAD_NO_BITMAP;
+    oc_outline outline = { 0 };
+
+    if (!(face && ooutline)) {
+        oc__exit(oc_error_invalid_param);
     }
 
     ft_face = face->impl->ft_face;
@@ -1139,86 +1068,120 @@ bool ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, c
     }
 
     oc__mutex_impl_lock(lock);
-    err = FT_Load_Glyph(ft_face, index, ft_load_flags);
-    if (err != FT_Err_Ok) {
-        goto exit_critical;
+    ft_err = FT_Load_Glyph(ft_face, index, ft_load_flags);
+    switch (ft_err) {
+    case FT_Err_Ok:
+        break;
+    case FT_Err_Out_Of_Memory:
+        oc__exit_critical(oc_error_out_of_memory);
+    case FT_Err_Invalid_Argument:
+        oc__exit_critical(oc_error_invalid_param);
+    default:
+        oc__exit_critical(oc__unexpected(ft_err));
     }
 
-    glyph = ft_face->glyph;
-    outline = glyph->outline;
+    ft_glyph = ft_face->glyph;
+    ft_outline = ft_glyph->outline;
 
-    // TODO: fix this race condition
-    // as outline ptr fields can be overwritten
+    // todo: copy glyph to make lock as short as possible
+    //       and take in **outline
 
-    if (glyph->format != FT_GLYPH_FORMAT_OUTLINE && glyph->format != FT_GLYPH_FORMAT_COMPOSITE) {
-        goto exit_critical;
+    if (ft_glyph->format != FT_GLYPH_FORMAT_OUTLINE && ft_glyph->format != FT_GLYPH_FORMAT_COMPOSITE) {
+        oc__exit_critical(oc__unexpected(0));
     }
+
+    tags = malloc(ft_outline.n_points * sizeof(*tags));
+    if (tags == NULL) {
+        oc__exit_critical(oc__unexpected(0));
+    }
+
+    points = malloc(ft_outline.n_points * sizeof(*points));
+    if (points == NULL) {
+        oc__exit_critical(oc__unexpected(0));
+    }
+
+    contours = malloc(ft_outline.n_contours * sizeof(*contours));
+    if (contours == NULL) {
+        oc__exit_critical(oc__unexpected(0));
+    }
+
+    for (uint16_t i = 0; i < ft_outline.n_points; i++) {
+        tags[i] = ft_outline.tags[i];
+        points[i] = (oc_point){ ft_outline.points[i].x, ft_outline.points[i].y };
+    }
+
+    for (uint16_t i = 0; i < ft_outline.n_contours; i++) {
+        contours[i] = ft_outline.contours[i];
+    }
+
     oc__mutex_impl_unlock(lock);
 
-    context.funcs = funcs;
-    context.ctx = user;
-
-    // shift is set to one as we want all point to be multiplied by 2
-    // to restore conic 'to' position to its original floating point value
-    static const FT_Outline_Funcs ft_funcs = {
-        oc__move_to,
-        oc__line_to,
-        oc__conic_to,
-        oc__cubic_to,
-        1,
-        0,
-    };
-
-    err = FT_Outline_Decompose(&outline, &ft_funcs, &context);
-    if (err != FT_Err_Ok) {
-        return false;
-    }
-
-    if (context.figure_started) {
-        context.funcs->end_figure(context.ctx);
-    }
-
-    return true;
-exit_critical:
-    oc__mutex_impl_unlock(lock);
+    outline.tags = tags;
+    outline.points = points;
+    outline.contours = contours;
+    outline.ncontours = ft_outline.n_contours;
+    outline.npoints = ft_outline.n_points;
 exit:
-    return false;
+    if (ooutline != NULL)
+        *ooutline = outline;
+
+    if (err != oc_error_ok) {
+        free(tags);
+        free(points);
+        free(contours);
+    }
+
+    return err;
 }
 
-void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
-    FT_Error     err;
-    FT_Face      ft_face;
-    FT_GlyphSlot glyph;
-    FT_Outline   outline;
-
-    if (!face) {
+void ocl_free_outline(oc_outline* outline) {
+    if (outline == NULL) {
         return;
     }
 
-    ft_face = face->impl->ft_face;
-    err = FT_Load_Glyph(ft_face, index, FT_LOAD_NO_BITMAP | FT_LOAD_NO_SCALE);
+    free(outline->tags);
+    free(outline->points);
+    free(outline->contours);
 
-    if (err != FT_Err_Ok) {
-        return;
-    }
-
-    glyph = ft_face->glyph;
-    outline = glyph->outline;
-
-    if (glyph->format != FT_GLYPH_FORMAT_OUTLINE && glyph->format != FT_GLYPH_FORMAT_COMPOSITE) {
-        return;
-    }
-
-    printf("contours(%d):\n", outline.n_contours);
-    for (int i = 0; i < outline.n_contours; i++) {
-        printf("  end(%d)\n", outline.contours[i]);
-    }
-
-    printf("points(%d):\n", outline.n_points);
-    for (int i = 0; i < outline.n_points; i++) {
-        printf("  tag(%d) point(%ld, %ld)\n", (int)outline.tags[i], outline.points[i].x, outline.points[i].y);
-    }
+    memset(outline, 0, sizeof(*outline));
 }
+
+// void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
+//     FT_Error     ft_err;
+//     FT_Face      ft_face;
+//     FT_GlyphSlot glyph;
+//     FT_Outline   outline;
+//
+//     oc_error err = oc_error_ok;
+//
+//     if (!face) {
+//         return;
+//     }
+//
+//     ft_face = face->impl->ft_face;
+//     err = FT_Load_Glyph(ft_face, index, FT_LOAD_NO_BITMAP | FT_LOAD_NO_SCALE);
+//
+//     if (err != FT_Err_Ok) {
+//         return;
+//     }
+//
+//     glyph = ft_face->glyph;
+//     outline = glyph->outline;
+//
+//     if (glyph->format != FT_GLYPH_FORMAT_OUTLINE && glyph->format != FT_GLYPH_FORMAT_COMPOSITE) {
+//         return;
+//     }
+//
+//     printf("contours(%d):\n", outline.n_contours);
+//     for (int i = 0; i < outline.n_contours; i++) {
+//         printf("  end(%d)\n", outline.contours[i]);
+//     }
+//
+//     printf("points(%d):\n", outline.n_points);
+//     for (int i = 0; i < outline.n_points; i++) {
+//         printf("  tag(%d) point(%ld, %ld)\n", (int)outline.tags[i], outline.points[i].x, outline.points[i].y);
+//     }
+// }
 
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {
     FT_Face           ft_face;
@@ -4057,6 +4020,15 @@ static const ID2D1SimplifiedGeometrySinkVtbl OC__ID2D1SimplifiedGeometrySinkVtbl
     OC__ID2D1SimplifiedGeometrySink_Close2,
 };
 
+// this ocl, ocf
+// todo: remove suffix
+// oc_outline {
+//     []tags;
+//     []points;
+//     []contours;
+// }
+// oc_free_outline(oc_outline* outline)
+// oc_render_outline(const oc_outline* outline, oc_extent* oextent, unsigned char* buffer, size_t pitch)
 void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
     HRESULT err;
     ULONG   refs;
@@ -4181,6 +4153,9 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
     glyph_run.fontEmSize = oc_mul_16p16(face->upem, face->size.scale) / 64.0f;
     glyph_run.glyphCount = 1;
     glyph_run.glyphIndices = &index;
+
+    // todo: when no hinting use dwrite_2.h
+    // wih DWRITE_TEXT_ANTIALIAS_MODE_GRAYSCALE
 
     dw_err = dw_factory->lpVtbl->CreateGlyphRunAnalysis(
         dw_factory,

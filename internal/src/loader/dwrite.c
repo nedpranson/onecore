@@ -1080,6 +1080,15 @@ static const ID2D1SimplifiedGeometrySinkVtbl OC__ID2D1SimplifiedGeometrySinkVtbl
     OC__ID2D1SimplifiedGeometrySink_Close2,
 };
 
+// this ocl, ocf
+// todo: remove suffix
+// oc_outline {
+//     []tags;
+//     []points;
+//     []contours;
+// }
+// oc_free_outline(oc_outline* outline)
+// oc_render_outline(const oc_outline* outline, oc_extent* oextent, unsigned char* buffer, size_t pitch)
 void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
     HRESULT err;
     ULONG   refs;
@@ -1204,6 +1213,9 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
     glyph_run.fontEmSize = oc_mul_16p16(face->upem, face->size.scale) / 64.0f;
     glyph_run.glyphCount = 1;
     glyph_run.glyphIndices = &index;
+
+    // todo: when no hinting use dwrite_2.h
+    // wih DWRITE_TEXT_ANTIALIAS_MODE_GRAYSCALE
 
     dw_err = dw_factory->lpVtbl->CreateGlyphRunAnalysis(
         dw_factory,

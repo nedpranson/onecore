@@ -123,17 +123,13 @@ typedef struct {
     oc_26p6 y;
 } oc_point;
 
-typedef void (*oc_outline_start_figure)(oc_point at, void* user);
-typedef void (*oc_outline_end_figure)(void* user);
-typedef void (*oc_outline_line_to)(oc_point to, void* user);
-typedef void (*oc_outline_cubic_to)(oc_point c1, oc_point c2, oc_point to, void* user);
-
 typedef struct {
-    oc_outline_start_figure start_figure; /* new figure emitter */
-    oc_outline_end_figure   end_figure;   /* figure end emitter */
-    oc_outline_line_to      line_to;      /* segment emitter */
-    oc_outline_cubic_to     cubic_to;     /* third-order bezier arc emitter */
-} oc_outline_funcs;
+    uint8_t*  tags;
+    oc_point* points;
+    uint16_t* contours;
+    uint16_t  npoints;
+    uint16_t  ncontours;
+} oc_outline;
 
 typedef struct oc_face_impl       oc_face_impl;
 typedef struct oc_collection_impl oc_collection_impl;
@@ -300,6 +296,9 @@ ocl_get_glyph_cbox(
     oc_load_flags  flags,
     oc_bbox*       ocbox);
 
+// use outline as the glyph, so maybe oc_outline or oc_glyph
+// get bbox from outline, get metrics from the outline
+
 // when we will have rendering implemented we will not need to store the size of current face
 // it would be better to have some `size_t` that will habe ppem, scale, ascent, descent
 // this way one face will have multiple sizes when rasterizing a glyph we could just pass that &size
@@ -346,13 +345,15 @@ ocl_render_glyph(
  * Walk over an outline's structure to decompose it into individual
  * segments and bezier arcs.
  */
-OCDEF bool
+OCDEF oc_error
 ocl_get_outline(
-    const oc_face*          face,
-    uint16_t                index,
-    oc_load_flags           flags,
-    const oc_outline_funcs* funcs,
-    void*                   user);
+    const oc_face* face,
+    uint16_t       index,
+    oc_load_flags  flags,
+    oc_outline*    ooutline);
+
+OCDEF void
+ocl_free_outline(oc_outline* outline);
 
 OCDEF void
 ocl_print_raw_outline(

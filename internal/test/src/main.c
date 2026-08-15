@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -684,263 +685,193 @@ void test_ocl_get_glyph_cbox(void) {
 //     TEST_ASSERT_EQUAL_INT32(576, bbox.max_y);
 // }
 
-typedef struct outline_end_check {
-    oc_point* line_point;
-    oc_point* figure_point;
-    oc_point* cubic_point;
-} outline_end_check;
+// typedef struct outline_end_check {
+//     oc_point* line_point;
+//     oc_point* figure_point;
+//     oc_point* cubic_point;
+// } outline_end_check;
+//
+// typedef struct outline_context {
+//     oc_point* line_points;
+//     oc_point* line_points_end;
+//
+//     oc_point* figure_points;
+//     oc_point* figure_points_end;
+//
+//     oc_point* cubic_points;
+//     oc_point* cubic_points_end;
+//
+//     outline_end_check* checks;
+//     outline_end_check* checks_end;
+// } outline_context;
 
-typedef struct outline_context {
-    oc_point* line_points;
-    oc_point* line_points_end;
+// static void start_figure(oc_point at, void* context) {
+//     outline_context* ctx = (outline_context*)context;
+//     TEST_ASSERT_NOT_EQUAL(ctx->line_points_end, ctx->line_points);
+//
+//
+//     oc_point test_figure = *ctx->figure_points++;
+//     TEST_ASSERT_INT16_WITHIN(1, test_figure.x, at.x);
+//     TEST_ASSERT_INT16_WITHIN(1, test_figure.y, at.y);
+// }
+//
+// static void end_figure(void* context) {
+//     outline_context* ctx = (outline_context*)context;
+//     TEST_ASSERT_NOT_EQUAL(ctx->checks_end, ctx->checks);
+//
+//     outline_end_check check = *(ctx->checks++);
+//     TEST_ASSERT_EQUAL(check.line_point, ctx->line_points);
+//     TEST_ASSERT_EQUAL(check.figure_point, ctx->figure_points);
+//     TEST_ASSERT_EQUAL(check.cubic_point, ctx->cubic_points);
+// }
+//
+// static void line_to(oc_point to, void* context) {
+//     outline_context* ctx = (outline_context*)context;
+//     TEST_ASSERT_NOT_EQUAL(ctx->line_points_end, ctx->line_points);
+//
+//     oc_point test_to = *ctx->line_points++;
+//     TEST_ASSERT_INT16_WITHIN(1, test_to.x, to.x);
+//     TEST_ASSERT_INT16_WITHIN(1, test_to.y, to.y);
+// }
+//
+// static void
+// cubic_to(oc_point c1, oc_point c2, oc_point to, void* context) {
+//     outline_context* ctx = (outline_context*)context;
+//     TEST_ASSERT_NOT_EQUAL(ctx->cubic_points_end, ctx->cubic_points);
+//     // printf("cubic_to: c1(%d %d) c2(%d %d) to(%d %d)\n",
+//     // c1.x, c1.y, c2.x, c2.y, to.x, to.y);
+//
+//     oc_point test_c1 = *ctx->cubic_points++;
+//     TEST_ASSERT_INT16_WITHIN(1, test_c1.x, c1.x);
+//     TEST_ASSERT_INT16_WITHIN(1, test_c1.y, c1.y);
+//
+//     oc_point test_c2 = *ctx->cubic_points++;
+//     TEST_ASSERT_INT16_WITHIN(1, test_c2.x, c2.x);
+//     TEST_ASSERT_INT16_WITHIN(1, test_c2.y, c2.y);
+//
+//     oc_point test_to = *ctx->cubic_points++;
+//     TEST_ASSERT_INT16_WITHIN(1, test_to.x, to.x);
+//     TEST_ASSERT_INT16_WITHIN(1, test_to.y, to.y);
+// }
 
-    oc_point* figure_points;
-    oc_point* figure_points_end;
-
-    oc_point* cubic_points;
-    oc_point* cubic_points_end;
-
-    outline_end_check* checks;
-    outline_end_check* checks_end;
-} outline_context;
-
-static void start_figure(oc_point at, void* context) {
-    outline_context* ctx = (outline_context*)context;
-    TEST_ASSERT_NOT_EQUAL(ctx->line_points_end, ctx->line_points);
-
-
-    oc_point test_figure = *ctx->figure_points++;
-    TEST_ASSERT_INT16_WITHIN(1, test_figure.x, at.x);
-    TEST_ASSERT_INT16_WITHIN(1, test_figure.y, at.y);
-}
-
-static void end_figure(void* context) {
-    outline_context* ctx = (outline_context*)context;
-    TEST_ASSERT_NOT_EQUAL(ctx->checks_end, ctx->checks);
-
-    outline_end_check check = *(ctx->checks++);
-    TEST_ASSERT_EQUAL(check.line_point, ctx->line_points);
-    TEST_ASSERT_EQUAL(check.figure_point, ctx->figure_points);
-    TEST_ASSERT_EQUAL(check.cubic_point, ctx->cubic_points);
-}
-
-static void line_to(oc_point to, void* context) {
-    outline_context* ctx = (outline_context*)context;
-    TEST_ASSERT_NOT_EQUAL(ctx->line_points_end, ctx->line_points);
-
-    oc_point test_to = *ctx->line_points++;
-    TEST_ASSERT_INT16_WITHIN(1, test_to.x, to.x);
-    TEST_ASSERT_INT16_WITHIN(1, test_to.y, to.y);
-}
-
-static void
-cubic_to(oc_point c1, oc_point c2, oc_point to, void* context) {
-    outline_context* ctx = (outline_context*)context;
-    TEST_ASSERT_NOT_EQUAL(ctx->cubic_points_end, ctx->cubic_points);
-    // printf("cubic_to: c1(%d %d) c2(%d %d) to(%d %d)\n",
-    // c1.x, c1.y, c2.x, c2.y, to.x, to.y);
-
-    oc_point test_c1 = *ctx->cubic_points++;
-    TEST_ASSERT_INT16_WITHIN(1, test_c1.x, c1.x);
-    TEST_ASSERT_INT16_WITHIN(1, test_c1.y, c1.y);
-
-    oc_point test_c2 = *ctx->cubic_points++;
-    TEST_ASSERT_INT16_WITHIN(1, test_c2.x, c2.x);
-    TEST_ASSERT_INT16_WITHIN(1, test_c2.y, c2.y);
-
-    oc_point test_to = *ctx->cubic_points++;
-    TEST_ASSERT_INT16_WITHIN(1, test_to.x, to.x);
-    TEST_ASSERT_INT16_WITHIN(1, test_to.y, to.y);
-}
 
 void test_ocl_get_outline(void) {
-    static const oc_outline_funcs funcs = {
-        start_figure,
-        end_figure,
-        line_to,
-        cubic_to
-    };
+    uint16_t   idx;
+    oc_error   err;
+    oc_face    face;
+    oc_outline outline;
 
-    uint16_t        idx;
-    bool            ok;
-    outline_context ctx;
+    oc_outline nil_outline = { 0 };
 
     idx = ocl_get_char_index(&g_arial_ttf, 'i');
     TEST_ASSERT_EQUAL_INT16(76, idx);
 
-    ok = ocl_get_outline(&g_arial_ttf, idx, OC_LOAD_NO_SCALE, NULL, NULL);
-    TEST_ASSERT_EQUAL(ok, false);
+    err = ocl_get_outline(&g_arial_ttf, idx, OC_LOAD_NO_SCALE, NULL);
+    TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
-    ok = ocl_get_outline(&g_arial_ttf, 4444, OC_LOAD_NO_SCALE, NULL, NULL);
-    TEST_ASSERT_EQUAL(ok, false);
+    err = ocl_get_outline(NULL, idx, OC_LOAD_NO_SCALE, &outline);
+    TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
 
-    oc_point line_points1[8] = {
+    err = ocl_get_outline(&g_arial_ttf, 4444, OC_LOAD_NO_SCALE, &outline);
+    TEST_ASSERT_EQUAL(oc_error_invalid_param, err);
+
+    err = ocl_get_outline(&g_arial_ttf, idx, OC_LOAD_NO_SCALE, &outline);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    TEST_ASSERT_EQUAL_INT32(8, outline.npoints);
+    TEST_ASSERT_EQUAL_INT32(2, outline.ncontours);
+
+    TEST_ASSERT_EQUAL_MEMORY(((oc_point[]){
+        { 136, 1259 },
         { 136, 1466 },
         { 316, 1466 },
         { 316, 1259 },
-        { 136, 1259 },
-
+        { 136, 0 },
         { 136, 1062 },
         { 316, 1062 },
-        { 316, 0 },
-        { 136, 0 }
-    };
+        { 316, 0 }
+    }), outline.points, 8 * sizeof(uint16_t));
 
-    oc_point figure_points1[2] = {
-        { 136, 1259 },
-        { 136, 0 },
-    };
+    TEST_ASSERT_EQUAL_MEMORY(((uint8_t[]){ 1, 1, 1, 1, 1, 1, 1, 1 }), outline.tags, 8 * sizeof(uint8_t));
+    TEST_ASSERT_EQUAL_MEMORY(((uint16_t[]){ 3, 7 }), outline.contours, 2 * sizeof(uint16_t));
 
-    outline_end_check checks1[2] = {
-        { (line_points1 + 4), (figure_points1 + 1), NULL },
-        { (line_points1 + 8), (figure_points1 + 2), NULL },
-    };
-
-    memset(&ctx, 0, sizeof(ctx));
-    ctx.line_points = line_points1;
-    ctx.line_points_end = line_points1 + 8;
-    ctx.figure_points = figure_points1;
-    ctx.figure_points_end = figure_points1 + 2;
-    ctx.checks = checks1;
-    ctx.checks_end = checks1 + 2;
-
-    ok = ocl_get_outline(&g_arial_ttf, idx, OC_LOAD_NO_SCALE, &funcs, &ctx);
-    TEST_ASSERT_EQUAL(ok, true);
-    TEST_ASSERT_EQUAL(ctx.checks_end, ctx.checks);
+    ocl_free_outline(&outline);
+    TEST_ASSERT_EQUAL_MEMORY(&nil_outline, &outline, sizeof(oc_outline));
 
     idx = ocl_get_char_index(&g_arial_ttf, 'S');
     TEST_ASSERT_EQUAL_INT16(54, idx);
 
-    oc_point line_points2[2] = {
-        { 275, 487 },
-        { 1029, 1039 }
-    };
+    err = ocl_get_outline(&g_arial_ttf, idx, OC_LOAD_NO_SCALE, &outline);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
 
-    oc_point figure_points2[1] = {
+    TEST_ASSERT_EQUAL_INT32(49, outline.npoints);
+    TEST_ASSERT_EQUAL_INT32(1, outline.ncontours);
+
+    TEST_ASSERT_EQUAL_MEMORY(((oc_point[]){
         { 92, 471 },
-    };
+        { 275, 487 },
+        { 288, 377 },
+        { 383, 236 },
+        { 583, 149 },
+        { 708, 149 },
+        { 819, 149 },
+        { 989, 215 },
+        { 1072, 330 },
+        { 1072, 398 },
+        { 1072, 467 },
+        { 992, 570 },
+        { 900, 605 },
+        { 841, 628 },
+        { 437, 725 },
+        { 356, 768 },
+        { 251, 823 },
+        { 148, 986 },
+        { 148, 1087 },
+        { 148, 1198 },
+        { 274, 1391 },
+        { 516, 1491 },
+        { 664, 1491 },
+        { 827, 1491 },
+        { 1076, 1386 },
+        { 1210, 1182 },
+        { 1215, 1053 },
+        { 1029, 1039 },
+        { 1014, 1178 },
+        { 841, 1320 },
+        { 672, 1320 },
+        { 496, 1320 },
+        { 335, 1191 },
+        { 335, 1100 },
+        { 335, 1021 },
+        { 392, 970 },
+        { 448, 919 },
+        { 921, 812 },
+        { 1009, 772 },
+        { 1137, 713 },
+        { 1259, 532 },
+        { 1259, 414 },
+        { 1259, 297 },
+        { 1125, 90 },
+        { 874, -25 },
+        { 717, -25 },
+        { 518, -25 },
+        { 249, 91 },
+        { 96, 324 }
+    }), outline.points, 49 * sizeof(uint16_t));
 
-    oc_point cubic_points2[33 * 3] = {
-        { 283, 413 }, { 303, 353 }, { 335, 306 },
-        { 367, 259 }, { 416, 221 }, { 483, 192 },
-        { 549, 163 }, { 624, 149 }, { 708, 149 },
-        { 782, 149 }, { 847, 160 }, { 904, 182 },
-        { 960, 204 }, { 1002, 234 }, { 1030, 272 },
-        { 1058, 310 }, { 1072, 352 }, { 1072, 398 },
-        { 1072, 444 }, { 1058, 484 }, { 1032, 518 },
-        { 1005, 552 }, { 961, 581 }, { 900, 605 },
-        { 860, 620 }, { 773, 644 }, { 639, 676 },
-        { 504, 708 }, { 410, 739 }, { 356, 768 },
-        { 286, 804 }, { 233, 850 }, { 199, 904 },
-        { 165, 958 }, { 148, 1019 }, { 148, 1087 },
-        { 148, 1161 }, { 169, 1230 }, { 211, 1294 },
-        { 253, 1358 }, { 314, 1407 }, { 395, 1441 },
-        { 475, 1474 }, { 565, 1491 }, { 664, 1491 },
-        { 772, 1491 }, { 868, 1473 }, { 951, 1438 },
-        { 1034, 1403 }, { 1098, 1352 }, { 1143, 1284 },
-        { 1187, 1216 }, { 1211, 1139 }, { 1215, 1053 },
-        { 1019, 1131 }, { 985, 1201 }, { 927, 1249 },
-        { 869, 1296 }, { 784, 1320 }, { 672, 1320 },
-        { 554, 1320 }, { 469, 1298 }, { 415, 1255 },
-        { 361, 1212 }, { 335, 1160 }, { 335, 1100 },
-        { 335, 1047 }, { 354, 1004 }, { 392, 970 },
-        { 429, 936 }, { 526, 901 }, { 684, 865 },
-        { 842, 829 }, { 950, 798 }, { 1009, 772 },
-        { 1094, 732 }, { 1157, 682 }, { 1198, 622 },
-        { 1238, 562 }, { 1259, 492 }, { 1259, 414 },
-        { 1259, 336 }, { 1236, 262 }, { 1192, 193 },
-        { 1147, 124 }, { 1083, 70 }, { 999, 32 },
-        { 915, -5 }, { 821, -25 }, { 717, -25 },
-        { 584, -25 }, { 473, -5 }, { 383, 33 },
-        { 293, 71 }, { 223, 129 }, { 172, 207 },
-        { 121, 285 }, { 94, 373 }, { 92, 471 }
-    };
+    TEST_ASSERT_EQUAL_MEMORY(((uint8_t[]){
+        1, 1, 0, 0, 0, 1, 0, 0,
+        0, 1, 0, 0, 1, 0, 0, 1,
+        0, 0, 1, 0, 0, 0, 1, 0,
+        0, 0, 1, 1, 0, 0, 1, 0,
+        0, 1, 0, 1, 0, 0, 1, 0,
+        0, 1, 0, 0, 0, 1, 0, 0,
+        0
+    }), outline.tags, 49 * sizeof(uint8_t));
 
-    outline_end_check checks2[1] = {
-        { line_points2 + 2, figure_points2 + 1, cubic_points2 + 33 * 3 },
-    };
+    TEST_ASSERT_EQUAL_MEMORY(((uint16_t[]){ 48 }), outline.contours, 1 * sizeof(uint16_t));
 
-    memset(&ctx, 0, sizeof(ctx));
-    ctx.line_points = line_points2;
-    ctx.line_points_end = line_points2 + 2;
-    ctx.figure_points = figure_points2;
-    ctx.figure_points_end = figure_points2 + 1;
-    ctx.checks = checks2;
-    ctx.checks_end = checks2 + 1;
-    ctx.cubic_points = cubic_points2;
-    ctx.cubic_points_end = cubic_points2 + 33 * 3;
-
-    ok = ocl_get_outline(&g_arial_ttf, idx, OC_LOAD_NO_SCALE, &funcs, &ctx);
-    TEST_ASSERT_EQUAL(ok, true);
-    TEST_ASSERT_EQUAL(ctx.checks_end, ctx.checks);
-
-    oc_point line_points3[2] = {
-        { 138, 192 },
-        { 515, 576 }
-    };
-
-    oc_point figure_points3[1] = {
-        { 46, 192 },
-    };
-
-    oc_point cubic_points3[33 * 3] = {
-        { 142, 164 }, { 152, 141 }, { 168, 123 },
-        { 184, 105 }, { 208,  91 }, { 242,  80 },
-        { 275,  69 }, { 312,  64 }, { 354,  64 },
-        { 391,  64 }, { 424,  68 }, { 452,  76 },
-        { 480,  84 }, { 501,  96 }, { 515, 111 },
-        { 529, 125 }, { 536, 148 }, { 536, 179 },
-        { 536, 209 }, { 529, 236 }, { 516, 259 },
-        { 502, 282 }, { 480, 300 }, { 450, 313 },
-        { 430, 321 }, { 387, 334 }, { 320, 352 },
-        { 252, 370 }, { 205, 386 }, { 178, 401 },
-        { 143, 419 }, { 117, 442 }, { 100, 470 },
-        {  82, 498 }, {  74, 529 }, {  74, 563 },
-        {  74, 600 }, {  84, 635 }, { 105, 668 },
-        { 126, 700 }, { 157, 725 }, { 197, 742 },
-        { 237, 759 }, { 282, 768 }, { 332, 768 },
-        { 386, 768 }, { 434, 760 }, { 476, 745 },
-        { 517, 729 }, { 549, 707 }, { 572, 677 },
-        { 594, 647 }, { 606, 614 }, { 608, 576 },
-        { 510, 618 }, { 493, 649 }, { 464, 671 },
-        { 435, 693 }, { 393, 704 }, { 337, 704 },
-        { 278, 704 }, { 235, 692 }, { 208, 669 },
-        { 181, 645 }, { 168, 617 }, { 168, 584 },
-        { 168, 555 }, { 177, 531 }, { 196, 513 },
-        { 214, 494 }, { 263, 475 }, { 342, 455 },
-        { 421, 435 }, { 475, 419 }, { 505, 406 },
-        { 547, 386 }, { 579, 360 }, { 599, 329 },
-        { 619, 298 }, { 630, 263 }, { 630, 223 },
-        { 630, 183 }, { 618, 146 }, { 596, 111 },
-        { 574,  76 }, { 542,  49 }, { 500,  29 },
-        { 458,   9 }, { 411,   0 }, { 359,   0 },
-        { 292,   0 }, { 236,   7 }, { 192,  22 },
-        { 147,  37 }, { 112,  60 }, {  86,  90 },
-        {  60, 120 }, {  47, 154 }, {  46, 192 }
-    };
-
-    outline_end_check checks3[1] = {
-        { line_points3 + 2, figure_points3 + 1, cubic_points3 + 33 * 3 },
-    };
-
-    memset(&ctx, 0, sizeof(ctx));
-    ctx.line_points = line_points3;
-    ctx.line_points_end = line_points3 + 2;
-    ctx.figure_points = figure_points3;
-    ctx.figure_points_end = figure_points3 + 1;
-    ctx.checks = checks3;
-    ctx.checks_end = checks3 + 1;
-    ctx.cubic_points = cubic_points3;
-    ctx.cubic_points_end = cubic_points3 + 33 * 3;
-
-    // ok = ocl_get_outline(&g_arial_ttf, idx, OC_LOAD_DEFAULT, &funcs, &ctx);
-    // TEST_ASSERT_EQUAL(ok, true);
-    // TEST_ASSERT_EQUAL(ctx.checks_end, ctx.checks);
-
-    ocl_print_raw_outline(&g_arial_ttf, idx);
-
-    oc_face face;
-    oc_error err;
+    ocl_free_outline(&outline);
 
     err = ocl_open_face(g_library, "test/files/AGaramondPro-Regular.otf", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
@@ -948,10 +879,293 @@ void test_ocl_get_outline(void) {
     idx = ocl_get_char_index(&face, '?');
     TEST_ASSERT_EQUAL_INT16(32, idx);
 
-    ocl_print_raw_outline(&face, idx);
+    err = ocl_get_outline(&face, idx, OC_LOAD_NO_SCALE, &outline);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    TEST_ASSERT_EQUAL_INT32(50, outline.npoints);
+    TEST_ASSERT_EQUAL_INT32(2, outline.ncontours);
+
+    // for (uint16_t i = 0; i < outline.npoints; i++) {
+    //     printf("{ %d, %d },\n", outline.points[i].x, outline.points[i].y);
+    // }
+
+    // for (uint16_t i = 0; i < outline.npoints; i++) {
+    //     printf("t(%d)\n", (int)outline.tags[i]);
+    // }
+
+    // for (uint16_t i = 0; i < outline.ncontours; i++) {
+    //     printf("c(%d)\n", outline.contours[i]);
+    // }
+
+    TEST_ASSERT_EQUAL_MEMORY(((oc_point[]){
+        { 104, 646 },
+        { 78, 646 },
+        { 64, 628 },
+        { 64, 608 },
+        { 64, 582 },
+        { 88, 566 },
+        { 97, 566 },
+        { 149, 566 },
+        { 185, 562 },
+        { 213, 534 },
+        { 230, 517 },
+        { 235, 494 },
+        { 235, 473 },
+        { 235, 447 },
+        { 220, 421 },
+        { 180, 400 },
+        { 131, 374 },
+        { 101, 358 },
+        { 77, 343 },
+        { 77, 302 },
+        { 77, 272 },
+        { 99, 226 },
+        { 113, 203 },
+        { 119, 198 },
+        { 130, 200 },
+        { 134, 208 },
+        { 129, 228 },
+        { 124, 250 },
+        { 124, 266 },
+        { 124, 284 },
+        { 136, 298 },
+        { 159, 310 },
+        { 238, 352 },
+        { 253, 360 },
+        { 276, 387 },
+        { 276, 442 },
+        { 276, 548 },
+        { 184, 646 },
+        { 126, -14 },
+        { 160, -14 },
+        { 182, 9 },
+        { 182, 41 },
+        { 182, 73 },
+        { 160, 100 },
+        { 126, 100 },
+        { 94, 100 },
+        { 70, 75 },
+        { 70, 41 },
+        { 70, 7 },
+        { 97, -14 }
+    }), outline.points, 50 * sizeof(uint16_t));
+
+    TEST_ASSERT_EQUAL_MEMORY(((uint8_t[]){
+        1, 2, 2, 1, 2, 2, 1, 2, 
+        2, 1, 2, 2, 1, 2, 2, 1,
+        1, 2, 2, 1, 2, 2, 1, 2,
+        2, 1, 2, 2, 1, 2, 2, 1,
+        1, 2, 2, 1, 2, 2, 1, 2,
+        2, 1, 2, 2, 1, 2, 2, 1,
+        2, 2
+    }), outline.tags, 50 * sizeof(uint8_t));
+
+    TEST_ASSERT_EQUAL_MEMORY(((uint16_t[]){ 37, 49 }), outline.contours, 2 * sizeof(uint16_t));
 
     ocl_free_face(&face);
+
+    ocl_free_outline(&outline);
 }
+
+// void test_ocl_get_outline(void) {
+//     static const oc_outline_funcs funcs = {
+//         start_figure,
+//         end_figure,
+//         line_to,
+//         cubic_to
+//     };
+//
+//     uint16_t        idx;
+//     bool            ok;
+//     outline_context ctx;
+//
+//     idx = ocl_get_char_index(&g_arial_ttf, 'i');
+//     TEST_ASSERT_EQUAL_INT16(76, idx);
+//
+//     ok = ocl_get_outline(&g_arial_ttf, idx, OC_LOAD_NO_SCALE, NULL, NULL);
+//     TEST_ASSERT_EQUAL(ok, false);
+//
+//     ok = ocl_get_outline(&g_arial_ttf, 4444, OC_LOAD_NO_SCALE, NULL, NULL);
+//     TEST_ASSERT_EQUAL(ok, false);
+//
+//     oc_point line_points1[8] = {
+//         { 136, 1466 },
+//         { 316, 1466 },
+//         { 316, 1259 },
+//         { 136, 1259 },
+//
+//         { 136, 1062 },
+//         { 316, 1062 },
+//         { 316, 0 },
+//         { 136, 0 }
+//     };
+//
+//     oc_point figure_points1[2] = {
+//         { 136, 1259 },
+//         { 136, 0 },
+//     };
+//
+//     outline_end_check checks1[2] = {
+//         { (line_points1 + 4), (figure_points1 + 1), NULL },
+//         { (line_points1 + 8), (figure_points1 + 2), NULL },
+//     };
+//
+//     memset(&ctx, 0, sizeof(ctx));
+//     ctx.line_points = line_points1;
+//     ctx.line_points_end = line_points1 + 8;
+//     ctx.figure_points = figure_points1;
+//     ctx.figure_points_end = figure_points1 + 2;
+//     ctx.checks = checks1;
+//     ctx.checks_end = checks1 + 2;
+//
+//     ok = ocl_get_outline(&g_arial_ttf, idx, OC_LOAD_NO_SCALE, &funcs, &ctx);
+//     TEST_ASSERT_EQUAL(ok, true);
+//     TEST_ASSERT_EQUAL(ctx.checks_end, ctx.checks);
+//
+//     idx = ocl_get_char_index(&g_arial_ttf, 'S');
+//     TEST_ASSERT_EQUAL_INT16(54, idx);
+//
+//     oc_point line_points2[2] = {
+//         { 275, 487 },
+//         { 1029, 1039 }
+//     };
+//
+//     oc_point figure_points2[1] = {
+//         { 92, 471 },
+//     };
+//
+//     oc_point cubic_points2[33 * 3] = {
+//         { 283, 413 }, { 303, 353 }, { 335, 306 },
+//         { 367, 259 }, { 416, 221 }, { 483, 192 },
+//         { 549, 163 }, { 624, 149 }, { 708, 149 },
+//         { 782, 149 }, { 847, 160 }, { 904, 182 },
+//         { 960, 204 }, { 1002, 234 }, { 1030, 272 },
+//         { 1058, 310 }, { 1072, 352 }, { 1072, 398 },
+//         { 1072, 444 }, { 1058, 484 }, { 1032, 518 },
+//         { 1005, 552 }, { 961, 581 }, { 900, 605 },
+//         { 860, 620 }, { 773, 644 }, { 639, 676 },
+//         { 504, 708 }, { 410, 739 }, { 356, 768 },
+//         { 286, 804 }, { 233, 850 }, { 199, 904 },
+//         { 165, 958 }, { 148, 1019 }, { 148, 1087 },
+//         { 148, 1161 }, { 169, 1230 }, { 211, 1294 },
+//         { 253, 1358 }, { 314, 1407 }, { 395, 1441 },
+//         { 475, 1474 }, { 565, 1491 }, { 664, 1491 },
+//         { 772, 1491 }, { 868, 1473 }, { 951, 1438 },
+//         { 1034, 1403 }, { 1098, 1352 }, { 1143, 1284 },
+//         { 1187, 1216 }, { 1211, 1139 }, { 1215, 1053 },
+//         { 1019, 1131 }, { 985, 1201 }, { 927, 1249 },
+//         { 869, 1296 }, { 784, 1320 }, { 672, 1320 },
+//         { 554, 1320 }, { 469, 1298 }, { 415, 1255 },
+//         { 361, 1212 }, { 335, 1160 }, { 335, 1100 },
+//         { 335, 1047 }, { 354, 1004 }, { 392, 970 },
+//         { 429, 936 }, { 526, 901 }, { 684, 865 },
+//         { 842, 829 }, { 950, 798 }, { 1009, 772 },
+//         { 1094, 732 }, { 1157, 682 }, { 1198, 622 },
+//         { 1238, 562 }, { 1259, 492 }, { 1259, 414 },
+//         { 1259, 336 }, { 1236, 262 }, { 1192, 193 },
+//         { 1147, 124 }, { 1083, 70 }, { 999, 32 },
+//         { 915, -5 }, { 821, -25 }, { 717, -25 },
+//         { 584, -25 }, { 473, -5 }, { 383, 33 },
+//         { 293, 71 }, { 223, 129 }, { 172, 207 },
+//         { 121, 285 }, { 94, 373 }, { 92, 471 }
+//     };
+//
+//     outline_end_check checks2[1] = {
+//         { line_points2 + 2, figure_points2 + 1, cubic_points2 + 33 * 3 },
+//     };
+//
+//     memset(&ctx, 0, sizeof(ctx));
+//     ctx.line_points = line_points2;
+//     ctx.line_points_end = line_points2 + 2;
+//     ctx.figure_points = figure_points2;
+//     ctx.figure_points_end = figure_points2 + 1;
+//     ctx.checks = checks2;
+//     ctx.checks_end = checks2 + 1;
+//     ctx.cubic_points = cubic_points2;
+//     ctx.cubic_points_end = cubic_points2 + 33 * 3;
+//
+//     ok = ocl_get_outline(&g_arial_ttf, idx, OC_LOAD_NO_SCALE, &funcs, &ctx);
+//     TEST_ASSERT_EQUAL(ok, true);
+//     TEST_ASSERT_EQUAL(ctx.checks_end, ctx.checks);
+//
+//     oc_point line_points3[2] = {
+//         { 138, 192 },
+//         { 515, 576 }
+//     };
+//
+//     oc_point figure_points3[1] = {
+//         { 46, 192 },
+//     };
+//
+//     oc_point cubic_points3[33 * 3] = {
+//         { 142, 164 }, { 152, 141 }, { 168, 123 },
+//         { 184, 105 }, { 208,  91 }, { 242,  80 },
+//         { 275,  69 }, { 312,  64 }, { 354,  64 },
+//         { 391,  64 }, { 424,  68 }, { 452,  76 },
+//         { 480,  84 }, { 501,  96 }, { 515, 111 },
+//         { 529, 125 }, { 536, 148 }, { 536, 179 },
+//         { 536, 209 }, { 529, 236 }, { 516, 259 },
+//         { 502, 282 }, { 480, 300 }, { 450, 313 },
+//         { 430, 321 }, { 387, 334 }, { 320, 352 },
+//         { 252, 370 }, { 205, 386 }, { 178, 401 },
+//         { 143, 419 }, { 117, 442 }, { 100, 470 },
+//         {  82, 498 }, {  74, 529 }, {  74, 563 },
+//         {  74, 600 }, {  84, 635 }, { 105, 668 },
+//         { 126, 700 }, { 157, 725 }, { 197, 742 },
+//         { 237, 759 }, { 282, 768 }, { 332, 768 },
+//         { 386, 768 }, { 434, 760 }, { 476, 745 },
+//         { 517, 729 }, { 549, 707 }, { 572, 677 },
+//         { 594, 647 }, { 606, 614 }, { 608, 576 },
+//         { 510, 618 }, { 493, 649 }, { 464, 671 },
+//         { 435, 693 }, { 393, 704 }, { 337, 704 },
+//         { 278, 704 }, { 235, 692 }, { 208, 669 },
+//         { 181, 645 }, { 168, 617 }, { 168, 584 },
+//         { 168, 555 }, { 177, 531 }, { 196, 513 },
+//         { 214, 494 }, { 263, 475 }, { 342, 455 },
+//         { 421, 435 }, { 475, 419 }, { 505, 406 },
+//         { 547, 386 }, { 579, 360 }, { 599, 329 },
+//         { 619, 298 }, { 630, 263 }, { 630, 223 },
+//         { 630, 183 }, { 618, 146 }, { 596, 111 },
+//         { 574,  76 }, { 542,  49 }, { 500,  29 },
+//         { 458,   9 }, { 411,   0 }, { 359,   0 },
+//         { 292,   0 }, { 236,   7 }, { 192,  22 },
+//         { 147,  37 }, { 112,  60 }, {  86,  90 },
+//         {  60, 120 }, {  47, 154 }, {  46, 192 }
+//     };
+//
+//     outline_end_check checks3[1] = {
+//         { line_points3 + 2, figure_points3 + 1, cubic_points3 + 33 * 3 },
+//     };
+//
+//     memset(&ctx, 0, sizeof(ctx));
+//     ctx.line_points = line_points3;
+//     ctx.line_points_end = line_points3 + 2;
+//     ctx.figure_points = figure_points3;
+//     ctx.figure_points_end = figure_points3 + 1;
+//     ctx.checks = checks3;
+//     ctx.checks_end = checks3 + 1;
+//     ctx.cubic_points = cubic_points3;
+//     ctx.cubic_points_end = cubic_points3 + 33 * 3;
+//
+//     // ok = ocl_get_outline(&g_arial_ttf, idx, OC_LOAD_DEFAULT, &funcs, &ctx);
+//     // TEST_ASSERT_EQUAL(ok, true);
+//     // TEST_ASSERT_EQUAL(ctx.checks_end, ctx.checks);
+//
+//     ocl_print_raw_outline(&g_arial_ttf, idx);
+//
+//     oc_face face;
+//     oc_error err;
+//
+//     err = ocl_open_face(g_library, "test/files/AGaramondPro-Regular.otf", NULL, &face);
+//     TEST_ASSERT_EQUAL(oc_error_ok, err);
+//
+//     idx = ocl_get_char_index(&face, '?');
+//     TEST_ASSERT_EQUAL_INT16(32, idx);
+//
+//     ocl_print_raw_outline(&face, idx);
+//
+//     ocl_free_face(&face);
+// }
 
 // todo: make everything backend indipendent!
 // todo (stage 2): perhaps we should render glyphs like in macos
