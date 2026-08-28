@@ -2118,6 +2118,7 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
 oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, oc_outline* ooutline) {
     CTFontRef ct_font;
     CGPathRef ct_outline;
+    CFIndex   glyph_count;
 
     oc_error err = oc_error_ok;
 
@@ -2131,8 +2132,13 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     }
 
     ct_font = (CTFontRef)face->impl;
-    ct_outline = CTFontCreatePathForGlyph(ct_font, index, NULL);
+    glyph_count = CTFontGetGlyphCount(ct_font);
 
+    if (index >= glyph_count) {
+        oc__exit(oc_error_invalid_param);
+    }
+
+    ct_outline = CTFontCreatePathForGlyph(ct_font, index, NULL);
     if (!ct_outline) {
         oc__exit(oc__unexpected(0));
     }
