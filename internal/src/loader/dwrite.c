@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdio.h>
 #define ONECORE_IMPLEMENTATION
 #include "../onecore.h"
@@ -29,15 +30,6 @@ typedef struct {
     const IDWriteFontFileLoaderVtbl* lpVtbl;
     LONG                             ref_count;
 } OC__IDWriteFontFileLoader;
-
-typedef struct {
-    const ID2D1SimplifiedGeometrySinkVtbl* lpVtbl;
-    const oc_outline_funcs*                funcs;
-    D2D1_POINT_2F                          start;
-    D2D1_POINT_2F                          origin;
-    void*                                  ctx;
-    LONG                                   ref_count;
-} OC__ID2D1SimplifiedGeometrySink;
 
 static HRESULT STDMETHODCALLTYPE
 OC__IDWriteFontFileStream_GetLastWriteTime(IDWriteFontFileStream* This, UINT64* last_writetime) {
@@ -212,129 +204,6 @@ static const IDWriteFontFileLoaderVtbl OC__IDWriteFontFileLoaderVtbl = {
     OC__IDWriteFontFileLoader_AddRef,
     OC__IDWriteFontFileLoader_Release,
     OC__IDWriteFontFileLoader_CreateStreamFromKey
-};
-
-static HRESULT STDMETHODCALLTYPE
-OC__ID2D1SimplifiedGeometrySink_Close(ID2D1SimplifiedGeometrySink* This) {
-    (void)This;
-    return S_OK;
-}
-
-static void STDMETHODCALLTYPE
-OC__ID2D1SimplifiedGeometrySink_EndFigure(ID2D1SimplifiedGeometrySink* This, D2D1_FIGURE_END figureEnd) {
-    (void)figureEnd;
-    OC__ID2D1SimplifiedGeometrySink* this = (OC__ID2D1SimplifiedGeometrySink*)This;
-
-    if (this->origin.x != this->start.x || this->origin.y != this->start.y) {
-        oc_point point = { this->start.x, -this->start.y };
-        this->funcs->line_to(point, this->ctx);
-    }
-
-    this->funcs->end_figure(this->ctx);
-}
-
-static void STDMETHODCALLTYPE
-OC__ID2D1SimplifiedGeometrySink_AddBeziers(ID2D1SimplifiedGeometrySink* This, const D2D1_BEZIER_SEGMENT* beziers, UINT beziersCount) {
-    OC__ID2D1SimplifiedGeometrySink* this = (OC__ID2D1SimplifiedGeometrySink*)This;
-
-    oc_point points[3];
-    for (UINT32 i = 0; i < beziersCount; i++) {
-        points[0].x = beziers[i].point1.x;
-        points[0].y = -beziers[i].point1.y;
-
-        points[1].x = beziers[i].point2.x;
-        points[1].y = -beziers[i].point2.y;
-
-        points[2].x = beziers[i].point3.x;
-        points[2].y = -beziers[i].point3.y;
-
-        this->funcs->cubic_to(points[0], points[1], points[2], this->ctx);
-    }
-
-    assert(beziersCount > 0);
-    this->origin = beziers[beziersCount - 1].point3;
-}
-
-static void STDMETHODCALLTYPE
-OC__ID2D1SimplifiedGeometrySink_AddLines(ID2D1SimplifiedGeometrySink* This, const D2D1_POINT_2F* points, UINT pointsCount) {
-    OC__ID2D1SimplifiedGeometrySink* this = (OC__ID2D1SimplifiedGeometrySink*)This;
-
-    oc_point point;
-    for (UINT32 i = 0; i < pointsCount; i++) {
-        point.x = points[i].x;
-        point.y = -points[i].y;
-        this->funcs->line_to(point, this->ctx);
-    }
-
-    assert(pointsCount > 0);
-    this->origin = points[pointsCount - 1];
-}
-
-static void STDMETHODCALLTYPE
-OC__ID2D1SimplifiedGeometrySink_BeginFigure(ID2D1SimplifiedGeometrySink* This, D2D1_POINT_2F startPoint, D2D1_FIGURE_BEGIN figureBegin) {
-    (void)figureBegin;
-    OC__ID2D1SimplifiedGeometrySink* this = (OC__ID2D1SimplifiedGeometrySink*)This;
-
-    oc_point point = { startPoint.x, -startPoint.y };
-    this->funcs->start_figure(point, this->ctx);
-    this->start = startPoint;
-    this->origin = startPoint;
-}
-
-static void STDMETHODCALLTYPE
-OC__ID2D1SimplifiedGeometrySink_SetSegmentFlags(ID2D1SimplifiedGeometrySink* This, D2D1_PATH_SEGMENT vertexFlags) {
-    (void)This;
-    (void)vertexFlags;
-}
-
-static void STDMETHODCALLTYPE
-OC__ID2D1SimplifiedGeometrySink_SetFillMode(ID2D1SimplifiedGeometrySink* This, D2D1_FILL_MODE fillMode) {
-    (void)This;
-    (void)fillMode;
-}
-
-static ULONG STDMETHODCALLTYPE
-OC__ID2D1SimplifiedGeometrySink_Release(IUnknown* This) {
-    OC__ID2D1SimplifiedGeometrySink* this = (OC__ID2D1SimplifiedGeometrySink*)This;
-
-    LONG refs = InterlockedDecrement(&this->ref_count);
-    assert(refs != -1);
-    return refs;
-}
-
-static ULONG STDMETHODCALLTYPE
-OC__ID2D1SimplifiedGeometrySink_AddRef(IUnknown* This) {
-    OC__ID2D1SimplifiedGeometrySink* this = (OC__ID2D1SimplifiedGeometrySink*)This;
-    return InterlockedIncrement(&this->ref_count);
-}
-
-static HRESULT STDMETHODCALLTYPE
-OC__ID2D1SimplifiedGeometrySink_QueryInterface(IUnknown* This, REFIID riid, void** ppvObject) {
-    if (ppvObject == NULL) {
-        return E_POINTER;
-    }
-    *ppvObject = NULL;
-
-    if (IsEqualIID(riid, &IID_IUnknown) || IsEqualIID(riid, &IID_IDWriteFontFileLoader)) {
-        OC__ID2D1SimplifiedGeometrySink_AddRef(This);
-        *ppvObject = This;
-        return S_OK;
-    }
-
-    return E_NOINTERFACE;
-}
-
-static const ID2D1SimplifiedGeometrySinkVtbl OC__ID2D1SimplifiedGeometrySinkVtbl = {
-    { OC__ID2D1SimplifiedGeometrySink_QueryInterface,
-        OC__ID2D1SimplifiedGeometrySink_AddRef,
-        OC__ID2D1SimplifiedGeometrySink_Release },
-    OC__ID2D1SimplifiedGeometrySink_SetFillMode,
-    OC__ID2D1SimplifiedGeometrySink_SetSegmentFlags,
-    OC__ID2D1SimplifiedGeometrySink_BeginFigure,
-    OC__ID2D1SimplifiedGeometrySink_AddLines,
-    OC__ID2D1SimplifiedGeometrySink_AddBeziers,
-    OC__ID2D1SimplifiedGeometrySink_EndFigure,
-    OC__ID2D1SimplifiedGeometrySink_Close,
 };
 
 OC__IDWriteFontFileLoader oc__file_loader = { &OC__IDWriteFontFileLoaderVtbl, 0 };
@@ -790,45 +659,6 @@ exit:
         *ocbox = cbox;
 }
 
-bool ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, const oc_outline_funcs* funcs, void* user) {
-    HRESULT                         err;
-    ULONG                           refs;
-    OC__ID2D1SimplifiedGeometrySink geometry_sink = { 0 };
-
-    (void)flags;
-
-    if (!(face && funcs)) {
-        return false;
-    }
-
-    geometry_sink.lpVtbl = &OC__ID2D1SimplifiedGeometrySinkVtbl;
-    geometry_sink.funcs = funcs;
-    geometry_sink.ref_count = 1;
-    geometry_sink.ctx = user;
-
-    err = face->impl->dw_face->lpVtbl->GetGlyphRunOutline(
-        face->impl->dw_face,
-        face->upem,
-        &index,
-        NULL,
-        NULL,
-        1,
-        FALSE,
-        FALSE,
-        (IDWriteGeometrySink*)&geometry_sink);
-
-    if (err != S_OK) {
-        return false;
-    }
-
-    refs = geometry_sink.lpVtbl->Base.Release((IUnknown*)&geometry_sink);
-
-    (void)refs;
-    assert(refs == 0);
-
-    return true;
-}
-
 typedef enum {
     oc__path_move,
     oc__path_line,
@@ -851,7 +681,6 @@ typedef struct {
     oc__path      type;
 } oc__path_felement;
 
-// cb -> any(make 'next_element') -> hdlr(eval 'curr_element')
 typedef struct {
     const ID2D1SimplifiedGeometrySinkVtbl* lpVtbl;
 
@@ -865,9 +694,9 @@ typedef struct {
     D2D1_POINT_2F start;
 
     LONG ref_count;
-} OC__ID2D1SimplifiedGeometrySink2;
+} OC__PathSink;
 
-static void oc__walk_outline(OC__ID2D1SimplifiedGeometrySink2* sink, const oc__path_felement* element) {
+static void oc__walk_outline(OC__PathSink* sink, const oc__path_felement* element) {
     oc__path_element next_element = {
         .pt1 = { element->pt1.x * 2.0f, element->pt1.y * -2.0f },
         .pt2 = { element->pt2.x * 2.0f, element->pt2.y * -2.0f },
@@ -941,14 +770,14 @@ static void oc__walk_outline(OC__ID2D1SimplifiedGeometrySink2* sink, const oc__p
 }
 
 static HRESULT STDMETHODCALLTYPE
-OC__ID2D1SimplifiedGeometrySink_Close2(ID2D1SimplifiedGeometrySink* This) {
+OC__PathSink_Close(ID2D1SimplifiedGeometrySink* This) {
     (void)This;
     return S_OK;
 }
 
 static void STDMETHODCALLTYPE
-OC__ID2D1SimplifiedGeometrySink_EndFigure2(ID2D1SimplifiedGeometrySink* This, D2D1_FIGURE_END figureEnd) {
-    OC__ID2D1SimplifiedGeometrySink2* this = (OC__ID2D1SimplifiedGeometrySink2*)This;
+OC__PathSink_EndFigure(ID2D1SimplifiedGeometrySink* This, D2D1_FIGURE_END figureEnd) {
+    OC__PathSink* this = (OC__PathSink*)This;
     (void)figureEnd;
 
     oc__path_felement element = { 0 };
@@ -958,8 +787,8 @@ OC__ID2D1SimplifiedGeometrySink_EndFigure2(ID2D1SimplifiedGeometrySink* This, D2
 }
 
 static void STDMETHODCALLTYPE
-OC__ID2D1SimplifiedGeometrySink_AddBeziers2(ID2D1SimplifiedGeometrySink* This, const D2D1_BEZIER_SEGMENT* beziers, UINT beziersCount) {
-    OC__ID2D1SimplifiedGeometrySink2* this = (OC__ID2D1SimplifiedGeometrySink2*)This;
+OC__PathSink_AddBeziers(ID2D1SimplifiedGeometrySink* This, const D2D1_BEZIER_SEGMENT* beziers, UINT beziersCount) {
+    OC__PathSink* this = (OC__PathSink*)This;
 
     oc__path_felement element = { 0 };
     for (UINT32 i = 0; i < beziersCount; i++) {
@@ -995,8 +824,8 @@ OC__ID2D1SimplifiedGeometrySink_AddBeziers2(ID2D1SimplifiedGeometrySink* This, c
 }
 
 static void STDMETHODCALLTYPE
-OC__ID2D1SimplifiedGeometrySink_AddLines2(ID2D1SimplifiedGeometrySink* This, const D2D1_POINT_2F* points, UINT pointsCount) {
-    OC__ID2D1SimplifiedGeometrySink2* this = (OC__ID2D1SimplifiedGeometrySink2*)This;
+OC__PathSink_AddLines(ID2D1SimplifiedGeometrySink* This, const D2D1_POINT_2F* points, UINT pointsCount) {
+    OC__PathSink* this = (OC__PathSink*)This;
 
     oc__path_felement element = { 0 };
     element.type = oc__path_line;
@@ -1010,8 +839,8 @@ OC__ID2D1SimplifiedGeometrySink_AddLines2(ID2D1SimplifiedGeometrySink* This, con
 }
 
 static void STDMETHODCALLTYPE
-OC__ID2D1SimplifiedGeometrySink_BeginFigure2(ID2D1SimplifiedGeometrySink* This, D2D1_POINT_2F startPoint, D2D1_FIGURE_BEGIN figureBegin) {
-    OC__ID2D1SimplifiedGeometrySink2* this = (OC__ID2D1SimplifiedGeometrySink2*)This;
+OC__PathSink_BeginFigure(ID2D1SimplifiedGeometrySink* This, D2D1_POINT_2F startPoint, D2D1_FIGURE_BEGIN figureBegin) {
+    OC__PathSink* this = (OC__PathSink*)This;
     (void)figureBegin;
 
     oc__path_felement element = { 0 };
@@ -1025,20 +854,20 @@ OC__ID2D1SimplifiedGeometrySink_BeginFigure2(ID2D1SimplifiedGeometrySink* This, 
 }
 
 static void STDMETHODCALLTYPE
-OC__ID2D1SimplifiedGeometrySink_SetSegmentFlags2(ID2D1SimplifiedGeometrySink* This, D2D1_PATH_SEGMENT vertexFlags) {
+OC__PathSink_SetSegmentFlags(ID2D1SimplifiedGeometrySink* This, D2D1_PATH_SEGMENT vertexFlags) {
     (void)This;
     (void)vertexFlags;
 }
 
 static void STDMETHODCALLTYPE
-OC__ID2D1SimplifiedGeometrySink_SetFillMode2(ID2D1SimplifiedGeometrySink* This, D2D1_FILL_MODE fillMode) {
+OC__PathSink_SetFillMode(ID2D1SimplifiedGeometrySink* This, D2D1_FILL_MODE fillMode) {
     (void)This;
     (void)fillMode;
 }
 
 static ULONG STDMETHODCALLTYPE
-OC__ID2D1SimplifiedGeometrySink_Release2(IUnknown* This) {
-    OC__ID2D1SimplifiedGeometrySink2* this = (OC__ID2D1SimplifiedGeometrySink2*)This;
+OC__PathSink_Release(IUnknown* This) {
+    OC__PathSink* this = (OC__PathSink*)This;
 
     LONG refs = InterlockedDecrement(&this->ref_count);
     assert(refs != -1);
@@ -1046,20 +875,20 @@ OC__ID2D1SimplifiedGeometrySink_Release2(IUnknown* This) {
 }
 
 static ULONG STDMETHODCALLTYPE
-OC__ID2D1SimplifiedGeometrySink_AddRef2(IUnknown* This) {
-    OC__ID2D1SimplifiedGeometrySink2* this = (OC__ID2D1SimplifiedGeometrySink2*)This;
+OC__PathSink_AddRef(IUnknown* This) {
+    OC__PathSink* this = (OC__PathSink*)This;
     return InterlockedIncrement(&this->ref_count);
 }
 
 static HRESULT STDMETHODCALLTYPE
-OC__ID2D1SimplifiedGeometrySink_QueryInterface2(IUnknown* This, REFIID riid, void** ppvObject) {
+OC__PathSink_QueryInterface(IUnknown* This, REFIID riid, void** ppvObject) {
     if (ppvObject == NULL) {
         return E_POINTER;
     }
     *ppvObject = NULL;
 
     if (IsEqualIID(riid, &IID_IUnknown) || IsEqualIID(riid, &IID_IDWriteFontFileLoader)) {
-        OC__ID2D1SimplifiedGeometrySink_AddRef2(This);
+        OC__PathSink_AddRef(This);
         *ppvObject = This;
         return S_OK;
     }
@@ -1067,43 +896,49 @@ OC__ID2D1SimplifiedGeometrySink_QueryInterface2(IUnknown* This, REFIID riid, voi
     return E_NOINTERFACE;
 }
 
-static const ID2D1SimplifiedGeometrySinkVtbl OC__ID2D1SimplifiedGeometrySinkVtbl2 = {
-    { OC__ID2D1SimplifiedGeometrySink_QueryInterface2,
-        OC__ID2D1SimplifiedGeometrySink_AddRef2,
-        OC__ID2D1SimplifiedGeometrySink_Release2 },
-    OC__ID2D1SimplifiedGeometrySink_SetFillMode2,
-    OC__ID2D1SimplifiedGeometrySink_SetSegmentFlags2,
-    OC__ID2D1SimplifiedGeometrySink_BeginFigure2,
-    OC__ID2D1SimplifiedGeometrySink_AddLines2,
-    OC__ID2D1SimplifiedGeometrySink_AddBeziers2,
-    OC__ID2D1SimplifiedGeometrySink_EndFigure2,
-    OC__ID2D1SimplifiedGeometrySink_Close2,
+static const ID2D1SimplifiedGeometrySinkVtbl OC__PathSinkVtbl = {
+    { OC__PathSink_QueryInterface,
+        OC__PathSink_AddRef,
+        OC__PathSink_Release },
+    OC__PathSink_SetFillMode,
+    OC__PathSink_SetSegmentFlags,
+    OC__PathSink_BeginFigure,
+    OC__PathSink_AddLines,
+    OC__PathSink_AddBeziers,
+    OC__PathSink_EndFigure,
+    OC__PathSink_Close,
 };
 
-// this ocl, ocf
-// todo: remove suffix
-// oc_outline {
-//     []tags;
-//     []points;
-//     []contours;
-// }
-// oc_free_outline(oc_outline* outline)
-// oc_render_outline(const oc_outline* outline, oc_extent* oextent, unsigned char* buffer, size_t pitch)
-void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
-    HRESULT err;
-    ULONG   refs;
+oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, oc_outline* ooutline) {
+    HRESULT          hr;
+    ULONG            refs;
+    IDWriteFontFace* dw_face;
+    UINT16           count;
 
-    OC__ID2D1SimplifiedGeometrySink2 sink = { 0 };
+    oc_error err = oc_error_ok;
+    oc_outline outline = { 0 };
 
-    if (!face) {
-        return;
+    OC__PathSink sink = { 0 };
+
+    (void)flags;
+
+    if (!(face && ooutline)) {
+        return oc_error_invalid_param;
     }
 
-    sink.lpVtbl = &OC__ID2D1SimplifiedGeometrySinkVtbl2;
+    // todo: cache nglyphs
+    dw_face = face->impl->dw_face;
+    count = dw_face->lpVtbl->GetGlyphCount(dw_face);
+
+    if (index >= count) {
+        oc__exit(oc_error_invalid_param);
+    }
+
+    sink.lpVtbl = &OC__PathSinkVtbl;
     sink.element.type = -1;
     sink.ref_count = 1;
 
-    err = face->impl->dw_face->lpVtbl->GetGlyphRunOutline(
+    hr = face->impl->dw_face->lpVtbl->GetGlyphRunOutline(
         face->impl->dw_face,
         face->upem,
         &index,
@@ -1114,23 +949,8 @@ void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
         FALSE,
         (IDWriteGeometrySink*)&sink);
 
-    if (err != S_OK) {
-        return;
-    }
-
-    // todo: check if it is even possible to get Close without any points, like ' ' char
-    if (oc__len(sink.points) > 0) {
-        oc__append(sink.contours, oc__len(sink.points) - 1);
-    }
-
-    printf("contours(%lld):\n", oc__len(sink.contours));
-    for (size_t i = 0; i < oc__len(sink.contours); i++) {
-        printf("  end(%d)\n", sink.contours[i]);
-    }
-
-    printf("points(%lld):\n", oc__len(sink.points));
-    for (size_t i = 0; i < oc__len(sink.points); i++) {
-        printf("  tag(%d) point(%d, %d)\n", (int)sink.tags[i], sink.points[i].x, sink.points[i].y);
+    if (hr != S_OK) {
+        oc__exit(oc__unexpected(hr));
     }
 
     refs = sink.lpVtbl->Base.Release((IUnknown*)&sink);
@@ -1138,9 +958,35 @@ void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
     (void)refs;
     assert(refs == 0);
 
-    oc__free(sink.tags);
-    oc__free(sink.points);
-    oc__free(sink.contours);
+    // todo: catch and handle oom
+    if (oc__len(sink.points) > 0) {
+        assert(sink.element.type == oc__path_close);
+        oc__append(sink.contours, oc__len(sink.points) - 1);
+    }
+
+    outline.npoints = (uint16_t)oc__len(sink.points);
+    outline.ncontours = (uint16_t)oc__len(sink.contours);
+
+    outline.tags = sink.tags;
+    outline.points = sink.points;
+    outline.contours = sink.contours;
+exit:
+    if (ooutline != NULL)
+        *ooutline = outline;
+
+    return err;
+}
+
+void ocl_free_outline(oc_outline* outline) {
+    if (outline == NULL) {
+        return;
+    }
+
+    oc__free(outline->tags);
+    oc__free(outline->points);
+    oc__free(outline->contours);
+
+    memset(outline, 0, sizeof(*outline));
 }
 
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {

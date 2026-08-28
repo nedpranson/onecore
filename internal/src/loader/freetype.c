@@ -493,6 +493,8 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
         oc__exit_critical(oc__unexpected(0));
     }
 
+    // todo: compare sizeof src and dst type if equal just copy ptr
+
     tags = malloc(ft_outline.n_points * sizeof(*tags));
     if (tags == NULL) {
         oc__exit_critical(oc__unexpected(0));
