@@ -1148,43 +1148,6 @@ void ocl_free_outline(oc_outline* outline) {
     memset(outline, 0, sizeof(*outline));
 }
 
-// void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
-//     FT_Error     ft_err;
-//     FT_Face      ft_face;
-//     FT_GlyphSlot glyph;
-//     FT_Outline   outline;
-//
-//     oc_error err = oc_error_ok;
-//
-//     if (!face) {
-//         return;
-//     }
-//
-//     ft_face = face->impl->ft_face;
-//     err = FT_Load_Glyph(ft_face, index, FT_LOAD_NO_BITMAP | FT_LOAD_NO_SCALE);
-//
-//     if (err != FT_Err_Ok) {
-//         return;
-//     }
-//
-//     glyph = ft_face->glyph;
-//     outline = glyph->outline;
-//
-//     if (glyph->format != FT_GLYPH_FORMAT_OUTLINE && glyph->format != FT_GLYPH_FORMAT_COMPOSITE) {
-//         return;
-//     }
-//
-//     printf("contours(%d):\n", outline.n_contours);
-//     for (int i = 0; i < outline.n_contours; i++) {
-//         printf("  end(%d)\n", outline.contours[i]);
-//     }
-//
-//     printf("points(%d):\n", outline.n_points);
-//     for (int i = 0; i < outline.n_points; i++) {
-//         printf("  tag(%d) point(%ld, %ld)\n", (int)outline.tags[i], outline.points[i].x, outline.points[i].y);
-//     }
-// }
-
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {
     FT_Face           ft_face;
     oc__mutex_impl_t* lock;
@@ -1942,114 +1905,114 @@ exit:
         *ocbox = cbox;
 }
 
-typedef struct {
-    float x;
-    float y;
-} oc__point_2f;
+// typedef struct {
+//     float x;
+//     float y;
+// } oc__point_2f;
+//
+// typedef struct {
+//     const oc_outline_funcs* funcs;
+//     void*                   ctx;
+//     CGPoint                 start;
+//     CGPoint                 origin;
+//     CGFloat                 fsize;
+//     CGFloat                 funits_per_em;
+// } oc__outline_context;
 
-typedef struct {
-    const oc_outline_funcs* funcs;
-    void*                   ctx;
-    CGPoint                 start;
-    CGPoint                 origin;
-    CGFloat                 fsize;
-    CGFloat                 funits_per_em;
-} oc__outline_context;
+// static void oc__path_applier(void* info, const CGPathElement* element) {
+//     oc__outline_context* ctx = (oc__outline_context*)info;
+//     CGFloat              fppem = ctx->fsize;
+//     CGFloat              fupem = ctx->funits_per_em;
+//
+//     switch (element->type) {
+//     case kCGPathElementMoveToPoint: {
+//         oc_point point = {
+//             element->points[0].x * fupem / fppem,
+//             element->points[0].y * fupem / fppem
+//         };
+//
+//         ctx->funcs->start_figure(point, ctx->ctx);
+//         ctx->start = element->points[0];
+//         ctx->origin = element->points[0];
+//     }; break;
+//     case kCGPathElementAddLineToPoint: {
+//         oc_point point = {
+//             element->points[0].x * fupem / fppem,
+//             element->points[0].y * fupem / fppem
+//         };
+//
+//         ctx->funcs->line_to(point, ctx->ctx);
+//         ctx->origin = element->points[0];
+//     } break;
+//     case kCGPathElementAddQuadCurveToPoint: {
+//         oc__point_2f forigin = { ctx->origin.x * fupem / fppem, ctx->origin.y * fupem / fppem };
+//         oc__point_2f fcontrol = { element->points[0].x * fupem / fppem, element->points[0].y * fupem / fppem };
+//         oc__point_2f fto = { element->points[1].x * fupem / fppem, element->points[1].y * fupem / fppem };
+//
+//         oc__point_2f cubic[2];
+//         cubic[0].x = forigin.x + 2.0f * (fcontrol.x - forigin.x) / 3.0f;
+//         cubic[0].y = forigin.y + 2.0f * (fcontrol.y - forigin.y) / 3.0f;
+//         cubic[1].x = fto.x + 2.0f * (fcontrol.x - fto.x) / 3.0f;
+//         cubic[1].y = fto.y + 2.0f * (fcontrol.y - fto.y) / 3.0f;
+//
+//         oc_point points[3] = {
+//             { cubic[0].x, cubic[0].y },
+//             { cubic[1].x, cubic[1].y },
+//             { fto.x, fto.y }
+//         };
+//
+//         ctx->funcs->cubic_to(points[0], points[1], points[2], ctx->ctx);
+//         ctx->origin = element->points[1];
+//     }; break;
+//     case kCGPathElementAddCurveToPoint: {
+//         oc_point points[3] = {
+//             { element->points[0].x * fupem / fppem, element->points[0].y * fupem / fppem },
+//             { element->points[1].x * fupem / fppem, element->points[1].y * fupem / fppem },
+//             { element->points[2].x * fupem / fppem, element->points[2].y * fupem / fppem },
+//         };
+//
+//         ctx->funcs->cubic_to(points[0], points[1], points[2], ctx->ctx);
+//         ctx->origin = element->points[2];
+//     } break;
+//     case kCGPathElementCloseSubpath:
+//         if (ctx->origin.x != ctx->start.x || ctx->origin.y != ctx->start.y) {
+//             oc_point point = { ctx->start.x * fupem / fppem, ctx->start.y * fupem / fppem };
+//             ctx->funcs->line_to(point, ctx->ctx);
+//         }
+//
+//         ctx->funcs->end_figure(ctx->ctx);
+//         break;
+//     }
+// }
 
-static void oc__path_applier(void* info, const CGPathElement* element) {
-    oc__outline_context* ctx = (oc__outline_context*)info;
-    CGFloat              fppem = ctx->fsize;
-    CGFloat              fupem = ctx->funits_per_em;
-
-    switch (element->type) {
-    case kCGPathElementMoveToPoint: {
-        oc_point point = {
-            element->points[0].x * fupem / fppem,
-            element->points[0].y * fupem / fppem
-        };
-
-        ctx->funcs->start_figure(point, ctx->ctx);
-        ctx->start = element->points[0];
-        ctx->origin = element->points[0];
-    }; break;
-    case kCGPathElementAddLineToPoint: {
-        oc_point point = {
-            element->points[0].x * fupem / fppem,
-            element->points[0].y * fupem / fppem
-        };
-
-        ctx->funcs->line_to(point, ctx->ctx);
-        ctx->origin = element->points[0];
-    } break;
-    case kCGPathElementAddQuadCurveToPoint: {
-        oc__point_2f forigin = { ctx->origin.x * fupem / fppem, ctx->origin.y * fupem / fppem };
-        oc__point_2f fcontrol = { element->points[0].x * fupem / fppem, element->points[0].y * fupem / fppem };
-        oc__point_2f fto = { element->points[1].x * fupem / fppem, element->points[1].y * fupem / fppem };
-
-        oc__point_2f cubic[2];
-        cubic[0].x = forigin.x + 2.0f * (fcontrol.x - forigin.x) / 3.0f;
-        cubic[0].y = forigin.y + 2.0f * (fcontrol.y - forigin.y) / 3.0f;
-        cubic[1].x = fto.x + 2.0f * (fcontrol.x - fto.x) / 3.0f;
-        cubic[1].y = fto.y + 2.0f * (fcontrol.y - fto.y) / 3.0f;
-
-        oc_point points[3] = {
-            { cubic[0].x, cubic[0].y },
-            { cubic[1].x, cubic[1].y },
-            { fto.x, fto.y }
-        };
-
-        ctx->funcs->cubic_to(points[0], points[1], points[2], ctx->ctx);
-        ctx->origin = element->points[1];
-    }; break;
-    case kCGPathElementAddCurveToPoint: {
-        oc_point points[3] = {
-            { element->points[0].x * fupem / fppem, element->points[0].y * fupem / fppem },
-            { element->points[1].x * fupem / fppem, element->points[1].y * fupem / fppem },
-            { element->points[2].x * fupem / fppem, element->points[2].y * fupem / fppem },
-        };
-
-        ctx->funcs->cubic_to(points[0], points[1], points[2], ctx->ctx);
-        ctx->origin = element->points[2];
-    } break;
-    case kCGPathElementCloseSubpath:
-        if (ctx->origin.x != ctx->start.x || ctx->origin.y != ctx->start.y) {
-            oc_point point = { ctx->start.x * fupem / fppem, ctx->start.y * fupem / fppem };
-            ctx->funcs->line_to(point, ctx->ctx);
-        }
-
-        ctx->funcs->end_figure(ctx->ctx);
-        break;
-    }
-}
-
-bool ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, const oc_outline_funcs* funcs, void* user) {
-    CTFontRef           ct_font;
-    CGPathRef           outline;
-    oc__outline_context context = { 0 };
-
-    (void)flags;
-
-    if (!(face && funcs)) {
-        return false;
-    }
-
-    ct_font = (CTFontRef)face->impl;
-    outline = CTFontCreatePathForGlyph(ct_font, index, NULL);
-
-    if (outline == NULL) {
-        return false;
-    }
-
-    context.funcs = funcs;
-    context.ctx = user;
-    context.fsize = CTFontGetSize(ct_font);
-    context.funits_per_em = CTFontGetUnitsPerEm(ct_font);
-
-    CGPathApply(outline, &context, oc__path_applier);
-    CGPathRelease(outline);
-
-    return true;
-}
+// bool ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, const oc_outline_funcs* funcs, void* user) {
+//     CTFontRef           ct_font;
+//     CGPathRef           outline;
+//     oc__outline_context context = { 0 };
+//
+//     (void)flags;
+//
+//     if (!(face && funcs)) {
+//         return false;
+//     }
+//
+//     ct_font = (CTFontRef)face->impl;
+//     outline = CTFontCreatePathForGlyph(ct_font, index, NULL);
+//
+//     if (outline == NULL) {
+//         return false;
+//     }
+//
+//     context.funcs = funcs;
+//     context.ctx = user;
+//     context.fsize = CTFontGetSize(ct_font);
+//     context.funits_per_em = CTFontGetUnitsPerEm(ct_font);
+//
+//     CGPathApply(outline, &context, oc__path_applier);
+//     CGPathRelease(outline);
+//
+//     return true;
+// }
 
 typedef struct {
     oc_point          pt1;
@@ -2152,49 +2115,109 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
     ctx->element = next_element;
 }
 
-void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
-    CTFontRef           ct_font;
-    CGPathRef           outline;
+oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, oc_outline* ooutline) {
+    CTFontRef ct_font;
+    CGPathRef ct_outline;
+
+    oc_error err = oc_error_ok;
+
+    oc_outline outline      = { 0 };
     oc__applier_context ctx = { 0 };
 
-    if (!face) {
-        return;
+    (void)flags;
+
+    if (!(face && ooutline)) {
+        oc__exit(oc_error_invalid_param);
     }
 
     ct_font = (CTFontRef)face->impl;
-    outline = CTFontCreatePathForGlyph(ct_font, index, NULL);
+    ct_outline = CTFontCreatePathForGlyph(ct_font, index, NULL);
 
-    if (!outline) {
-        return;
+    if (!ct_outline) {
+        oc__exit(oc__unexpected(0));
     }
 
     ctx.fppem = CTFontGetSize(ct_font);
     ctx.fupem = CTFontGetUnitsPerEm(ct_font);
     ctx.element.type = -1;
 
-    CGPathApply(outline, &ctx, oc__walk_applier);
-    CGPathRelease(outline);
+    CGPathApply(ct_outline, &ctx, oc__walk_applier);
+    CGPathRelease(ct_outline);
 
-    assert(ctx.element.type == kCGPathElementCloseSubpath);
     // todo: check if it is even possible to get Close without any points
     if (oc__len(ctx.points) > 0) {
+        assert(ctx.element.type == kCGPathElementCloseSubpath);
         oc__append(ctx.contours, oc__len(ctx.points) - 1);
     }
 
-    printf("contours(%ld):\n", oc__len(ctx.contours));
-    for (size_t i = 0; i < oc__len(ctx.contours); i++) {
-        printf("  end(%d)\n", ctx.contours[i]);
-    }
+    outline.npoints = (uint16_t)oc__len(ctx.points);
+    outline.ncontours = (uint16_t)oc__len(ctx.contours);
 
-    printf("points(%ld):\n", oc__len(ctx.points));
-    for (size_t i = 0; i < oc__len(ctx.points); i++) {
-        printf("  tag(%d) point(%d, %d)\n", (int)ctx.tags[i], ctx.points[i].x, ctx.points[i].y);
-    }
+    outline.tags = ctx.tags;
+    outline.points = ctx.points;
+    outline.contours = ctx.contours;
+exit:
+    if (ooutline != NULL)
+        *ooutline = outline;
 
-    oc__free(ctx.tags);
-    oc__free(ctx.points);
-    oc__free(ctx.contours);
+    return err;
 }
+
+void ocl_free_outline(oc_outline* outline) {
+    if (outline == NULL) {
+        return;
+    }
+
+    oc__free(outline->tags);
+    oc__free(outline->points);
+    oc__free(outline->contours);
+
+    memset(outline, 0, sizeof(*outline));
+}
+
+// void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
+//     CTFontRef           ct_font;
+//     CGPathRef           outline;
+//     oc__applier_context ctx = { 0 };
+//
+//     if (!face) {
+//         return;
+//     }
+//
+//     ct_font = (CTFontRef)face->impl;
+//     outline = CTFontCreatePathForGlyph(ct_font, index, NULL);
+//
+//     if (!outline) {
+//         return;
+//     }
+//
+//     ctx.fppem = CTFontGetSize(ct_font);
+//     ctx.fupem = CTFontGetUnitsPerEm(ct_font);
+//     ctx.element.type = -1;
+//
+//     CGPathApply(outline, &ctx, oc__walk_applier);
+//     CGPathRelease(outline);
+//
+//     assert(ctx.element.type == kCGPathElementCloseSubpath);
+//     // todo: check if it is even possible to get Close without any points
+//     if (oc__len(ctx.points) > 0) {
+//         oc__append(ctx.contours, oc__len(ctx.points) - 1);
+//     }
+//
+//     printf("contours(%ld):\n", oc__len(ctx.contours));
+//     for (size_t i = 0; i < oc__len(ctx.contours); i++) {
+//         printf("  end(%d)\n", ctx.contours[i]);
+//     }
+//
+//     printf("points(%ld):\n", oc__len(ctx.points));
+//     for (size_t i = 0; i < oc__len(ctx.points); i++) {
+//         printf("  tag(%d) point(%d, %d)\n", (int)ctx.tags[i], ctx.points[i].x, ctx.points[i].y);
+//     }
+//
+//     oc__free(ctx.tags);
+//     oc__free(ctx.points);
+//     oc__free(ctx.contours);
+// }
 
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {
     oc_error err = oc_error_ok;

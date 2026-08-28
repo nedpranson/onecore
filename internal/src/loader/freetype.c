@@ -551,43 +551,6 @@ void ocl_free_outline(oc_outline* outline) {
     memset(outline, 0, sizeof(*outline));
 }
 
-// void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
-//     FT_Error     ft_err;
-//     FT_Face      ft_face;
-//     FT_GlyphSlot glyph;
-//     FT_Outline   outline;
-//
-//     oc_error err = oc_error_ok;
-//
-//     if (!face) {
-//         return;
-//     }
-//
-//     ft_face = face->impl->ft_face;
-//     err = FT_Load_Glyph(ft_face, index, FT_LOAD_NO_BITMAP | FT_LOAD_NO_SCALE);
-//
-//     if (err != FT_Err_Ok) {
-//         return;
-//     }
-//
-//     glyph = ft_face->glyph;
-//     outline = glyph->outline;
-//
-//     if (glyph->format != FT_GLYPH_FORMAT_OUTLINE && glyph->format != FT_GLYPH_FORMAT_COMPOSITE) {
-//         return;
-//     }
-//
-//     printf("contours(%d):\n", outline.n_contours);
-//     for (int i = 0; i < outline.n_contours; i++) {
-//         printf("  end(%d)\n", outline.contours[i]);
-//     }
-//
-//     printf("points(%d):\n", outline.n_points);
-//     for (int i = 0; i < outline.n_points; i++) {
-//         printf("  tag(%d) point(%ld, %ld)\n", (int)outline.tags[i], outline.points[i].x, outline.points[i].y);
-//     }
-// }
-
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {
     FT_Face           ft_face;
     oc__mutex_impl_t* lock;
