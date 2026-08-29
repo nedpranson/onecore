@@ -606,12 +606,6 @@ static inline bool oc__is_midpoint(oc_point pt, oc_point a, oc_point b) {
 static inline bool oc__points_equal(oc_point a, oc_point b) {
     return a.x == b.x && a.y == b.y;
 }
-
-static inline oc_point oc__point_bsr(oc_point pt, uint8_t amt) {
-    pt.x >>= amt;
-    pt.y >>= amt;
-    return pt;
-}
 #endif /* ONECORE_IMPLEMENTATION */
 
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
@@ -1061,7 +1055,7 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     uint16_t* contours = NULL;
 
     oc_error   err = oc_error_ok;
-    FT_Int32   ft_load_flags = FT_LOAD_NO_BITMAP;
+    FT_Int32   ft_load_flags = FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING;
     oc_outline outline = { 0 };
 
     if (!(face && ooutline)) {
@@ -1072,13 +1066,12 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     lock = &face->impl->lock;
 
     if (flags & OC_LOAD_NO_SCALE) {
-        flags |= OC_LOAD_NO_FITTING;
         ft_load_flags |= FT_LOAD_NO_SCALE;
     }
 
-    if (flags & OC_LOAD_NO_HINTING) {
-        ft_load_flags |= FT_LOAD_NO_HINTING;
-    }
+    // if (flags & OC_LOAD_NO_HINTING) {
+    //     ft_load_flags |= FT_LOAD_NO_HINTING;
+    // }
 
     oc__mutex_impl_lock(lock);
     ft_err = FT_Load_Glyph(ft_face, index, ft_load_flags);
@@ -2083,10 +2076,10 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     ctx.fppem = CTFontGetSize(ct_font);
     ctx.fupem = CTFontGetUnitsPerEm(ct_font);
     ctx.element.type = -1;
-    ctx.scale = face->size.scale;
+    ctx.scale = 0xFFFF;
 
-    if (flags & OC_LOAD_NO_SCALE) {
-        ctx.scale = 0xFFFF;
+    if (!(flags & OC_LOAD_NO_SCALE)) {
+        ctx.scale = face->size.scale;
     }
 
     CGPathApply(ct_outline, &ctx, oc__walk_applier);
@@ -3852,10 +3845,10 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     sink.lpVtbl = &OC__PathSinkVtbl;
     sink.element.type = -1;
     sink.ref_count = 1;
-    sink.scale = face->size.scale;
+    sink.scale = 0xFFFF;
 
-    if (flags & OC_LOAD_NO_SCALE) {
-        sink.scale = 0xFFFF;
+    if (!(flags & OC_LOAD_NO_SCALE)) {
+        sink.scale = face->size.scale;
     }
 
     hr = face->impl->dw_face->lpVtbl->GetGlyphRunOutline(

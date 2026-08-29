@@ -538,10 +538,10 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     ctx.fppem = CTFontGetSize(ct_font);
     ctx.fupem = CTFontGetUnitsPerEm(ct_font);
     ctx.element.type = -1;
-    ctx.scale = face->size.scale;
+    ctx.scale = 0xFFFF;
 
-    if (flags & OC_LOAD_NO_SCALE) {
-        ctx.scale = 0xFFFF;
+    if (!(flags & OC_LOAD_NO_SCALE)) {
+        ctx.scale = face->size.scale;
     }
 
     CGPathApply(ct_outline, &ctx, oc__walk_applier);

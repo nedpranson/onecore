@@ -452,7 +452,7 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     uint16_t* contours = NULL;
 
     oc_error   err = oc_error_ok;
-    FT_Int32   ft_load_flags = FT_LOAD_NO_BITMAP;
+    FT_Int32   ft_load_flags = FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING;
     oc_outline outline = { 0 };
 
     if (!(face && ooutline)) {
@@ -463,13 +463,12 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     lock = &face->impl->lock;
 
     if (flags & OC_LOAD_NO_SCALE) {
-        flags |= OC_LOAD_NO_FITTING;
         ft_load_flags |= FT_LOAD_NO_SCALE;
     }
 
-    if (flags & OC_LOAD_NO_HINTING) {
-        ft_load_flags |= FT_LOAD_NO_HINTING;
-    }
+    // if (flags & OC_LOAD_NO_HINTING) {
+    //     ft_load_flags |= FT_LOAD_NO_HINTING;
+    // }
 
     oc__mutex_impl_lock(lock);
     ft_err = FT_Load_Glyph(ft_face, index, ft_load_flags);

@@ -978,10 +978,10 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     sink.lpVtbl = &OC__PathSinkVtbl;
     sink.element.type = -1;
     sink.ref_count = 1;
-    sink.scale = face->size.scale;
+    sink.scale = 0xFFFF;
 
-    if (flags & OC_LOAD_NO_SCALE) {
-        sink.scale = 0xFFFF;
+    if (!(flags & OC_LOAD_NO_SCALE)) {
+        sink.scale = face->size.scale;
     }
 
     hr = face->impl->dw_face->lpVtbl->GetGlyphRunOutline(

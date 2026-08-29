@@ -606,12 +606,6 @@ static inline bool oc__is_midpoint(oc_point pt, oc_point a, oc_point b) {
 static inline bool oc__points_equal(oc_point a, oc_point b) {
     return a.x == b.x && a.y == b.y;
 }
-
-static inline oc_point oc__point_bsr(oc_point pt, uint8_t amt) {
-    pt.x >>= amt;
-    pt.y >>= amt;
-    return pt;
-}
 #endif /* ONECORE_IMPLEMENTATION */
 
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
