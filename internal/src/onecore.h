@@ -152,13 +152,13 @@ typedef struct {
     oc_face_impl* impl;
 
     oc_size  size;                /* current active size */
+    uint16_t nglyphs;             /* number of glyphs */
     uint16_t upem;                /* units per EM */
     uint16_t ascent;              /* typographic ascender in font units. */
     uint16_t descent;             /* typographic descender in font units. */
     int16_t  leading;             /* typographic leading in font units. */
     int16_t  underline_position;  /* underline position in font units */
     uint16_t underline_thickness; /* underline thickness in font units */
-    // uint16_t nglyphs; // todo: add it
 } oc_face;
 
 typedef struct {

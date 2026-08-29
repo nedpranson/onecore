@@ -34,6 +34,7 @@ static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_si
     face.impl = (oc_face_impl*)ct_font;
     face.size.scale = oc_div_16p16(scaled, upem);
     face.size.ppem = (uint16_t)ppem;
+    face.nglyphs = (uint16_t)CTFontGetGlyphCount(ct_font);
     face.upem = upem;
     face.ascent = CTFontGetAscent(ct_font) * upem / size;
     face.descent = CTFontGetDescent(ct_font) * upem / size;
@@ -269,7 +270,6 @@ oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, vo
 
 void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
     CTFontRef ct_font;
-    CFIndex   count;
 
     CGSize advance;
     CGRect rect;
@@ -284,12 +284,11 @@ void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fl
         goto exit;
     }
 
-    ct_font = (CTFontRef)face->impl;
-    count = CTFontGetGlyphCount(ct_font);
-
-    if (index >= count) {
+    if (index >= face->nglyphs) {
         goto exit;
     }
+
+    ct_font = (CTFontRef)face->impl;
 
     CTFontGetAdvancesForGlyphs(ct_font, kCTFontOrientationHorizontal, &index, &advance, 1);
     rect = CTFontGetBoundingRectsForGlyphs(ct_font, kCTFontOrientationHorizontal, &index, NULL, 1);
@@ -336,6 +335,10 @@ void ocl_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags
     oc_bbox cbox = { 0 };
 
     if (!(face && ocbox)) {
+        goto exit;
+    }
+
+    if (index >= face->nglyphs) {
         goto exit;
     }
 
@@ -497,7 +500,6 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
 oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, oc_outline* ooutline) {
     CTFontRef ct_font;
     CGPathRef ct_outline;
-    CFIndex   glyph_count;
 
     oc_error err = oc_error_ok;
 
@@ -510,15 +512,13 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
         return oc_error_invalid_param;
     }
 
-    ct_font = (CTFontRef)face->impl;
-    glyph_count = CTFontGetGlyphCount(ct_font);
-
-    // todo: cache the glyph_count
-    if (index >= glyph_count) {
+    if (index >= face->nglyphs) {
         oc__exit(oc_error_invalid_param);
     }
 
+    ct_font = (CTFontRef)face->impl;
     ct_outline = CTFontCreatePathForGlyph(ct_font, index, NULL);
+
     if (!ct_outline) {
         oc__exit(oc__unexpected(0));
     }
@@ -573,10 +573,7 @@ void ocl_free_outline(oc_outline* outline) {
 }
 
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {
-    oc_error err = oc_error_ok;
-
     CTFontRef ct_font;
-    CFIndex   count;
 
     oc_bbox cbox;
     oc_bbox pbox;
@@ -586,20 +583,18 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
     CGRect          rect;
     CGPoint         pos;
 
+    oc_error  err = oc_error_ok;
     oc_extent extent = { 0 };
 
     if (!(face && oextent)) {
-        err = oc_error_invalid_param;
-        goto exit;
+        oc__exit(oc_error_invalid_param);
+    }
+
+    if (index >= face->nglyphs) {
+        oc__exit(oc_error_invalid_param);
     }
 
     ct_font = (CTFontRef)face->impl;
-    count = CTFontGetGlyphCount(ct_font);
-
-    if (index >= count) {
-        err = oc_error_invalid_param;
-        goto exit;
-    }
 
     // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L414
     ocl_get_glyph_cbox(face, index, OC_LOAD_DEFAULT, &cbox);

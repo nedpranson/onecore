@@ -287,6 +287,7 @@ static oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_fa
     face.impl->dw_factory = dw_factory;
     face.size.scale = scale;
     face.size.ppem = (uint16_t)ppem;
+    face.nglyphs = dw_face->lpVtbl->GetGlyphCount(dw_face);
     face.upem = metrics.designUnitsPerEm;
     face.ascent = metrics.ascent;
     face.descent = metrics.descent;
@@ -557,21 +558,18 @@ void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fl
     DWRITE_GLYPH_METRICS dw_metrics;
     IDWriteFontFace*     dw_face;
     oc_16p16             scale;
-    UINT16               count;
     oc_glyph_metrics     metrics = { 0 };
 
     if (!(face && ometrics)) {
         goto exit;
     }
 
-    dw_face = face->impl->dw_face;
-    count = dw_face->lpVtbl->GetGlyphCount(dw_face);
-
     // for some reason GetDesignGlyphMetrics does not catch invalid glyph index
-    if (index >= count) {
+    if (index >= face->nglyphs) {
         goto exit;
     }
 
+    dw_face = face->impl->dw_face;
     err = dw_face->lpVtbl->GetDesignGlyphMetrics(
         dw_face,
         &index,
@@ -614,7 +612,6 @@ void ocl_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags
     HRESULT              err;
     DWRITE_GLYPH_METRICS metrics;
     IDWriteFontFace*     dw_face;
-    UINT16               count;
     oc_16p16             scale;
     oc_bbox              cbox = { 0 };
 
@@ -622,13 +619,11 @@ void ocl_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags
         goto exit;
     }
 
-    dw_face = face->impl->dw_face;
-    count = dw_face->lpVtbl->GetGlyphCount(dw_face);
-
-    if (index >= count) {
+    if (index >= face->nglyphs) {
         goto exit;
     }
 
+    dw_face = face->impl->dw_face;
     err = dw_face->lpVtbl->GetDesignGlyphMetrics(
         dw_face,
         &index,
@@ -949,10 +944,8 @@ static const ID2D1SimplifiedGeometrySinkVtbl OC__PathSinkVtbl = {
 };
 
 oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, oc_outline* ooutline) {
-    HRESULT          hr;
-    ULONG            refs;
-    IDWriteFontFace* dw_face;
-    UINT16           count;
+    HRESULT hr;
+    ULONG   refs;
 
     oc_error   err = oc_error_ok;
     oc_outline outline = { 0 };
@@ -966,11 +959,7 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
         return oc_error_invalid_param;
     }
 
-    // todo: cache nglyphs
-    dw_face = face->impl->dw_face;
-    count = dw_face->lpVtbl->GetGlyphCount(dw_face);
-
-    if (index >= count) {
+    if (index >= face->nglyphs) {
         oc__exit(oc_error_invalid_param);
     }
 
@@ -1050,7 +1039,6 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
     oc_bbox pbox;
 
     DWRITE_MATRIX transform;
-    UINT16        count;
     RECT          bounds;
 
     IDWriteGlyphRunAnalysis* analysis = NULL;
@@ -1066,14 +1054,13 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
         oc__exit(oc_error_invalid_param);
     }
 
-    dw_face = face->impl->dw_face;
-    dw_factory = face->impl->dw_factory;
-    count = dw_face->lpVtbl->GetGlyphCount(dw_face);
-
     // for some reason GetDesignGlyphMetrics does not catch invalid glyph index
-    if (index >= count) {
+    if (index >= face->nglyphs) {
         oc__exit(oc_error_invalid_param);
     }
+
+    dw_face = face->impl->dw_face;
+    dw_factory = face->impl->dw_factory;
 
     // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L414
     ocl_get_glyph_cbox(face, index, OC_LOAD_DEFAULT, &cbox);

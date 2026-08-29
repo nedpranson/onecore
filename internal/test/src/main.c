@@ -1282,6 +1282,7 @@ int main(void) {
 
     err = ocl_open_face(g_library, "test/files/arial.ttf", &face_params, &g_arial_ttf);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
+    TEST_ASSERT_EQUAL_UINT16(1674, g_arial_ttf.nglyphs);
     TEST_ASSERT_EQUAL_UINT16(16, g_arial_ttf.size.ppem);
 
     RUN_TEST(test_math);

@@ -154,6 +154,7 @@ static oc_error oc__init_face(FT_Face ft_face, const oc_open_params* params, oc_
 
     face.size.scale = ft_face->size->metrics.y_scale;
     face.size.ppem = ft_face->size->metrics.y_ppem;
+    face.nglyphs = (uint16_t)ft_face->num_glyphs;
     face.upem = ft_face->units_per_EM;
     face.ascent = ft_face->ascender;
     face.descent = -ft_face->descender;
