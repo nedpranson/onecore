@@ -446,7 +446,7 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
 
     oc__mutex_impl_t* lock;
 
-    uint8_t* tags = NULL;
+    uint8_t*  tags = NULL;
     oc_point* points = NULL;
     uint16_t* contours = NULL;
 
@@ -512,7 +512,7 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
 
     for (uint16_t i = 0; i < ft_outline.n_points; i++) {
         tags[i] = ft_outline.tags[i];
-        points[i] = (oc_point){ ft_outline.points[i].x, ft_outline.points[i].y };
+        points[i] = (oc_point) { ft_outline.points[i].x, ft_outline.points[i].y };
     }
 
     for (uint16_t i = 0; i < ft_outline.n_contours; i++) {

@@ -480,7 +480,7 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
 
     oc_error err = oc_error_ok;
 
-    oc_outline outline      = { 0 };
+    oc_outline          outline = { 0 };
     oc__applier_context ctx = { 0 };
 
     (void)flags;

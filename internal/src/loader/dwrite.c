@@ -713,18 +713,24 @@ static bool oc__walk_outline(OC__PathSink* sink, const oc__path_felement* elemen
 
     switch (sink->element.type) {
     case oc__path_move:
-        if (!oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1))) return true;
-        if (!oc__append(sink->tags, OC__CURVE_TAG_ON)) return true;
+        if (!oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1)))
+            return true;
+        if (!oc__append(sink->tags, OC__CURVE_TAG_ON))
+            return true;
         break;
     case oc__path_line:
         if (!oc__points_equal(sink->element.pt1, start)) {
-            if (!oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1))) return true;
-            if (!oc__append(sink->tags, OC__CURVE_TAG_ON)) return true;
+            if (!oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1)))
+                return true;
+            if (!oc__append(sink->tags, OC__CURVE_TAG_ON))
+                return true;
         }
         break;
     case oc__path_conic:
-        if (!oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1))) return true;
-        if (!oc__append(sink->tags, OC__CURVE_TAG_CONIC)) return true;
+        if (!oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1)))
+            return true;
+        if (!oc__append(sink->tags, OC__CURVE_TAG_CONIC))
+            return true;
 
         implicit = false;
         closing = false;
@@ -738,16 +744,22 @@ static bool oc__walk_outline(OC__PathSink* sink, const oc__path_felement* elemen
         }
 
         if (!implicit && !closing) {
-            if (!oc__append(sink->points, oc__point_bsr(sink->element.pt2, 1))) return true;
-            if (!oc__append(sink->tags, OC__CURVE_TAG_ON)) return true;
+            if (!oc__append(sink->points, oc__point_bsr(sink->element.pt2, 1)))
+                return true;
+            if (!oc__append(sink->tags, OC__CURVE_TAG_ON))
+                return true;
         }
         break;
     case oc__path_cubic:
-        if (!oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1))) return true;
-        if (!oc__append(sink->points, oc__point_bsr(sink->element.pt2, 1))) return true;
+        if (!oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1)))
+            return true;
+        if (!oc__append(sink->points, oc__point_bsr(sink->element.pt2, 1)))
+            return true;
 
-        if (!oc__append(sink->tags, OC__CURVE_TAG_CUBIC)) return true;
-        if (!oc__append(sink->tags, OC__CURVE_TAG_CUBIC)) return true;
+        if (!oc__append(sink->tags, OC__CURVE_TAG_CUBIC))
+            return true;
+        if (!oc__append(sink->tags, OC__CURVE_TAG_CUBIC))
+            return true;
 
         closing = false;
         if (next_element.type == oc__path_close) {
@@ -755,13 +767,16 @@ static bool oc__walk_outline(OC__PathSink* sink, const oc__path_felement* elemen
         }
 
         if (!closing) {
-            if (!oc__append(sink->points, oc__point_bsr(sink->element.pt3, 1))) return true;
-            if (!oc__append(sink->tags, OC__CURVE_TAG_ON)) return true;
+            if (!oc__append(sink->points, oc__point_bsr(sink->element.pt3, 1)))
+                return true;
+            if (!oc__append(sink->tags, OC__CURVE_TAG_ON))
+                return true;
         }
         break;
     case oc__path_close:
         assert(oc__len(sink->points) > 0);
-        if (!oc__append(sink->contours, oc__len(sink->points) - 1)) return true;
+        if (!oc__append(sink->contours, oc__len(sink->points) - 1))
+            return true;
         break;
     default:
         break;
@@ -779,7 +794,7 @@ OC__PathSink_Close(ID2D1SimplifiedGeometrySink* This) {
 
 static void STDMETHODCALLTYPE
 OC__PathSink_EndFigure(ID2D1SimplifiedGeometrySink* This, D2D1_FIGURE_END figureEnd) {
-    OC__PathSink*     this = (OC__PathSink*)This;
+    OC__PathSink* this = (OC__PathSink*)This;
     oc__path_felement element = { 0 };
 
     (void)figureEnd;
@@ -794,7 +809,7 @@ OC__PathSink_EndFigure(ID2D1SimplifiedGeometrySink* This, D2D1_FIGURE_END figure
 
 static void STDMETHODCALLTYPE
 OC__PathSink_AddBeziers(ID2D1SimplifiedGeometrySink* This, const D2D1_BEZIER_SEGMENT* beziers, UINT beziersCount) {
-    OC__PathSink*     this = (OC__PathSink*)This;
+    OC__PathSink* this = (OC__PathSink*)This;
     oc__path_felement element = { 0 };
 
     if (oc__unlikely(this->doomed)) {
@@ -838,7 +853,7 @@ OC__PathSink_AddBeziers(ID2D1SimplifiedGeometrySink* This, const D2D1_BEZIER_SEG
 
 static void STDMETHODCALLTYPE
 OC__PathSink_AddLines(ID2D1SimplifiedGeometrySink* This, const D2D1_POINT_2F* points, UINT pointsCount) {
-    OC__PathSink*     this = (OC__PathSink*)This;
+    OC__PathSink* this = (OC__PathSink*)This;
     oc__path_felement element = { 0 };
 
     if (oc__unlikely(this->doomed)) {
@@ -859,7 +874,7 @@ OC__PathSink_AddLines(ID2D1SimplifiedGeometrySink* This, const D2D1_POINT_2F* po
 
 static void STDMETHODCALLTYPE
 OC__PathSink_BeginFigure(ID2D1SimplifiedGeometrySink* This, D2D1_POINT_2F startPoint, D2D1_FIGURE_BEGIN figureBegin) {
-    OC__PathSink*     this = (OC__PathSink*)This;
+    OC__PathSink* this = (OC__PathSink*)This;
     oc__path_felement element = { 0 };
 
     (void)figureBegin;
@@ -939,13 +954,14 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     IDWriteFontFace* dw_face;
     UINT16           count;
 
-    oc_error err = oc_error_ok;
+    oc_error   err = oc_error_ok;
     oc_outline outline = { 0 };
 
     OC__PathSink sink = { 0 };
 
     (void)flags;
 
+    // todo: handle first check like this
     if (!(face && ooutline)) {
         return oc_error_invalid_param;
     }
@@ -983,17 +999,14 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     assert(refs == 0);
 
     if (oc__unlikely(sink.doomed)) {
-        oc__free(sink.tags);
-        oc__free(sink.points);
-        oc__free(sink.contours);
-
         oc__exit(oc_error_out_of_memory);
     }
 
-    // todo: catch and handle oom
     if (oc__len(sink.points) > 0) {
         assert(sink.element.type == oc__path_close);
-        oc__append(sink.contours, oc__len(sink.points) - 1);
+        if (!oc__append(sink.contours, oc__len(sink.points) - 1)) {
+            oc__exit(oc_error_out_of_memory);
+        }
     }
 
     outline.npoints = (uint16_t)oc__len(sink.points);
@@ -1003,8 +1016,13 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     outline.points = sink.points;
     outline.contours = sink.contours;
 exit:
-    if (ooutline != NULL)
-        *ooutline = outline;
+    *ooutline = outline;
+
+    if (err != oc_error_ok) {
+        oc__free(sink.tags);
+        oc__free(sink.points);
+        oc__free(sink.contours);
+    }
 
     return err;
 }
