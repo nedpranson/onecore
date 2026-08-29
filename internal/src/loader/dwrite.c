@@ -689,11 +689,15 @@ typedef struct {
     D2D1_POINT_2F origin;
     D2D1_POINT_2F start;
 
-    LONG ref_count;
-    bool doomed; // if true oom is reached
+    LONG     ref_count;
+    oc_16p16 scale;
+    bool     doomed; // if true oom is reached
 } OC__PathSink;
 
 static bool oc__walk_outline(OC__PathSink* sink, const oc__path_felement* element) {
+    bool implicit;
+    bool closing;
+
     oc__path_element next_element = {
         .pt1 = { element->pt1.x * 2.0f, element->pt1.y * -2.0f },
         .pt2 = { element->pt2.x * 2.0f, element->pt2.y * -2.0f },
@@ -701,28 +705,39 @@ static bool oc__walk_outline(OC__PathSink* sink, const oc__path_felement* elemen
         .type = element->type,
     };
 
+    oc_point pt1 = sink->element.pt1;
+    oc_point pt2 = sink->element.pt2;
+    oc_point pt3 = sink->element.pt3;
+
     oc_point start = { sink->start.x * 2.0f, sink->start.y * -2.0f };
 
-    bool implicit;
-    bool closing;
+    pt1.x = oc_mul_16p16(pt1.x >> 1, sink->scale);
+    pt1.y = oc_mul_16p16(pt1.y >> 1, sink->scale);
+
+    pt2.x = oc_mul_16p16(pt2.x >> 1, sink->scale);
+    pt2.y = oc_mul_16p16(pt2.y >> 1, sink->scale);
+
+    pt3.x = oc_mul_16p16(pt3.x >> 1, sink->scale);
+    pt3.y = oc_mul_16p16(pt3.y >> 1, sink->scale);
 
     switch (sink->element.type) {
     case oc__path_move:
-        if (!oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1)))
+
+        if (!oc__append(sink->points, pt1))
             return true;
         if (!oc__append(sink->tags, OC__CURVE_TAG_ON))
             return true;
         break;
     case oc__path_line:
         if (!oc__points_equal(sink->element.pt1, start)) {
-            if (!oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1)))
+            if (!oc__append(sink->points, pt1))
                 return true;
             if (!oc__append(sink->tags, OC__CURVE_TAG_ON))
                 return true;
         }
         break;
     case oc__path_conic:
-        if (!oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1)))
+        if (!oc__append(sink->points, pt1))
             return true;
         if (!oc__append(sink->tags, OC__CURVE_TAG_CONIC))
             return true;
@@ -739,16 +754,16 @@ static bool oc__walk_outline(OC__PathSink* sink, const oc__path_felement* elemen
         }
 
         if (!implicit && !closing) {
-            if (!oc__append(sink->points, oc__point_bsr(sink->element.pt2, 1)))
+            if (!oc__append(sink->points, pt2))
                 return true;
             if (!oc__append(sink->tags, OC__CURVE_TAG_ON))
                 return true;
         }
         break;
     case oc__path_cubic:
-        if (!oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1)))
+        if (!oc__append(sink->points, pt1))
             return true;
-        if (!oc__append(sink->points, oc__point_bsr(sink->element.pt2, 1)))
+        if (!oc__append(sink->points, pt2))
             return true;
 
         if (!oc__append(sink->tags, OC__CURVE_TAG_CUBIC))
@@ -762,7 +777,7 @@ static bool oc__walk_outline(OC__PathSink* sink, const oc__path_felement* elemen
         }
 
         if (!closing) {
-            if (!oc__append(sink->points, oc__point_bsr(sink->element.pt3, 1)))
+            if (!oc__append(sink->points, pt3))
                 return true;
             if (!oc__append(sink->tags, OC__CURVE_TAG_ON))
                 return true;
@@ -952,11 +967,8 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
 
     OC__PathSink sink = { 0 };
 
-    (void)flags;
-
-    // todo: handle first check like this
     if (!(face && ooutline)) {
-        return oc_error_invalid_param;
+        oc__exit(oc_error_invalid_param);
     }
 
     if (index >= face->nglyphs) {
@@ -966,6 +978,11 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     sink.lpVtbl = &OC__PathSinkVtbl;
     sink.element.type = -1;
     sink.ref_count = 1;
+    sink.scale = face->size.scale;
+
+    if (flags & OC_LOAD_NO_SCALE) {
+        sink.scale = 0xFFFF;
+    }
 
     hr = face->impl->dw_face->lpVtbl->GetGlyphRunOutline(
         face->impl->dw_face,
@@ -1005,7 +1022,8 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     outline.points = sink.points;
     outline.contours = sink.contours;
 exit:
-    *ooutline = outline;
+    if (ooutline)
+        *ooutline = outline;
 
     if (err != oc_error_ok) {
         oc__free(sink.tags);

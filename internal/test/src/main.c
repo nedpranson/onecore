@@ -9,6 +9,8 @@
 oc_library* g_library;
 oc_face    g_arial_ttf;
 
+// todo: test if we have face* and out* ptr test out* to be zero init when passing NULL as face*
+
 // todo (stage 2): test emoji fonts
 // todo (stage 2): test how every backend validates utf8
 
@@ -873,6 +875,78 @@ void test_ocl_get_outline(void) {
 
     ocl_free_outline(&outline);
 
+    err = ocl_get_outline(&g_arial_ttf, idx, OC_LOAD_NO_HINTING, &outline);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    TEST_ASSERT_EQUAL_INT32(49, outline.npoints);
+    TEST_ASSERT_EQUAL_INT32(1, outline.ncontours);
+
+    TEST_ASSERT_EQUAL_MEMORY(((oc_point[]){
+        { 46, 236 },
+        { 138, 244 },
+        { 144, 189 },
+        { 192, 118 },
+        { 292, 75 },
+        { 354, 75 },
+        { 410, 75 },
+        { 495, 108 },
+        { 536, 165 },
+        { 536, 199 },
+        { 536, 234 },
+        { 496, 285 },
+        { 450, 303 },
+        { 421, 314 },
+        { 219, 363 },
+        { 178, 384 },
+        { 126, 412 },
+        { 74, 493 },
+        { 74, 544 },
+        { 74, 599 },
+        { 137, 696 },
+        { 258, 746 },
+        { 332, 746 },
+        { 414, 746 },
+        { 538, 693 },
+        { 605, 591 },
+        { 608, 527 },
+        { 515, 520 },
+        { 507, 589 },
+        { 421, 660 },
+        { 336, 660 },
+        { 248, 660 },
+        { 168, 596 },
+        { 168, 550 },
+        { 168, 511 },
+        { 196, 485 },
+        { 224, 460 },
+        { 461, 406 },
+        { 505, 386 },
+        { 569, 357 },
+        { 630, 266 },
+        { 630, 207 },
+        { 630, 149 },
+        { 563, 45 },
+        { 437, -13 },
+        { 359, -13 },
+        { 259, -13 },
+        { 125, 46 },
+        { 48, 162 }
+    }), outline.points, 49 * sizeof(uint16_t));
+
+    TEST_ASSERT_EQUAL_MEMORY(((uint8_t[]){
+        1, 1, 0, 0, 0, 1, 0, 0,
+        0, 1, 0, 0, 1, 0, 0, 1,
+        0, 0, 1, 0, 0, 0, 1, 0,
+        0, 0, 1, 1, 0, 0, 1, 0,
+        0, 1, 0, 1, 0, 0, 1, 0,
+        0, 1, 0, 0, 0, 1, 0, 0,
+        0
+    }), outline.tags, 49 * sizeof(uint8_t));
+
+    TEST_ASSERT_EQUAL_MEMORY(((uint16_t[]){ 48 }), outline.contours, 1 * sizeof(uint16_t));
+    
+    ocl_free_outline(&outline);
+
     err = ocl_open_face(g_library, "test/files/AGaramondPro-Regular.otf", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
@@ -884,18 +958,6 @@ void test_ocl_get_outline(void) {
 
     TEST_ASSERT_EQUAL_INT32(50, outline.npoints);
     TEST_ASSERT_EQUAL_INT32(2, outline.ncontours);
-
-    // for (uint16_t i = 0; i < outline.npoints; i++) {
-    //     printf("{ %d, %d },\n", outline.points[i].x, outline.points[i].y);
-    // }
-
-    // for (uint16_t i = 0; i < outline.npoints; i++) {
-    //     printf("t(%d)\n", (int)outline.tags[i]);
-    // }
-
-    // for (uint16_t i = 0; i < outline.ncontours; i++) {
-    //     printf("c(%d)\n", outline.contours[i]);
-    // }
 
     TEST_ASSERT_EQUAL_MEMORY(((oc_point[]){
         { 104, 646 },
@@ -962,8 +1024,92 @@ void test_ocl_get_outline(void) {
 
     TEST_ASSERT_EQUAL_MEMORY(((uint16_t[]){ 37, 49 }), outline.contours, 2 * sizeof(uint16_t));
 
-    ocl_free_face(&face);
+    ocl_free_outline(&outline);
 
+    err = ocl_get_outline(&face, idx, OC_LOAD_NO_HINTING, &outline);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    TEST_ASSERT_EQUAL_INT32(50, outline.npoints);
+    TEST_ASSERT_EQUAL_INT32(2, outline.ncontours);
+
+    // for (uint16_t i = 0; i < outline.npoints; i++) {
+    //     printf("{ %d, %d },\n", outline.points[i].x, outline.points[i].y);
+    // }
+    //
+    // for (uint16_t i = 0; i < outline.npoints; i++) {
+    //     printf("t(%d)\n", (int)outline.tags[i]);
+    // }
+    //
+    // for (uint16_t i = 0; i < outline.ncontours; i++) {
+    //     printf("c(%d)\n", outline.contours[i]);
+    // }
+
+    TEST_ASSERT_EQUAL_MEMORY(((oc_point[]){
+        { 80, 496 },
+        { 60, 496 },
+        { 49, 482 },
+        { 49, 467 },
+        { 49, 447 },
+        { 68, 435 },
+        { 74, 435 },
+        { 114, 435 },
+        { 142, 432 },
+        { 164, 410 },
+        { 177, 397 },
+        { 180, 379 },
+        { 180, 363 },
+        { 180, 343 },
+        { 169, 323 },
+        { 138, 307 },
+        { 101, 287 },
+        { 78, 275 },
+        { 59, 263 },
+        { 59, 232 },
+        { 59, 209 },
+        { 76, 174 },
+        { 87, 156 },
+        { 91, 152 },
+        { 100, 154 },
+        { 103, 160 },
+        { 99, 175 },
+        { 95, 192 },
+        { 95, 204 },
+        { 95, 218 },
+        { 104, 229 },
+        { 122, 238 },
+        { 183, 270 },
+        { 194, 276 },
+        { 212, 297 },
+        { 212, 339 },
+        { 212, 421 },
+        { 141, 496 },
+        { 97, -11 },
+        { 123, -11 },
+        { 140, 7 },
+        { 140, 31 },
+        { 140, 56 },
+        { 123, 77 },
+        { 97, 77 },
+        { 72, 77 },
+        { 54, 58 },
+        { 54, 31 },
+        { 54, 5 },
+        { 74, -11 }
+    }), outline.points, 50 * sizeof(uint16_t));
+
+    TEST_ASSERT_EQUAL_MEMORY(((uint8_t[]){
+        1, 2, 2, 1, 2, 2, 1, 2, 
+        2, 1, 2, 2, 1, 2, 2, 1,
+        1, 2, 2, 1, 2, 2, 1, 2,
+        2, 1, 2, 2, 1, 2, 2, 1,
+        1, 2, 2, 1, 2, 2, 1, 2,
+        2, 1, 2, 2, 1, 2, 2, 1,
+        2, 2
+    }), outline.tags, 50 * sizeof(uint8_t));
+
+    TEST_ASSERT_EQUAL_MEMORY(((uint16_t[]){ 37, 49 }), outline.contours, 2 * sizeof(uint16_t));
+
+    ocl_free_face(&face);
     ocl_free_outline(&outline);
 }
 
