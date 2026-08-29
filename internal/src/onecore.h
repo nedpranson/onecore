@@ -453,6 +453,15 @@ static inline oc_error oc__unexpected_impl(long err, const char* file, int line)
 #define OC__CURVE_TAG_CONIC 0x0
 #define OC__CURVE_TAG_CUBIC 0x2
 
+#if defined(__GNUC__) || defined(__clang__)
+#define oc__likely(x)   __builtin_expect(!!(x), 1)
+#define oc__unlikely(x) __builtin_expect(!!(x), 0)
+#define oc__cold(x)     __builtin_expect(!!(x), 0)
+#else
+#define oc__likely(x)   (!!(x))
+#define oc__unlikely(x) (!!(x))
+#endif
+
 #define oc__exit(e) \
     do {            \
         err = (e);  \

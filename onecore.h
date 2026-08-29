@@ -453,6 +453,15 @@ static inline oc_error oc__unexpected_impl(long err, const char* file, int line)
 #define OC__CURVE_TAG_CONIC 0x0
 #define OC__CURVE_TAG_CUBIC 0x2
 
+#if defined(__GNUC__) || defined(__clang__)
+#define oc__likely(x)   __builtin_expect(!!(x), 1)
+#define oc__unlikely(x) __builtin_expect(!!(x), 0)
+#define oc__cold(x)     __builtin_expect(!!(x), 0)
+#else
+#define oc__likely(x)   (!!(x))
+#define oc__unlikely(x) (!!(x))
+#endif
+
 #define oc__exit(e) \
     do {            \
         err = (e);  \
@@ -1905,115 +1914,6 @@ exit:
         *ocbox = cbox;
 }
 
-// typedef struct {
-//     float x;
-//     float y;
-// } oc__point_2f;
-//
-// typedef struct {
-//     const oc_outline_funcs* funcs;
-//     void*                   ctx;
-//     CGPoint                 start;
-//     CGPoint                 origin;
-//     CGFloat                 fsize;
-//     CGFloat                 funits_per_em;
-// } oc__outline_context;
-
-// static void oc__path_applier(void* info, const CGPathElement* element) {
-//     oc__outline_context* ctx = (oc__outline_context*)info;
-//     CGFloat              fppem = ctx->fsize;
-//     CGFloat              fupem = ctx->funits_per_em;
-//
-//     switch (element->type) {
-//     case kCGPathElementMoveToPoint: {
-//         oc_point point = {
-//             element->points[0].x * fupem / fppem,
-//             element->points[0].y * fupem / fppem
-//         };
-//
-//         ctx->funcs->start_figure(point, ctx->ctx);
-//         ctx->start = element->points[0];
-//         ctx->origin = element->points[0];
-//     }; break;
-//     case kCGPathElementAddLineToPoint: {
-//         oc_point point = {
-//             element->points[0].x * fupem / fppem,
-//             element->points[0].y * fupem / fppem
-//         };
-//
-//         ctx->funcs->line_to(point, ctx->ctx);
-//         ctx->origin = element->points[0];
-//     } break;
-//     case kCGPathElementAddQuadCurveToPoint: {
-//         oc__point_2f forigin = { ctx->origin.x * fupem / fppem, ctx->origin.y * fupem / fppem };
-//         oc__point_2f fcontrol = { element->points[0].x * fupem / fppem, element->points[0].y * fupem / fppem };
-//         oc__point_2f fto = { element->points[1].x * fupem / fppem, element->points[1].y * fupem / fppem };
-//
-//         oc__point_2f cubic[2];
-//         cubic[0].x = forigin.x + 2.0f * (fcontrol.x - forigin.x) / 3.0f;
-//         cubic[0].y = forigin.y + 2.0f * (fcontrol.y - forigin.y) / 3.0f;
-//         cubic[1].x = fto.x + 2.0f * (fcontrol.x - fto.x) / 3.0f;
-//         cubic[1].y = fto.y + 2.0f * (fcontrol.y - fto.y) / 3.0f;
-//
-//         oc_point points[3] = {
-//             { cubic[0].x, cubic[0].y },
-//             { cubic[1].x, cubic[1].y },
-//             { fto.x, fto.y }
-//         };
-//
-//         ctx->funcs->cubic_to(points[0], points[1], points[2], ctx->ctx);
-//         ctx->origin = element->points[1];
-//     }; break;
-//     case kCGPathElementAddCurveToPoint: {
-//         oc_point points[3] = {
-//             { element->points[0].x * fupem / fppem, element->points[0].y * fupem / fppem },
-//             { element->points[1].x * fupem / fppem, element->points[1].y * fupem / fppem },
-//             { element->points[2].x * fupem / fppem, element->points[2].y * fupem / fppem },
-//         };
-//
-//         ctx->funcs->cubic_to(points[0], points[1], points[2], ctx->ctx);
-//         ctx->origin = element->points[2];
-//     } break;
-//     case kCGPathElementCloseSubpath:
-//         if (ctx->origin.x != ctx->start.x || ctx->origin.y != ctx->start.y) {
-//             oc_point point = { ctx->start.x * fupem / fppem, ctx->start.y * fupem / fppem };
-//             ctx->funcs->line_to(point, ctx->ctx);
-//         }
-//
-//         ctx->funcs->end_figure(ctx->ctx);
-//         break;
-//     }
-// }
-
-// bool ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, const oc_outline_funcs* funcs, void* user) {
-//     CTFontRef           ct_font;
-//     CGPathRef           outline;
-//     oc__outline_context context = { 0 };
-//
-//     (void)flags;
-//
-//     if (!(face && funcs)) {
-//         return false;
-//     }
-//
-//     ct_font = (CTFontRef)face->impl;
-//     outline = CTFontCreatePathForGlyph(ct_font, index, NULL);
-//
-//     if (outline == NULL) {
-//         return false;
-//     }
-//
-//     context.funcs = funcs;
-//     context.ctx = user;
-//     context.fsize = CTFontGetSize(ct_font);
-//     context.funits_per_em = CTFontGetUnitsPerEm(ct_font);
-//
-//     CGPathApply(outline, &context, oc__path_applier);
-//     CGPathRelease(outline);
-//
-//     return true;
-// }
-
 typedef struct {
     oc_point          pt1;
     oc_point          pt2;
@@ -2134,6 +2034,7 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     ct_font = (CTFontRef)face->impl;
     glyph_count = CTFontGetGlyphCount(ct_font);
 
+    // todo: cache the glyph_count
     if (index >= glyph_count) {
         oc__exit(oc_error_invalid_param);
     }
@@ -2168,62 +2069,6 @@ exit:
 
     return err;
 }
-
-void ocl_free_outline(oc_outline* outline) {
-    if (outline == NULL) {
-        return;
-    }
-
-    oc__free(outline->tags);
-    oc__free(outline->points);
-    oc__free(outline->contours);
-
-    memset(outline, 0, sizeof(*outline));
-}
-
-// void ocl_print_raw_outline(const oc_face* face, uint16_t index) {
-//     CTFontRef           ct_font;
-//     CGPathRef           outline;
-//     oc__applier_context ctx = { 0 };
-//
-//     if (!face) {
-//         return;
-//     }
-//
-//     ct_font = (CTFontRef)face->impl;
-//     outline = CTFontCreatePathForGlyph(ct_font, index, NULL);
-//
-//     if (!outline) {
-//         return;
-//     }
-//
-//     ctx.fppem = CTFontGetSize(ct_font);
-//     ctx.fupem = CTFontGetUnitsPerEm(ct_font);
-//     ctx.element.type = -1;
-//
-//     CGPathApply(outline, &ctx, oc__walk_applier);
-//     CGPathRelease(outline);
-//
-//     assert(ctx.element.type == kCGPathElementCloseSubpath);
-//     // todo: check if it is even possible to get Close without any points
-//     if (oc__len(ctx.points) > 0) {
-//         oc__append(ctx.contours, oc__len(ctx.points) - 1);
-//     }
-//
-//     printf("contours(%ld):\n", oc__len(ctx.contours));
-//     for (size_t i = 0; i < oc__len(ctx.contours); i++) {
-//         printf("  end(%d)\n", ctx.contours[i]);
-//     }
-//
-//     printf("points(%ld):\n", oc__len(ctx.points));
-//     for (size_t i = 0; i < oc__len(ctx.points); i++) {
-//         printf("  tag(%d) point(%d, %d)\n", (int)ctx.tags[i], ctx.points[i].x, ctx.points[i].y);
-//     }
-//
-//     oc__free(ctx.tags);
-//     oc__free(ctx.points);
-//     oc__free(ctx.contours);
-// }
 
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {
     oc_error err = oc_error_ok;
@@ -3664,9 +3509,10 @@ typedef struct {
     D2D1_POINT_2F start;
 
     LONG ref_count;
+    bool doomed; // if true oom is reached
 } OC__PathSink;
 
-static void oc__walk_outline(OC__PathSink* sink, const oc__path_felement* element) {
+static bool oc__walk_outline(OC__PathSink* sink, const oc__path_felement* element) {
     oc__path_element next_element = {
         .pt1 = { element->pt1.x * 2.0f, element->pt1.y * -2.0f },
         .pt2 = { element->pt2.x * 2.0f, element->pt2.y * -2.0f },
@@ -3679,21 +3525,20 @@ static void oc__walk_outline(OC__PathSink* sink, const oc__path_felement* elemen
     bool implicit;
     bool closing;
 
-    // todo: handle oom
     switch (sink->element.type) {
     case oc__path_move:
-        oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1));
-        oc__append(sink->tags, OC__CURVE_TAG_ON);
+        if (!oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1))) return true;
+        if (!oc__append(sink->tags, OC__CURVE_TAG_ON)) return true;
         break;
     case oc__path_line:
         if (!oc__points_equal(sink->element.pt1, start)) {
-            oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1));
-            oc__append(sink->tags, OC__CURVE_TAG_ON);
+            if (!oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1))) return true;
+            if (!oc__append(sink->tags, OC__CURVE_TAG_ON)) return true;
         }
         break;
     case oc__path_conic:
-        oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1));
-        oc__append(sink->tags, OC__CURVE_TAG_CONIC);
+        if (!oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1))) return true;
+        if (!oc__append(sink->tags, OC__CURVE_TAG_CONIC)) return true;
 
         implicit = false;
         closing = false;
@@ -3707,16 +3552,16 @@ static void oc__walk_outline(OC__PathSink* sink, const oc__path_felement* elemen
         }
 
         if (!implicit && !closing) {
-            oc__append(sink->points, oc__point_bsr(sink->element.pt2, 1));
-            oc__append(sink->tags, OC__CURVE_TAG_ON);
+            if (!oc__append(sink->points, oc__point_bsr(sink->element.pt2, 1))) return true;
+            if (!oc__append(sink->tags, OC__CURVE_TAG_ON)) return true;
         }
         break;
     case oc__path_cubic:
-        oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1));
-        oc__append(sink->points, oc__point_bsr(sink->element.pt2, 1));
+        if (!oc__append(sink->points, oc__point_bsr(sink->element.pt1, 1))) return true;
+        if (!oc__append(sink->points, oc__point_bsr(sink->element.pt2, 1))) return true;
 
-        oc__append(sink->tags, OC__CURVE_TAG_CUBIC);
-        oc__append(sink->tags, OC__CURVE_TAG_CUBIC);
+        if (!oc__append(sink->tags, OC__CURVE_TAG_CUBIC)) return true;
+        if (!oc__append(sink->tags, OC__CURVE_TAG_CUBIC)) return true;
 
         closing = false;
         if (next_element.type == oc__path_close) {
@@ -3724,19 +3569,20 @@ static void oc__walk_outline(OC__PathSink* sink, const oc__path_felement* elemen
         }
 
         if (!closing) {
-            oc__append(sink->points, oc__point_bsr(sink->element.pt3, 1));
-            oc__append(sink->tags, OC__CURVE_TAG_ON);
+            if (!oc__append(sink->points, oc__point_bsr(sink->element.pt3, 1))) return true;
+            if (!oc__append(sink->tags, OC__CURVE_TAG_ON)) return true;
         }
         break;
     case oc__path_close:
         assert(oc__len(sink->points) > 0);
-        oc__append(sink->contours, oc__len(sink->points) - 1);
+        if (!oc__append(sink->contours, oc__len(sink->points) - 1)) return true;
         break;
     default:
         break;
     }
 
     sink->element = next_element;
+    return false;
 }
 
 static HRESULT STDMETHODCALLTYPE
@@ -3747,20 +3593,28 @@ OC__PathSink_Close(ID2D1SimplifiedGeometrySink* This) {
 
 static void STDMETHODCALLTYPE
 OC__PathSink_EndFigure(ID2D1SimplifiedGeometrySink* This, D2D1_FIGURE_END figureEnd) {
-    OC__PathSink* this = (OC__PathSink*)This;
+    OC__PathSink*     this = (OC__PathSink*)This;
+    oc__path_felement element = { 0 };
+
     (void)figureEnd;
 
-    oc__path_felement element = { 0 };
-    element.type = oc__path_close;
+    if (oc__unlikely(this->doomed)) {
+        return;
+    }
 
-    oc__walk_outline(this, &element);
+    element.type = oc__path_close;
+    this->doomed = oc__walk_outline(this, &element);
 }
 
 static void STDMETHODCALLTYPE
 OC__PathSink_AddBeziers(ID2D1SimplifiedGeometrySink* This, const D2D1_BEZIER_SEGMENT* beziers, UINT beziersCount) {
-    OC__PathSink* this = (OC__PathSink*)This;
-
+    OC__PathSink*     this = (OC__PathSink*)This;
     oc__path_felement element = { 0 };
+
+    if (oc__unlikely(this->doomed)) {
+        return;
+    }
+
     for (UINT32 i = 0; i < beziersCount; i++) {
         D2D1_POINT_2F pt1 = beziers[i].point1;
         D2D1_POINT_2F pt2 = beziers[i].point2;
@@ -3788,21 +3642,30 @@ OC__PathSink_AddBeziers(ID2D1SimplifiedGeometrySink* This, const D2D1_BEZIER_SEG
             element.type = oc__path_cubic;
         }
 
-        oc__walk_outline(this, &element);
+        if (oc__unlikely(this->doomed = oc__walk_outline(this, &element))) {
+            break;
+        }
+
         this->origin = pt3;
     }
 }
 
 static void STDMETHODCALLTYPE
 OC__PathSink_AddLines(ID2D1SimplifiedGeometrySink* This, const D2D1_POINT_2F* points, UINT pointsCount) {
-    OC__PathSink* this = (OC__PathSink*)This;
-
+    OC__PathSink*     this = (OC__PathSink*)This;
     oc__path_felement element = { 0 };
-    element.type = oc__path_line;
 
+    if (oc__unlikely(this->doomed)) {
+        return;
+    }
+
+    element.type = oc__path_line;
     for (UINT32 i = 0; i < pointsCount; i++) {
         element.pt1 = points[i];
-        oc__walk_outline(this, &element);
+
+        if (oc__unlikely(this->doomed = oc__walk_outline(this, &element))) {
+            break;
+        }
 
         this->origin = points[i];
     }
@@ -3810,14 +3673,19 @@ OC__PathSink_AddLines(ID2D1SimplifiedGeometrySink* This, const D2D1_POINT_2F* po
 
 static void STDMETHODCALLTYPE
 OC__PathSink_BeginFigure(ID2D1SimplifiedGeometrySink* This, D2D1_POINT_2F startPoint, D2D1_FIGURE_BEGIN figureBegin) {
-    OC__PathSink* this = (OC__PathSink*)This;
+    OC__PathSink*     this = (OC__PathSink*)This;
+    oc__path_felement element = { 0 };
+
     (void)figureBegin;
 
-    oc__path_felement element = { 0 };
+    if (oc__unlikely(this->doomed)) {
+        return;
+    }
+
     element.type = oc__path_move;
     element.pt1 = startPoint;
 
-    oc__walk_outline(this, &element);
+    this->doomed = oc__walk_outline(this, &element);
 
     this->origin = startPoint;
     this->start = startPoint;
@@ -3927,6 +3795,14 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
 
     (void)refs;
     assert(refs == 0);
+
+    if (oc__unlikely(sink.doomed)) {
+        oc__free(sink.tags);
+        oc__free(sink.points);
+        oc__free(sink.contours);
+
+        oc__exit(oc_error_out_of_memory);
+    }
 
     // todo: catch and handle oom
     if (oc__len(sink.points) > 0) {
