@@ -455,7 +455,7 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     oc_outline outline = { 0 };
 
     if (!(face && ooutline)) {
-        oc__exit(oc_error_invalid_param);
+        return oc_error_invalid_param;
     }
 
     ft_face = face->impl->ft_face;
@@ -497,17 +497,17 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
 
     tags = malloc(ft_outline.n_points * sizeof(*tags));
     if (tags == NULL) {
-        oc__exit_critical(oc__unexpected(0));
+        oc__exit_critical(oc_error_out_of_memory);
     }
 
     points = malloc(ft_outline.n_points * sizeof(*points));
     if (points == NULL) {
-        oc__exit_critical(oc__unexpected(0));
+        oc__exit_critical(oc_error_out_of_memory);
     }
 
     contours = malloc(ft_outline.n_contours * sizeof(*contours));
     if (contours == NULL) {
-        oc__exit_critical(oc__unexpected(0));
+        oc__exit_critical(oc_error_out_of_memory);
     }
 
     for (uint16_t i = 0; i < ft_outline.n_points; i++) {
@@ -527,8 +527,7 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     outline.ncontours = ft_outline.n_contours;
     outline.npoints = ft_outline.n_points;
 exit:
-    if (ooutline != NULL)
-        *ooutline = outline;
+    *ooutline = outline;
 
     if (err != oc_error_ok) {
         free(tags);

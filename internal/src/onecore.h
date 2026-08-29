@@ -50,6 +50,9 @@ typedef int32_t  oc_26p6;
 // todo: make so if a person is lazy to handle errors
 //       every func should just noop and never crash
 
+// todo: (stage 3) minimize libc usage on windows/macos as much as possible
+//  on windows we must only use win32 api
+
 #define OC_ERROR_LIST                                    \
     X(oc_error_ok, "no error")                           \
     X(oc_error_invalid_param, "invalid parameter")       \
@@ -155,6 +158,7 @@ typedef struct {
     int16_t  leading;             /* typographic leading in font units. */
     int16_t  underline_position;  /* underline position in font units */
     uint16_t underline_thickness; /* underline thickness in font units */
+    // uint16_t nglyphs; // todo: add it
 } oc_face;
 
 typedef struct {
@@ -456,7 +460,6 @@ static inline oc_error oc__unexpected_impl(long err, const char* file, int line)
 #if defined(__GNUC__) || defined(__clang__)
 #define oc__likely(x)   __builtin_expect(!!(x), 1)
 #define oc__unlikely(x) __builtin_expect(!!(x), 0)
-#define oc__cold(x)     __builtin_expect(!!(x), 0)
 #else
 #define oc__likely(x)   (!!(x))
 #define oc__unlikely(x) (!!(x))

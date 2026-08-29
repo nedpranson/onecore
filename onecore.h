@@ -50,6 +50,9 @@ typedef int32_t  oc_26p6;
 // todo: make so if a person is lazy to handle errors
 //       every func should just noop and never crash
 
+// todo: (stage 3) minimize libc usage on windows/macos as much as possible
+//  on windows we must only use win32 api
+
 #define OC_ERROR_LIST                                    \
     X(oc_error_ok, "no error")                           \
     X(oc_error_invalid_param, "invalid parameter")       \
@@ -155,6 +158,7 @@ typedef struct {
     int16_t  leading;             /* typographic leading in font units. */
     int16_t  underline_position;  /* underline position in font units */
     uint16_t underline_thickness; /* underline thickness in font units */
+    // uint16_t nglyphs; // todo: add it
 } oc_face;
 
 typedef struct {
@@ -456,7 +460,6 @@ static inline oc_error oc__unexpected_impl(long err, const char* file, int line)
 #if defined(__GNUC__) || defined(__clang__)
 #define oc__likely(x)   __builtin_expect(!!(x), 1)
 #define oc__unlikely(x) __builtin_expect(!!(x), 0)
-#define oc__cold(x)     __builtin_expect(!!(x), 0)
 #else
 #define oc__likely(x)   (!!(x))
 #define oc__unlikely(x) (!!(x))
@@ -1061,7 +1064,7 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     oc_outline outline = { 0 };
 
     if (!(face && ooutline)) {
-        oc__exit(oc_error_invalid_param);
+        return oc_error_invalid_param;
     }
 
     ft_face = face->impl->ft_face;
@@ -1103,17 +1106,17 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
 
     tags = malloc(ft_outline.n_points * sizeof(*tags));
     if (tags == NULL) {
-        oc__exit_critical(oc__unexpected(0));
+        oc__exit_critical(oc_error_out_of_memory);
     }
 
     points = malloc(ft_outline.n_points * sizeof(*points));
     if (points == NULL) {
-        oc__exit_critical(oc__unexpected(0));
+        oc__exit_critical(oc_error_out_of_memory);
     }
 
     contours = malloc(ft_outline.n_contours * sizeof(*contours));
     if (contours == NULL) {
-        oc__exit_critical(oc__unexpected(0));
+        oc__exit_critical(oc_error_out_of_memory);
     }
 
     for (uint16_t i = 0; i < ft_outline.n_points; i++) {
@@ -1133,8 +1136,7 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     outline.ncontours = ft_outline.n_contours;
     outline.npoints = ft_outline.n_points;
 exit:
-    if (ooutline != NULL)
-        *ooutline = outline;
+    *ooutline = outline;
 
     if (err != oc_error_ok) {
         free(tags);
@@ -1931,22 +1933,29 @@ typedef struct {
 
     CGFloat fppem;
     CGFloat fupem;
+
+    bool doomed; // if true oom is reached
 } oc__applier_context;
 
 static void oc__walk_applier(void* info, const CGPathElement* element) {
+    oc__path_element next_element;
+
+    bool implicit;
+    bool closing;
+
     oc__applier_context* ctx = (oc__applier_context*)info;
 
-    oc__path_element next_element = {
+    if (oc__unlikely(ctx->doomed)) {
+        return;
+    }
+
+    next_element = (oc__path_element) {
         { element->points[0].x * ctx->fupem / ctx->fppem * 2.0, element->points[0].y * ctx->fupem / ctx->fppem * 2.0 },
         { element->points[1].x * ctx->fupem / ctx->fppem * 2.0, element->points[1].y * ctx->fupem / ctx->fppem * 2.0 },
         { element->points[2].x * ctx->fupem / ctx->fppem * 2.0, element->points[2].y * ctx->fupem / ctx->fppem * 2.0 },
         element->type
     };
 
-    bool implicit;
-    bool closing;
-
-    // todo: do not forget to check oom
     switch (ctx->element.type) {
     case kCGPathElementMoveToPoint:
         // todo: check if this can happen
@@ -1956,20 +1965,26 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
         //     }
         // }
 
-        oc__append(ctx->points, oc__point_bsr(ctx->element.pt1, 1));
-        oc__append(ctx->tags, OC__CURVE_TAG_ON);
+        if ((ctx->doomed = !oc__append(ctx->points, oc__point_bsr(ctx->element.pt1, 1))))
+            break;
+        if ((ctx->doomed = !oc__append(ctx->tags, OC__CURVE_TAG_ON)))
+            break;
 
         ctx->start = ctx->element.pt1;
         break;
     case kCGPathElementAddLineToPoint:
         if (!oc__points_equal(ctx->element.pt1, ctx->start)) {
-            oc__append(ctx->points, oc__point_bsr(ctx->element.pt1, 1));
-            oc__append(ctx->tags, OC__CURVE_TAG_ON);
+            if ((ctx->doomed = !oc__append(ctx->points, oc__point_bsr(ctx->element.pt1, 1))))
+                break;
+            if ((ctx->doomed = !oc__append(ctx->tags, OC__CURVE_TAG_ON)))
+                break;
         }
         break;
     case kCGPathElementAddQuadCurveToPoint:
-        oc__append(ctx->points, oc__point_bsr(ctx->element.pt1, 1));
-        oc__append(ctx->tags, OC__CURVE_TAG_CONIC);
+        if ((ctx->doomed = !oc__append(ctx->points, oc__point_bsr(ctx->element.pt1, 1))))
+            break;
+        if ((ctx->doomed = !oc__append(ctx->tags, OC__CURVE_TAG_CONIC)))
+            break;
 
         implicit = false;
         closing = false;
@@ -1983,16 +1998,22 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
         }
 
         if (!implicit && !closing) {
-            oc__append(ctx->points, oc__point_bsr(ctx->element.pt2, 1));
-            oc__append(ctx->tags, OC__CURVE_TAG_ON);
+            if ((ctx->doomed = !oc__append(ctx->points, oc__point_bsr(ctx->element.pt2, 1))))
+                break;
+            if ((ctx->doomed = !oc__append(ctx->tags, OC__CURVE_TAG_ON)))
+                break;
         }
         break;
     case kCGPathElementAddCurveToPoint:
-        oc__append(ctx->points, oc__point_bsr(ctx->element.pt1, 1));
-        oc__append(ctx->points, oc__point_bsr(ctx->element.pt2, 1));
+        if ((ctx->doomed = !oc__append(ctx->points, oc__point_bsr(ctx->element.pt1, 1))))
+            break;
+        if ((ctx->doomed = !oc__append(ctx->points, oc__point_bsr(ctx->element.pt2, 1))))
+            break;
 
-        oc__append(ctx->tags, OC__CURVE_TAG_CUBIC);
-        oc__append(ctx->tags, OC__CURVE_TAG_CUBIC);
+        if ((ctx->doomed = !oc__append(ctx->tags, OC__CURVE_TAG_CUBIC)))
+            break;
+        if ((ctx->doomed = !oc__append(ctx->tags, OC__CURVE_TAG_CUBIC)))
+            break;
 
         closing = false;
         if (next_element.type == kCGPathElementCloseSubpath) {
@@ -2000,13 +2021,15 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
         }
 
         if (!closing) {
-            oc__append(ctx->points, oc__point_bsr(ctx->element.pt3, 1));
-            oc__append(ctx->tags, OC__CURVE_TAG_ON);
+            if ((ctx->doomed = !oc__append(ctx->points, oc__point_bsr(ctx->element.pt3, 1))))
+                break;
+            if ((ctx->doomed = !oc__append(ctx->tags, OC__CURVE_TAG_ON)))
+                break;
         }
         break;
     case kCGPathElementCloseSubpath:
         assert(oc__len(ctx->points) > 0);
-        oc__append(ctx->contours, oc__len(ctx->points) - 1);
+        ctx->doomed = !oc__append(ctx->contours, oc__len(ctx->points) - 1);
         break;
     default:
         break;
@@ -2028,7 +2051,7 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     (void)flags;
 
     if (!(face && ooutline)) {
-        oc__exit(oc_error_invalid_param);
+        return oc_error_invalid_param;
     }
 
     ct_font = (CTFontRef)face->impl;
@@ -2051,10 +2074,16 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     CGPathApply(ct_outline, &ctx, oc__walk_applier);
     CGPathRelease(ct_outline);
 
+    if (oc__unlikely(ctx.doomed)) {
+        oc__exit(oc_error_out_of_memory);
+    }
+
     // todo: check if it is even possible to get Close without any points
     if (oc__len(ctx.points) > 0) {
         assert(ctx.element.type == kCGPathElementCloseSubpath);
-        oc__append(ctx.contours, oc__len(ctx.points) - 1);
+        if (!oc__append(ctx.contours, oc__len(ctx.points) - 1)) {
+            oc__exit(oc_error_out_of_memory);
+        }
     }
 
     outline.npoints = (uint16_t)oc__len(ctx.points);
@@ -2064,10 +2093,27 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     outline.points = ctx.points;
     outline.contours = ctx.contours;
 exit:
-    if (ooutline != NULL)
-        *ooutline = outline;
+    *ooutline = outline;
+
+    if (err != oc_error_ok) {
+        oc__free(ctx.tags);
+        oc__free(ctx.points);
+        oc__free(ctx.contours);
+    }
 
     return err;
+}
+
+void ocl_free_outline(oc_outline* outline) {
+    if (outline == NULL) {
+        return;
+    }
+
+    oc__free(outline->tags);
+    oc__free(outline->points);
+    oc__free(outline->contours);
+
+    memset(outline, 0, sizeof(*outline));
 }
 
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {
