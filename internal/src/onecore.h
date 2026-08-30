@@ -1,4 +1,4 @@
-/* onecore.h - v0.0.1 - public domain, initial release 2026-4-16
+/* onecore.h - v1.0.0 - public domain, initial release 2026-4-16
  *
  * MIT License
  *
