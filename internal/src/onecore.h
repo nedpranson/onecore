@@ -606,6 +606,27 @@ static inline bool oc__is_midpoint(oc_point pt, oc_point a, oc_point b) {
 static inline bool oc__points_equal(oc_point a, oc_point b) {
     return a.x == b.x && a.y == b.y;
 }
+
+static inline uint16_t u16_from_be(const void* data) {
+    const uint8_t *p = data;
+    return ((uint16_t)p[0] << 8) |
+           ((uint16_t)p[1]);
+}
+
+static inline int16_t i16_from_be(const void* data) {
+    return (int16_t)u16_from_be(data);
+}
+
+static inline uint32_t u32_from_be(const void* data) {
+    const uint8_t *p = data;
+    return ((uint32_t)p[0] << 24) |
+           ((uint32_t)p[1] << 16) |
+           ((uint32_t)p[2] <<  8) |
+           ((uint32_t)p[3]);
+}
+static inline int32_t i32_from_be(const void* data) {
+    return (int32_t)u32_from_be(data);
+}
 #endif /* ONECORE_IMPLEMENTATION */
 
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION

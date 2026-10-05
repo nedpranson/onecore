@@ -495,6 +495,11 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
 
     // todo: compare sizeof src and dst type if equal just copy ptr
 
+    printf("p1: {%ld, %ld}\n", ft_outline.points[ft_outline.n_points + 0].x, ft_outline.points[ft_outline.n_points + 0].y);
+    printf("p2: {%ld, %ld}\n", ft_outline.points[ft_outline.n_points + 1].x, ft_outline.points[ft_outline.n_points + 1].y);
+    printf("p3: {%ld, %ld}\n", ft_outline.points[ft_outline.n_points + 2].x, ft_outline.points[ft_outline.n_points + 2].y);
+    printf("p4: {%ld, %ld}\n", ft_outline.points[ft_outline.n_points + 3].x, ft_outline.points[ft_outline.n_points + 3].y);
+
     tags = malloc(ft_outline.n_points * sizeof(*tags));
     if (tags == NULL) {
         oc__exit_critical(oc_error_out_of_memory);
