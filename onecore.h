@@ -1,4 +1,4 @@
-/* onecore.h - v0.0.1 - public domain, initial release 2026-4-16
+/* onecore.h - v1.0.0 - public domain, initial release 2026-4-16
  *
  * MIT License
  *
@@ -601,6 +601,27 @@ static inline bool oc__is_midpoint(oc_point pt, oc_point a, oc_point b) {
 static inline bool oc__points_equal(oc_point a, oc_point b) {
     return a.x == b.x && a.y == b.y;
 }
+
+static inline uint16_t u16_from_be(const void* data) {
+    const uint8_t *p = data;
+    return ((uint16_t)p[0] << 8) |
+           ((uint16_t)p[1]);
+}
+
+static inline int16_t i16_from_be(const void* data) {
+    return (int16_t)u16_from_be(data);
+}
+
+static inline uint32_t u32_from_be(const void* data) {
+    const uint8_t *p = data;
+    return ((uint32_t)p[0] << 24) |
+           ((uint32_t)p[1] << 16) |
+           ((uint32_t)p[2] <<  8) |
+           ((uint32_t)p[3]);
+}
+static inline int32_t i32_from_be(const void* data) {
+    return (int32_t)u32_from_be(data);
+}
 #endif /* ONECORE_IMPLEMENTATION */
 
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
@@ -1092,7 +1113,6 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     }
 
     // todo: compare sizeof src and dst type if equal just copy ptr
-
     tags = malloc(ft_outline.n_points * sizeof(*tags));
     if (tags == NULL) {
         oc__exit_critical(oc_error_out_of_memory);
@@ -3468,6 +3488,7 @@ void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fl
     }
 
     dw_face = face->impl->dw_face;
+    // todo: it should err on corrupt files
     err = dw_face->lpVtbl->GetDesignGlyphMetrics(
         dw_face,
         &index,
@@ -4076,6 +4097,145 @@ exit:
         analysis->lpVtbl->Release(analysis);
     if (oextent)
         *oextent = extent;
+    return err;
+}
+
+// OpenType 'head' table - indexToLocFormat is int16 BE at offset 50
+// https://learn.microsoft.com/en-us/typography/opentype/spec/head
+enum {
+    OC__HEAD_FORMAT_OFF = 50,
+    OC__HEAD_MIN_SIZE   = 52,
+};
+
+oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_point opp[4]) {
+    UINT32 head_size;
+    UINT32 loca_size;
+    UINT32 glyf_size;
+
+    DWRITE_GLYPH_METRICS metrics;
+
+    WINBOOL exists;
+    HRESULT res;
+
+    const uint8_t* head;
+    const uint8_t* loca;
+    const uint8_t* glyf;
+
+    int16_t format;
+    uint32_t glyph_offset;
+
+    void* head_ctx = NULL;
+    void* loca_ctx = NULL;
+    void* glyf_ctx = NULL;
+
+    oc_error err = oc_error_ok;
+
+    res = dw_face->lpVtbl->TryGetFontTable(
+        dw_face,
+        DWRITE_MAKE_OPENTYPE_TAG('h', 'e', 'a', 'd'),
+        (const void**)&head,
+        &head_size,
+        &head_ctx,
+        &exists);
+    
+    switch (res) {
+    case S_OK:
+        break;
+    case E_OUTOFMEMORY:
+        oc__exit(oc_error_out_of_memory);
+    default:
+        oc__exit(oc__unexpected(res));
+    }
+
+    if (!exists) {
+        oc__exit(oc_error_table_missing);
+    }
+
+    if (head_size < OC__HEAD_MIN_SIZE) {
+        oc__exit(oc_error_table_missing);
+    }
+
+    res = dw_face->lpVtbl->TryGetFontTable(
+        dw_face,
+        DWRITE_MAKE_OPENTYPE_TAG('l', 'o', 'c', 'a'),
+        (const void**)&loca,
+        &loca_size,
+        &loca_ctx,
+        &exists);
+    
+    switch (res) {
+    case S_OK:
+        break;
+    case E_OUTOFMEMORY:
+        oc__exit(oc_error_out_of_memory);
+    default:
+        oc__exit(oc__unexpected(res));
+    }
+
+    if (!exists) {
+        oc__exit(oc_error_table_missing);
+    }
+
+    res = dw_face->lpVtbl->TryGetFontTable(
+        dw_face,
+        DWRITE_MAKE_OPENTYPE_TAG('g', 'l', 'y', 'f'),
+        (const void**)&glyf,
+        &glyf_size,
+        &glyf_ctx,
+        &exists);
+    
+    switch (res) {
+    case S_OK:
+        break;
+    case E_OUTOFMEMORY:
+        oc__exit(oc_error_out_of_memory);
+    default:
+        oc__exit(oc__unexpected(res));
+    }
+
+    if (!exists) {
+        oc__exit(oc_error_table_missing);
+    }
+
+    format = i16_from_be(head + OC__HEAD_FORMAT_OFF);
+    switch (format) {
+    case 0:
+        glyph_offset = (uint32_t)u16_from_be(loca + (size_t)index * 2) * 2;
+        break;
+    case 1:
+        glyph_offset = u32_from_be(loca + (size_t)index * 4);
+        break;
+    default:
+        oc__exit(oc__unexpected(0));
+    }
+
+    err = dw_face->lpVtbl->GetDesignGlyphMetrics(
+        dw_face,
+        &index,
+        1,
+        &metrics,
+        FALSE);
+
+    if (FAILED(err)) {
+        oc__exit(oc__unexpected(err));
+    }
+
+    uint16_t min_x = i16_from_be(glyf + glyph_offset + 2);
+    uint16_t max_y = i16_from_be(glyf + glyph_offset + 8);
+
+    oc_point p1 = { OC_26P6_SUB(min_x, metrics.leftSideBearing), 0 };
+    oc_point p2 = { OC_26P6_ADD(p1.x, metrics.advanceWidth), 0 };    
+    oc_point p3 = { 0, OC_26P6_ADD(max_y, metrics.topSideBearing) };    
+    oc_point p4 = { 0, OC_26P6_SUB(p3.y, metrics.advanceHeight) };
+
+    opp[0] = p1;
+    opp[1] = p2;
+    opp[2] = p3;
+    opp[3] = p4;
+exit:
+    if (head_ctx) dw_face->lpVtbl->ReleaseFontTable(dw_face, head_ctx);
+    if (loca_ctx) dw_face->lpVtbl->ReleaseFontTable(dw_face, loca_ctx);
+    if (glyf_ctx) dw_face->lpVtbl->ReleaseFontTable(dw_face, glyf_ctx);
     return err;
 }
 #endif /* ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION */

@@ -765,6 +765,12 @@ void test_ocl_get_outline(void) {
 
     oc_outline nil_outline = { 0 };
 
+    // p1: {0, 0}
+    // p2: {455, 0}
+    // p3: {0, 1491}
+    // p4: {0, -431}
+    printf("get 'i' outline\n");
+
     idx = ocl_get_char_index(&g_arial_ttf, 'i');
     TEST_ASSERT_EQUAL_INT16(76, idx);
 
@@ -799,6 +805,12 @@ void test_ocl_get_outline(void) {
 
     ocl_free_outline(&outline);
     TEST_ASSERT_EQUAL_MEMORY(&nil_outline, &outline, sizeof(oc_outline));
+
+    // p1: {0, 0}
+    // p2: {1366, 0}
+    // p3: {0, 1491}
+    // p4: {0, -431}
+    printf("get 'S' outline\n");
 
     idx = ocl_get_char_index(&g_arial_ttf, 'S');
     TEST_ASSERT_EQUAL_INT16(54, idx);
@@ -875,6 +887,8 @@ void test_ocl_get_outline(void) {
 
     ocl_free_outline(&outline);
 
+    printf("get 'S' outline\n");
+
     err = ocl_get_outline(&g_arial_ttf, idx, OC_LOAD_NO_HINTING, &outline);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
@@ -947,8 +961,11 @@ void test_ocl_get_outline(void) {
     
     ocl_free_outline(&outline);
 
+    // cff font
     err = ocl_open_face(g_library, "test/files/AGaramondPro-Regular.otf", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    printf("get '?' outline\n");
 
     idx = ocl_get_char_index(&face, '?');
     TEST_ASSERT_EQUAL_INT16(32, idx);
@@ -1026,6 +1043,7 @@ void test_ocl_get_outline(void) {
 
     ocl_free_outline(&outline);
 
+    printf("get '?' outline\n");
     err = ocl_get_outline(&face, idx, OC_LOAD_NO_HINTING, &outline);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
@@ -1450,6 +1468,40 @@ int main(void) {
     RUN_TEST(test_ocl_render_glyph);
 
     ocl_free_face(&g_arial_ttf);
+
+    oc_face phantom_face;
+    oc_outline phantom_outline = { 0 };
+
+    err = ocl_open_face(g_library, "test/files/phantom.ttf", NULL, &phantom_face);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
+    uint16_t phantom_idx = ocl_get_char_index(&phantom_face, 'f');
+    TEST_ASSERT_EQUAL_UINT16(73, phantom_idx);
+
+    printf("get 'f' outline\n");
+    err = ocl_get_outline(&phantom_face, phantom_idx, OC_LOAD_NO_SCALE, &phantom_outline);
+
+    oc_glyph_metrics metrics;
+    oc_bbox cbox;
+
+    ocl_get_glyph_metrics(&phantom_face, phantom_idx, OC_LOAD_NO_SCALE, &metrics);
+    ocl_get_glyph_cbox(&phantom_face, phantom_idx, OC_LOAD_NO_SCALE, &cbox);
+
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+    TEST_ASSERT_EQUAL_UINT16(31, phantom_outline.npoints);
+    TEST_ASSERT_EQUAL_UINT16(2, phantom_outline.ncontours);
+
+    // oc_point pp[4];
+    // oc__get_phantom_points(phantom_face.impl->dw_face, phantom_idx, pp);
+    //
+    // printf("p1 {%d, %d}\n", pp[0].x, pp[0].y);
+    // printf("p2 {%d, %d}\n", pp[1].x, pp[1].y);
+    // printf("p3 {%d, %d}\n", pp[2].x, pp[2].y);
+    // printf("p4 {%d, %d}\n", pp[3].x, pp[3].y);
+
+    ocl_free_outline(&phantom_outline);
+    ocl_free_face(&phantom_face);
+
     oc_free_library(g_library);
 
     UNITY_END();
