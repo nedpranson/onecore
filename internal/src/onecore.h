@@ -359,11 +359,6 @@ ocl_get_outline(
 OCDEF void
 ocl_free_outline(oc_outline* outline);
 
-OCDEF void
-ocl_print_raw_outline(
-    const oc_face* face,
-    uint16_t       index);
-
 /*
  * Loads any SFNT font table into client memory.
  *
