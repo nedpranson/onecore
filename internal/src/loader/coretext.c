@@ -18,10 +18,10 @@ static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_si
     CGFontRef cg_font;
 
     oc_16p16 scaled;
-    CGFloat  size;
 
     oc_16p16 ppem;
     uint16_t upem;
+    CGFloat  size;
 
     scaled = (desired_size * dpi + 36) / 72;
     ct_font = CTFontCreateWithFontDescriptor(descriptor, scaled / 64.0, NULL);
@@ -52,17 +52,17 @@ static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_si
     impl->ct_font = ct_font;
     impl->cg_font = cg_font;
 
-    size = CTFontGetSize(ct_font);
     upem = CTFontGetUnitsPerEm(ct_font);
+    size = CTFontGetSize(ct_font);
 
     face.impl = impl;
     face.size.scale = oc_div_16p16(scaled, upem);
     face.size.ppem = (uint16_t)ppem;
     face.nglyphs = (uint16_t)CTFontGetGlyphCount(ct_font);
     face.upem = upem;
-    face.ascent = CTFontGetAscent(ct_font) * upem / size;
-    face.descent = CTFontGetDescent(ct_font) * upem / size;
-    face.leading = CTFontGetLeading(ct_font) * upem / size;
+    face.ascent = CGFontGetAscent(cg_font);
+    face.descent = CGFontGetDescent(cg_font);
+    face.leading = CGFontGetLeading(cg_font);
     face.underline_position = CTFontGetUnderlinePosition(ct_font) * upem / size;
     face.underline_thickness = CTFontGetUnderlineThickness(ct_font) * upem / size;
 
@@ -296,14 +296,13 @@ oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, vo
 }
 
 void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
-    CTFontRef ct_font;
+    CGFontRef cg_font;
 
-    CGSize advance;
-    CGRect rect;
+    CGGlyph glyph;
+    CGRect  rect;
+    int     advance;
 
-    uint16_t upem;
-    CGFloat  size;
-    oc_26p6  scale;
+    oc_26p6 scale;
 
     oc_glyph_metrics metrics = { 0 };
 
@@ -315,19 +314,20 @@ void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fl
         goto exit;
     }
 
-    ct_font = face->impl->ct_font;
+    cg_font = face->impl->cg_font;
 
-    CTFontGetAdvancesForGlyphs(ct_font, kCTFontOrientationHorizontal, &index, &advance, 1);
-    rect = CTFontGetBoundingRectsForGlyphs(ct_font, kCTFontOrientationHorizontal, &index, NULL, 1);
+    glyph = index;
+    rect = CGRectZero;
+    advance = 0;
 
-    upem = face->upem;
-    size = CTFontGetSize(ct_font);
+    CGFontGetGlyphAdvances(cg_font, &glyph, 1, &advance);
+    CGFontGetGlyphBBoxes(cg_font, &glyph, 1, &rect);
 
-    metrics.width = rect.size.width * upem / size;
-    metrics.height = rect.size.height * upem / size;
-    metrics.bearing_x = rect.origin.x * upem / size;
-    metrics.bearing_y = (rect.size.height + rect.origin.y) * upem / size;
-    metrics.advance = advance.width * upem / size;
+    metrics.width = rect.size.width;
+    metrics.height = rect.size.height;
+    metrics.bearing_x = rect.origin.x;
+    metrics.bearing_y = rect.origin.y + rect.size.height;
+    metrics.advance = advance;
 
     if (flags & OC_LOAD_NO_SCALE) {
         goto exit;
@@ -352,12 +352,11 @@ exit:
 }
 
 void ocl_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
-    CTFontRef ct_font;
+    CGFontRef cg_font;
+    CGGlyph   glyph;
     CGRect    rect;
 
-    uint16_t upem;
-    CGFloat  size;
-    oc_26p6  scale;
+    oc_26p6 scale;
 
     oc_bbox cbox = { 0 };
 
@@ -369,22 +368,16 @@ void ocl_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags
         goto exit;
     }
 
-    ct_font = face->impl->ct_font;
+    cg_font = face->impl->cg_font;
 
-    CTFontGetBoundingRectsForGlyphs(
-        ct_font,
-        kCTFontOrientationHorizontal,
-        &index,
-        &rect,
-        1);
+    glyph = index;
+    rect = CGRectZero;
+    CGFontGetGlyphBBoxes(cg_font, &glyph, 1, &rect);
 
-    upem = face->upem;
-    size = CTFontGetSize(ct_font);
-
-    cbox.min_x = CGRectGetMinX(rect) * upem / size;
-    cbox.min_y = CGRectGetMinY(rect) * upem / size;
-    cbox.max_x = CGRectGetMaxX(rect) * upem / size;
-    cbox.max_y = CGRectGetMaxY(rect) * upem / size;
+    cbox.min_x = CGRectGetMinX(rect);
+    cbox.min_y = CGRectGetMinY(rect);
+    cbox.max_x = CGRectGetMaxX(rect);
+    cbox.max_y = CGRectGetMaxY(rect);
 
     if (flags & OC_LOAD_NO_SCALE) {
         goto exit;
