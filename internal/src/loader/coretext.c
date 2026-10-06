@@ -61,7 +61,7 @@ static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_si
     face.nglyphs = (uint16_t)CTFontGetGlyphCount(ct_font);
     face.upem = upem;
     face.ascent = CGFontGetAscent(cg_font);
-    face.descent = CGFontGetDescent(cg_font);
+    face.descent = -CGFontGetDescent(cg_font);
     face.leading = CGFontGetLeading(cg_font);
     face.underline_position = CTFontGetUnderlinePosition(ct_font) * upem / size;
     face.underline_thickness = CTFontGetUnderlineThickness(ct_font) * upem / size;
