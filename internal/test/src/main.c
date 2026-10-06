@@ -1487,13 +1487,17 @@ int main(void) {
     ocl_get_glyph_metrics(&phantom_face, phantom_idx, OC_LOAD_NO_SCALE, &metrics);
     ocl_get_glyph_cbox(&phantom_face, phantom_idx, OC_LOAD_NO_SCALE, &cbox);
 
-    printf("min_x: %d, bearing_x: %d\n", cbox.min_x, metrics.bearing_x);
-
     TEST_ASSERT_EQUAL(oc_error_ok, err);
     TEST_ASSERT_EQUAL_UINT16(31, phantom_outline.npoints);
     TEST_ASSERT_EQUAL_UINT16(2, phantom_outline.ncontours);
 
-    oc__get_phantom_points(phantom_face.impl->dw_face, phantom_idx, NULL);
+    oc_point pp[4];
+    oc__get_phantom_points(phantom_face.impl->dw_face, phantom_idx, pp);
+
+    printf("p1 {%d, %d}\n", pp[0].x, pp[0].y);
+    printf("p2 {%d, %d}\n", pp[1].x, pp[1].y);
+    printf("p3 {%d, %d}\n", pp[2].x, pp[2].y);
+    printf("p4 {%d, %d}\n", pp[3].x, pp[3].y);
 
     ocl_free_outline(&phantom_outline);
     ocl_free_face(&phantom_face);

@@ -3463,6 +3463,7 @@ void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fl
     }
 
     dw_face = face->impl->dw_face;
+    // todo: it should err on corrupt files
     err = dw_face->lpVtbl->GetDesignGlyphMetrics(
         dw_face,
         &index,
@@ -3478,22 +3479,6 @@ void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fl
     metrics.bearing_x = dw_metrics.leftSideBearing;
     metrics.bearing_y = dw_metrics.verticalOriginY - dw_metrics.topSideBearing;
     metrics.advance = dw_metrics.advanceWidth;
-
-    if (index == 73) {
-        printf("glyph %u DirectWrite design metrics:\n", (unsigned)index);
-        printf("  advanceWidth:       %u\n", (unsigned)dw_metrics.advanceWidth);
-        printf("  advanceHeight:      %u\n", (unsigned)dw_metrics.advanceHeight);
-        printf("  leftSideBearing:    %d\n", (int)dw_metrics.leftSideBearing);
-        printf("  rightSideBearing:   %d\n", (int)dw_metrics.rightSideBearing);
-        printf("  topSideBearing:     %d\n", (int)dw_metrics.topSideBearing);
-        printf("  bottomSideBearing:  %d\n", (int)dw_metrics.bottomSideBearing);
-        printf("  verticalOriginY:    %d\n", (int)dw_metrics.verticalOriginY);
-        printf("  derived width:      %d\n", (int)metrics.width);
-        printf("  derived height:     %d\n", (int)metrics.height);
-        printf("  derived bearing_x:  %d\n", (int)metrics.bearing_x);
-        printf("  derived bearing_y:  %d\n", (int)metrics.bearing_y);
-        printf("  derived advance:    %d\n", (int)metrics.advance);
-    }
 
     if (flags & OC_LOAD_NO_SCALE) {
         goto exit;
@@ -4102,7 +4087,7 @@ oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_poi
     UINT32 loca_size;
     UINT32 glyf_size;
 
-    (void)opp;
+    DWRITE_GLYPH_METRICS metrics;
 
     WINBOOL exists;
     HRESULT res;
@@ -4142,12 +4127,7 @@ oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_poi
     }
 
     if (head_size < OC__HEAD_MIN_SIZE) {
-        oc__exit(oc__unexpected(0));
-    }
-
-    format = i16_from_be(head + OC__HEAD_FORMAT_OFF);
-    if (format != 0 && format != 1) {
-        oc__exit(oc__unexpected(0));
+        oc__exit(oc_error_table_missing);
     }
 
     res = dw_face->lpVtbl->TryGetFontTable(
@@ -4171,12 +4151,6 @@ oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_poi
         oc__exit(oc_error_table_missing);
     }
 
-    if (format == 0) {
-        glyph_offset = (uint32_t)u16_from_be(loca + (size_t)index * 2) * 2;
-    } else {
-        glyph_offset = u32_from_be(loca + (size_t)index * 4);
-    }
-
     res = dw_face->lpVtbl->TryGetFontTable(
         dw_face,
         DWRITE_MAKE_OPENTYPE_TAG('g', 'l', 'y', 'f'),
@@ -4198,14 +4172,41 @@ oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_poi
         oc__exit(oc_error_table_missing);
     }
 
+    format = i16_from_be(head + OC__HEAD_FORMAT_OFF);
+    switch (format) {
+    case 0:
+        glyph_offset = (uint32_t)u16_from_be(loca + (size_t)index * 2) * 2;
+        break;
+    case 1:
+        glyph_offset = u32_from_be(loca + (size_t)index * 4);
+        break;
+    default:
+        oc__exit(oc__unexpected(0));
+    }
+
+    err = dw_face->lpVtbl->GetDesignGlyphMetrics(
+        dw_face,
+        &index,
+        1,
+        &metrics,
+        FALSE);
+
+    if (FAILED(err)) {
+        oc__exit(oc__unexpected(err));
+    }
+
     uint16_t min_x = i16_from_be(glyf + glyph_offset + 2);
-    uint16_t min_y = i16_from_be(glyf + glyph_offset + 4);
-    uint16_t max_x = i16_from_be(glyf + glyph_offset + 6);
     uint16_t max_y = i16_from_be(glyf + glyph_offset + 8);
 
-    printf("min_x {%d} min_y {%d} max_x {%d} max_y {%d}\n", 
-           min_x, min_y, max_x, max_y);
+    oc_point p1 = { OC_26P6_SUB(min_x, metrics.leftSideBearing), 0 };
+    oc_point p2 = { OC_26P6_ADD(p1.x, metrics.advanceWidth), 0 };    
+    oc_point p3 = { 0, OC_26P6_ADD(max_y, metrics.topSideBearing) };    
+    oc_point p4 = { 0, OC_26P6_SUB(p3.y, metrics.advanceHeight) };
 
+    opp[0] = p1;
+    opp[1] = p2;
+    opp[2] = p3;
+    opp[3] = p4;
 exit:
     if (head_ctx) dw_face->lpVtbl->ReleaseFontTable(dw_face, head_ctx);
     if (loca_ctx) dw_face->lpVtbl->ReleaseFontTable(dw_face, loca_ctx);
