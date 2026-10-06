@@ -1543,9 +1543,17 @@ size_t ocf_copy_path(const oc_font* font, char* buf, size_t len) {
 #ifdef ONECORE_CORETEXT_LOADER_IMPLEMENTATION
 #include <CoreText/CoreText.h>
 
-static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
+struct oc_face_impl {
     CTFontRef ct_font;
-    oc_face   face;
+    CGFontRef cg_font;
+};
+
+static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
+    oc_face_impl* impl;
+    oc_face       face;
+
+    CTFontRef ct_font;
+    CGFontRef cg_font;
 
     oc_16p16 scaled;
     CGFloat  size;
@@ -1566,10 +1574,26 @@ static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_si
         return oc_error_invalid_pixel_size;
     }
 
+    cg_font = CTFontCopyGraphicsFont(ct_font, NULL);
+    if (cg_font == NULL) {
+        CFRelease(ct_font);
+        return oc_error_out_of_memory;
+    }
+
+    impl = malloc(sizeof(*impl));
+    if (impl == NULL) {
+        CFRelease(cg_font);
+        CFRelease(ct_font);
+        return oc_error_out_of_memory;
+    }
+
+    impl->ct_font = ct_font;
+    impl->cg_font = cg_font;
+
     size = CTFontGetSize(ct_font);
     upem = CTFontGetUnitsPerEm(ct_font);
 
-    face.impl = (oc_face_impl*)ct_font;
+    face.impl = impl;
     face.size.scale = oc_div_16p16(scaled, upem);
     face.size.ppem = (uint16_t)ppem;
     face.nglyphs = (uint16_t)CTFontGetGlyphCount(ct_font);
@@ -1683,7 +1707,11 @@ oc_error ocl_open_memory_face(const oc_library* library, const void* data, size_
 
 void ocl_free_face(oc_face* face) {
     if (face) {
-        CFRelease(face->impl);
+        if (face->impl) {
+            CFRelease(face->impl->ct_font);
+            CFRelease(face->impl->cg_font);
+            free(face->impl);
+        }
         memset(face, 0, sizeof(*face));
     }
 }
@@ -1698,7 +1726,7 @@ uint16_t ocl_get_char_index(const oc_face* face, uint32_t charcode) {
         return 0;
     }
 
-    ct_font = (CTFontRef)face->impl;
+    ct_font = face->impl->ct_font;
 
     // check out CFStringGetSurrogatePairForLongCharacter
 
@@ -1749,7 +1777,7 @@ oc_error ocl_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     scaled = (desired_size * dpi + 36) / 72;
     scale = oc_div_16p16(scaled, face->upem);
 
-    ct_font = (CTFontRef)face->impl;
+    ct_font = face->impl->ct_font;
     ct_font_copy = CTFontCreateCopyWithAttributes(ct_font, scaled / 64.0, NULL, NULL);
 
     if (ct_font_copy == NULL) {
@@ -1762,7 +1790,7 @@ oc_error ocl_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
         return oc_error_invalid_pixel_size;
     }
 
-    face->impl = (oc_face_impl*)ct_font_copy;
+    face->impl->ct_font = ct_font_copy;
     face->size.scale = scale;
     face->size.ppem = (uint16_t)ppem;
 
@@ -1781,7 +1809,7 @@ oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, vo
         return oc_error_invalid_param;
     }
 
-    ct_font = (CTFontRef)face->impl;
+    ct_font = face->impl->ct_font;
     ct_table = CTFontCopyTable(ct_font, tag, kCTFontTableOptionNoOptions);
     length = (CFIndex)*size;
 
@@ -1826,7 +1854,7 @@ void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fl
         goto exit;
     }
 
-    ct_font = (CTFontRef)face->impl;
+    ct_font = face->impl->ct_font;
 
     CTFontGetAdvancesForGlyphs(ct_font, kCTFontOrientationHorizontal, &index, &advance, 1);
     rect = CTFontGetBoundingRectsForGlyphs(ct_font, kCTFontOrientationHorizontal, &index, NULL, 1);
@@ -1880,7 +1908,7 @@ void ocl_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags
         goto exit;
     }
 
-    ct_font = (CTFontRef)face->impl;
+    ct_font = face->impl->ct_font;
 
     CTFontGetBoundingRectsForGlyphs(
         ct_font,
@@ -2066,7 +2094,7 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
         oc__exit(oc_error_invalid_param);
     }
 
-    ct_font = (CTFontRef)face->impl;
+    ct_font = face->impl->ct_font;
     ct_outline = CTFontCreatePathForGlyph(ct_font, index, NULL);
 
     if (!ct_outline) {
@@ -2150,7 +2178,7 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
         oc__exit(oc_error_invalid_param);
     }
 
-    ct_font = (CTFontRef)face->impl;
+    ct_font = face->impl->ct_font;
 
     // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L414
     ocl_get_glyph_cbox(face, index, OC_LOAD_DEFAULT, &cbox);
@@ -2243,6 +2271,7 @@ exit:
 typedef struct {
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
     const oc_library* oc_library;
+    CGFontRef         cg_font;
 #endif
     CTFontDescriptorRef ct_font;
     CTFontRef           ct_face;
@@ -2261,6 +2290,9 @@ static inline void oc__free_font_impl(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
     CFRelease(impl->ct_family);
     CFRelease(impl->ct_face);
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    CFRelease(impl->cg_font);
+#endif
     free(impl);
 }
 
@@ -2313,6 +2345,9 @@ static oc__font_impl* oc__init_font_impl(const oc_library* oc_library, CTFontDes
     CFDictionaryRef ct_traits = NULL;
     CFStringRef     ct_family;
     CTFontRef       ct_face;
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    CGFontRef cg_font;
+#endif
 
     const char* family;
 
@@ -2360,15 +2395,28 @@ static oc__font_impl* oc__init_font_impl(const oc_library* oc_library, CTFontDes
         goto exit;
     }
 
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    cg_font = CTFontCopyGraphicsFont(ct_face, NULL);
+    if (cg_font == NULL) {
+        CFRelease(ct_face);
+        CFRelease(ct_family);
+        goto exit;
+    }
+#endif
+
     impl = malloc(sizeof(*impl));
     if (impl == NULL) {
-        CFRelease(ct_family);
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+        CFRelease(cg_font);
+#endif
         CFRelease(ct_face);
+        CFRelease(ct_family);
         goto exit;
     }
 
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
     impl->oc_library = oc_library;
+    impl->cg_font = cg_font;
 #endif
     impl->ct_font = ct_font;
     impl->ct_family = ct_family;
@@ -2600,7 +2648,7 @@ static void* ocf__make_head(CGFontRef cg_font, CFArrayRef tags, uint32_t* size) 
     }
 
     table = head_data;
-    records = head_data + sizeof(ocf__offset_table);
+    records = (ocf__table_record*)((char*)head_data + sizeof(ocf__offset_table));
 
     file_size = head_size;
     for (CFIndex i = 0; i < ntags; i++) {
@@ -2675,13 +2723,13 @@ static unsigned long ocf__stream_read(
     context = stream->descriptor.pointer;
 
     table = context->head;
-    records = context->head + sizeof(ocf__offset_table);
+    records = (ocf__table_record*)((char*)context->head + sizeof(ocf__offset_table));
 
     ntags = CFSwapInt16BigToHost(table->num_tables);
     head_size = sizeof(*table) + sizeof(*records) * ntags;
 
     if (head_size >= offset) {
-        ptr = context->head + offset;
+        ptr = (char*)context->head + offset;
         len = head_size - offset;
     } else {
         uint16_t lo = 0;
@@ -2740,14 +2788,11 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     impl = oc__parentof(oc__font_impl, font, font);
     assert(impl->ct_face != NULL); // todo: add these types asserts everywhere
 
-    cg_font = CTFontCopyGraphicsFont(impl->ct_face, NULL);
-    if (!cg_font) {
-        oc__exit(oc_error_out_of_memory);
-    }
+    cg_font = impl->cg_font;
+    assert(cg_font != NULL);
 
     tags = CGFontCopyTableTags(cg_font);
     if (!tags) {
-        CFRelease(cg_font);
         oc__exit(oc_error_out_of_memory);
     }
 
@@ -2755,23 +2800,22 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     CFRelease(tags);
 
     if (!file_head) {
-        CFRelease(cg_font);
         oc__exit(oc_error_out_of_memory);
     }
 
     context = malloc(sizeof(*context));
     if (!context) {
-        CFRelease(cg_font);
+        free(file_head);
         oc__exit(oc_error_out_of_memory);
     }
 
-    context->font = cg_font;
+    context->font = (CGFontRef)CFRetain(cg_font);
     context->head = file_head;
 
     stream = calloc(1, sizeof(*stream));
     if (!stream) {
         free(file_head);
-        CFRelease(cg_font);
+        free(context);
         oc__exit(oc_error_out_of_memory);
     }
 
