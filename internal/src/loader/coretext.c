@@ -5,9 +5,17 @@
 /* ONECORE_CORETEXT_LOADER_IMPLEMENTATION */
 #include <CoreText/CoreText.h>
 
-static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
+struct oc_face_impl {
     CTFontRef ct_font;
-    oc_face   face;
+    CGFontRef cg_font;
+};
+
+static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
+    oc_face_impl* impl;
+    oc_face       face;
+
+    CTFontRef ct_font;
+    CGFontRef cg_font;
 
     oc_16p16 scaled;
     CGFloat  size;
@@ -28,10 +36,26 @@ static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_si
         return oc_error_invalid_pixel_size;
     }
 
+    cg_font = CTFontCopyGraphicsFont(ct_font, NULL);
+    if (cg_font == NULL) {
+        CFRelease(ct_font);
+        return oc_error_out_of_memory;
+    }
+
+    impl = malloc(sizeof(*impl));
+    if (impl == NULL) {
+        CFRelease(cg_font);
+        CFRelease(ct_font);
+        return oc_error_out_of_memory;
+    }
+
+    impl->ct_font = ct_font;
+    impl->cg_font = cg_font;
+
     size = CTFontGetSize(ct_font);
     upem = CTFontGetUnitsPerEm(ct_font);
 
-    face.impl = (oc_face_impl*)ct_font;
+    face.impl = impl;
     face.size.scale = oc_div_16p16(scaled, upem);
     face.size.ppem = (uint16_t)ppem;
     face.nglyphs = (uint16_t)CTFontGetGlyphCount(ct_font);
@@ -145,7 +169,10 @@ oc_error ocl_open_memory_face(const oc_library* library, const void* data, size_
 
 void ocl_free_face(oc_face* face) {
     if (face) {
-        CFRelease(face->impl);
+        CFRelease(face->impl->ct_font);
+        CFRelease(face->impl->cg_font);
+        free(face->impl);
+
         memset(face, 0, sizeof(*face));
     }
 }
@@ -160,7 +187,7 @@ uint16_t ocl_get_char_index(const oc_face* face, uint32_t charcode) {
         return 0;
     }
 
-    ct_font = (CTFontRef)face->impl;
+    ct_font = face->impl->ct_font;
 
     // check out CFStringGetSurrogatePairForLongCharacter
 
@@ -211,7 +238,7 @@ oc_error ocl_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
     scaled = (desired_size * dpi + 36) / 72;
     scale = oc_div_16p16(scaled, face->upem);
 
-    ct_font = (CTFontRef)face->impl;
+    ct_font = face->impl->ct_font;
     ct_font_copy = CTFontCreateCopyWithAttributes(ct_font, scaled / 64.0, NULL, NULL);
 
     if (ct_font_copy == NULL) {
@@ -224,7 +251,7 @@ oc_error ocl_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi) {
         return oc_error_invalid_pixel_size;
     }
 
-    face->impl = (oc_face_impl*)ct_font_copy;
+    face->impl->ct_font = ct_font_copy;
     face->size.scale = scale;
     face->size.ppem = (uint16_t)ppem;
 
@@ -243,7 +270,7 @@ oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, vo
         return oc_error_invalid_param;
     }
 
-    ct_font = (CTFontRef)face->impl;
+    ct_font = face->impl->ct_font;
     ct_table = CTFontCopyTable(ct_font, tag, kCTFontTableOptionNoOptions);
     length = (CFIndex)*size;
 
@@ -288,7 +315,7 @@ void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fl
         goto exit;
     }
 
-    ct_font = (CTFontRef)face->impl;
+    ct_font = face->impl->ct_font;
 
     CTFontGetAdvancesForGlyphs(ct_font, kCTFontOrientationHorizontal, &index, &advance, 1);
     rect = CTFontGetBoundingRectsForGlyphs(ct_font, kCTFontOrientationHorizontal, &index, NULL, 1);
@@ -342,7 +369,7 @@ void ocl_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags
         goto exit;
     }
 
-    ct_font = (CTFontRef)face->impl;
+    ct_font = face->impl->ct_font;
 
     CTFontGetBoundingRectsForGlyphs(
         ct_font,
@@ -528,7 +555,7 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
         oc__exit(oc_error_invalid_param);
     }
 
-    ct_font = (CTFontRef)face->impl;
+    ct_font = face->impl->ct_font;
     ct_outline = CTFontCreatePathForGlyph(ct_font, index, NULL);
 
     if (!ct_outline) {
@@ -612,7 +639,7 @@ oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oexten
         oc__exit(oc_error_invalid_param);
     }
 
-    ct_font = (CTFontRef)face->impl;
+    ct_font = face->impl->ct_font;
 
     // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L414
     ocl_get_glyph_cbox(face, index, OC_LOAD_DEFAULT, &cbox);

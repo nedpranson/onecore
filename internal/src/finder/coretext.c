@@ -12,6 +12,7 @@ extern oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_si
 typedef struct {
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
     const oc_library* oc_library;
+    CGFontRef         cg_font;
 #endif
     CTFontDescriptorRef ct_font;
     CTFontRef           ct_face;
@@ -30,6 +31,9 @@ static inline void oc__free_font_impl(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);
     CFRelease(impl->ct_family);
     CFRelease(impl->ct_face);
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    CFRelease(impl->cg_font);
+#endif
     free(impl);
 }
 
@@ -82,6 +86,9 @@ static oc__font_impl* oc__init_font_impl(const oc_library* oc_library, CTFontDes
     CFDictionaryRef ct_traits = NULL;
     CFStringRef     ct_family;
     CTFontRef       ct_face;
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    CGFontRef cg_font;
+#endif
 
     const char* family;
 
@@ -129,15 +136,28 @@ static oc__font_impl* oc__init_font_impl(const oc_library* oc_library, CTFontDes
         goto exit;
     }
 
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+    cg_font = CTFontCopyGraphicsFont(ct_face, NULL);
+    if (cg_font == NULL) {
+        CFRelease(ct_face);
+        CFRelease(ct_family);
+        goto exit;
+    }
+#endif
+
     impl = malloc(sizeof(*impl));
     if (impl == NULL) {
-        CFRelease(ct_family);
+#ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
+        CFRelease(cg_font);
+#endif
         CFRelease(ct_face);
+        CFRelease(ct_family);
         goto exit;
     }
 
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION
     impl->oc_library = oc_library;
+    impl->cg_font = cg_font;
 #endif
     impl->ct_font = ct_font;
     impl->ct_family = ct_family;
@@ -369,7 +389,7 @@ static void* ocf__make_head(CGFontRef cg_font, CFArrayRef tags, uint32_t* size) 
     }
 
     table = head_data;
-    records = head_data + sizeof(ocf__offset_table);
+    records = (ocf__table_record*)((char*)head_data + sizeof(ocf__offset_table));
 
     file_size = head_size;
     for (CFIndex i = 0; i < ntags; i++) {
@@ -444,13 +464,13 @@ static unsigned long ocf__stream_read(
     context = stream->descriptor.pointer;
 
     table = context->head;
-    records = context->head + sizeof(ocf__offset_table);
+    records = (ocf__table_record*)((char*)context->head + sizeof(ocf__offset_table));
 
     ntags = CFSwapInt16BigToHost(table->num_tables);
     head_size = sizeof(*table) + sizeof(*records) * ntags;
 
     if (head_size >= offset) {
-        ptr = context->head + offset;
+        ptr = (char*)context->head + offset;
         len = head_size - offset;
     } else {
         uint16_t lo = 0;
@@ -509,14 +529,11 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     impl = oc__parentof(oc__font_impl, font, font);
     assert(impl->ct_face != NULL); // todo: add these types asserts everywhere
 
-    cg_font = CTFontCopyGraphicsFont(impl->ct_face, NULL);
-    if (!cg_font) {
-        oc__exit(oc_error_out_of_memory);
-    }
+    cg_font = impl->cg_font;
+    assert(cg_font != NULL);
 
     tags = CGFontCopyTableTags(cg_font);
     if (!tags) {
-        CFRelease(cg_font);
         oc__exit(oc_error_out_of_memory);
     }
 
@@ -524,23 +541,22 @@ oc_error ocf_open_font(const oc_font* font, oc_26p6 desired_size, uint16_t dpi, 
     CFRelease(tags);
 
     if (!file_head) {
-        CFRelease(cg_font);
         oc__exit(oc_error_out_of_memory);
     }
 
     context = malloc(sizeof(*context));
     if (!context) {
-        CFRelease(cg_font);
+        free(file_head);
         oc__exit(oc_error_out_of_memory);
     }
 
-    context->font = cg_font;
+    context->font = (CGFontRef)CFRetain(cg_font);
     context->head = file_head;
 
     stream = calloc(1, sizeof(*stream));
     if (!stream) {
         free(file_head);
-        CFRelease(cg_font);
+        free(context);
         oc__exit(oc_error_out_of_memory);
     }
 
