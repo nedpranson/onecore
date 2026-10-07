@@ -218,8 +218,10 @@ void test_ocl_lazy_glyph_offset_validation(void) {
     TEST_ASSERT_EQUAL_UINT16(74, index);
 
     ocl_get_glyph_metrics(&face, index, OC_LOAD_NO_SCALE, &metrics);
-    // only advance was set cuz it pointed to valid index, not like other metrics
     TEST_ASSERT_EQUAL_OBJECT((oc_glyph_metrics){ .advance = 1139 }, metrics);
+
+    ocl_get_glyph_metrics(&face, index, OC_LOAD_NO_HINTING, &metrics);
+    TEST_ASSERT_EQUAL_OBJECT((oc_glyph_metrics){ .advance = 448 }, metrics);
 
     err = ocl_get_outline(&face, index, OC_LOAD_NO_SCALE, &outline);
 
@@ -598,6 +600,16 @@ void test_ocl_get_glyph_metrics(void) {
     TEST_ASSERT_EQUAL_INT32(75, metrics.bearing_x);
     TEST_ASSERT_EQUAL_INT32(1086, metrics.bearing_y);
     TEST_ASSERT_EQUAL_UINT32(1139, metrics.advance);
+
+    idx = ocl_get_char_index(&g_arial_ttf, ' ');
+    TEST_ASSERT_EQUAL_INT16(3, idx);
+
+    ocl_get_glyph_metrics(&face, idx, OC_LOAD_NO_SCALE, &metrics);
+    TEST_ASSERT_EQUAL_UINT32(0, metrics.width);
+    TEST_ASSERT_EQUAL_UINT32(0, metrics.height);
+    TEST_ASSERT_EQUAL_INT32(0, metrics.bearing_x);
+    TEST_ASSERT_EQUAL_INT32(0, metrics.bearing_y);
+    TEST_ASSERT_EQUAL_UINT32(569, metrics.advance);
 }
 
 void test_ocl_get_glyph_metrics_scaled(void) {

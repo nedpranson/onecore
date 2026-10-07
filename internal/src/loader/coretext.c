@@ -321,9 +321,18 @@ void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fl
 
     metrics.width = rect.size.width;
     metrics.height = rect.size.height;
-    metrics.bearing_x = rect.origin.x;
-    metrics.bearing_y = rect.origin.y + rect.size.height;
     metrics.advance = advance;
+
+    /* Hide metrics when the glyph has no dimension.
+     * This is done to match other backends, since DirectWrite
+     * tries to get every field possible when other backends fail quietly.
+     */
+    if (metrics.width == 0 || metrics.height == 0) {
+        metrics.width = metrics.height = 0;
+    } else {
+        metrics.bearing_x = rect.origin.x;
+        metrics.bearing_y = rect.origin.y + rect.size.height;
+    }
 
     if (flags & OC_LOAD_NO_SCALE) {
         goto exit;
