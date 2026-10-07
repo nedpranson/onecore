@@ -298,12 +298,12 @@ oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, vo
 void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
     CGFontRef cg_font;
 
-    CGGlyph glyph;
     CGRect  rect;
     int     advance;
 
     oc_26p6 scale;
 
+    CGGlyph glyph = index;
     oc_glyph_metrics metrics = { 0 };
 
     if (!(face && ometrics)) {
@@ -315,10 +315,6 @@ void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fl
     }
 
     cg_font = face->impl->cg_font;
-
-    glyph = index;
-    rect = CGRectZero;
-    advance = 0;
 
     CGFontGetGlyphAdvances(cg_font, &glyph, 1, &advance);
     CGFontGetGlyphBBoxes(cg_font, &glyph, 1, &rect);

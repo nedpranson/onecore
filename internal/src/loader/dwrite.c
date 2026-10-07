@@ -1280,6 +1280,7 @@ oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_poi
     }
 
     format = i16_from_be(head + OC__HEAD_FORMAT_OFF);
+    // index in unsafe!!!
     switch (format) {
     case 0:
         glyph_offset = (uint32_t)u16_from_be(loca + (size_t)index * 2) * 2;
@@ -1290,6 +1291,8 @@ oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_poi
     default:
         oc__exit(oc__unexpected(0));
     }
+
+    // glyph_offset is unsafe!!!
 
     err = dw_face->lpVtbl->GetDesignGlyphMetrics(
         dw_face,

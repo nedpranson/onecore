@@ -494,19 +494,23 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     }
 
     // todo: compare sizeof src and dst type if equal just copy ptr
-    tags = malloc(ft_outline.n_points * sizeof(*tags));
-    if (tags == NULL) {
-        oc__exit_critical(oc_error_out_of_memory);
+    if (ft_outline.n_points > 0) {
+        tags = malloc(ft_outline.n_points * sizeof(*tags));
+        if (tags == NULL) {
+            oc__exit_critical(oc_error_out_of_memory);
+        }
+
+        points = malloc(ft_outline.n_points * sizeof(*points));
+        if (points == NULL) {
+            oc__exit_critical(oc_error_out_of_memory);
+        }
     }
 
-    points = malloc(ft_outline.n_points * sizeof(*points));
-    if (points == NULL) {
-        oc__exit_critical(oc_error_out_of_memory);
-    }
-
-    contours = malloc(ft_outline.n_contours * sizeof(*contours));
-    if (contours == NULL) {
-        oc__exit_critical(oc_error_out_of_memory);
+    if (ft_outline.n_contours > 0) {
+        contours = malloc(ft_outline.n_contours * sizeof(*contours));
+        if (contours == NULL) {
+            oc__exit_critical(oc_error_out_of_memory);
+        }
     }
 
     for (uint16_t i = 0; i < ft_outline.n_points; i++) {

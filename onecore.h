@@ -1113,19 +1113,23 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     }
 
     // todo: compare sizeof src and dst type if equal just copy ptr
-    tags = malloc(ft_outline.n_points * sizeof(*tags));
-    if (tags == NULL) {
-        oc__exit_critical(oc_error_out_of_memory);
+    if (ft_outline.n_points > 0) {
+        tags = malloc(ft_outline.n_points * sizeof(*tags));
+        if (tags == NULL) {
+            oc__exit_critical(oc_error_out_of_memory);
+        }
+
+        points = malloc(ft_outline.n_points * sizeof(*points));
+        if (points == NULL) {
+            oc__exit_critical(oc_error_out_of_memory);
+        }
     }
 
-    points = malloc(ft_outline.n_points * sizeof(*points));
-    if (points == NULL) {
-        oc__exit_critical(oc_error_out_of_memory);
-    }
-
-    contours = malloc(ft_outline.n_contours * sizeof(*contours));
-    if (contours == NULL) {
-        oc__exit_critical(oc_error_out_of_memory);
+    if (ft_outline.n_contours > 0) {
+        contours = malloc(ft_outline.n_contours * sizeof(*contours));
+        if (contours == NULL) {
+            oc__exit_critical(oc_error_out_of_memory);
+        }
     }
 
     for (uint16_t i = 0; i < ft_outline.n_points; i++) {
@@ -1851,12 +1855,12 @@ oc_error ocl_get_sfnt_table(const oc_face* face, oc_tag tag, uint32_t offset, vo
 void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags flags, oc_glyph_metrics* ometrics) {
     CGFontRef cg_font;
 
-    CGGlyph glyph;
     CGRect  rect;
     int     advance;
 
     oc_26p6 scale;
 
+    CGGlyph glyph = index;
     oc_glyph_metrics metrics = { 0 };
 
     if (!(face && ometrics)) {
@@ -1868,10 +1872,6 @@ void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fl
     }
 
     cg_font = face->impl->cg_font;
-
-    glyph = index;
-    rect = CGRectZero;
-    advance = 0;
 
     CGFontGetGlyphAdvances(cg_font, &glyph, 1, &advance);
     CGFontGetGlyphBBoxes(cg_font, &glyph, 1, &rect);
@@ -4198,6 +4198,7 @@ oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_poi
     }
 
     format = i16_from_be(head + OC__HEAD_FORMAT_OFF);
+    // index in unsafe!!!
     switch (format) {
     case 0:
         glyph_offset = (uint32_t)u16_from_be(loca + (size_t)index * 2) * 2;
@@ -4208,6 +4209,8 @@ oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_poi
     default:
         oc__exit(oc__unexpected(0));
     }
+
+    // glyph_offset is unsafe!!!
 
     err = dw_face->lpVtbl->GetDesignGlyphMetrics(
         dw_face,
