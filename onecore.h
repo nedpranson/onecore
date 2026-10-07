@@ -2105,7 +2105,7 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     ct_outline = CTFontCreatePathForGlyph(ct_font, index, NULL);
 
     if (!ct_outline) {
-        oc__exit(oc__unexpected(0));
+        goto exit;
     }
 
     ctx.fppem = CTFontGetSize(ct_font);
