@@ -1002,9 +1002,18 @@ void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fl
 
     metrics.width = ft_metrics.width;
     metrics.height = ft_metrics.height;
-    metrics.bearing_x = ft_metrics.horiBearingX;
-    metrics.bearing_y = ft_metrics.horiBearingY;
     metrics.advance = ft_metrics.horiAdvance;
+
+    /* Hide metrics when the glyph has no dimension.
+     * This is done to match other backends, since DirectWrite
+     * tries to get every field possible when other backends fail quietly.
+     */
+    if (metrics.width == 0 || metrics.height == 0) {
+        metrics.width = metrics.height = 0;
+    } else {
+        metrics.bearing_x = ft_metrics.horiBearingX;
+        metrics.bearing_y = ft_metrics.horiBearingY;
+    }
 
     if (flags & OC_LOAD_NO_FITTING) {
         goto exit;
@@ -1878,9 +1887,18 @@ void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fl
 
     metrics.width = rect.size.width;
     metrics.height = rect.size.height;
-    metrics.bearing_x = rect.origin.x;
-    metrics.bearing_y = rect.origin.y + rect.size.height;
     metrics.advance = advance;
+
+    /* Hide metrics when the glyph has no dimension.
+     * This is done to match other backends, since DirectWrite
+     * tries to get every field possible when other backends fail quietly.
+     */
+    if (metrics.width == 0 || metrics.height == 0) {
+        metrics.width = metrics.height = 0;
+    } else {
+        metrics.bearing_x = rect.origin.x;
+        metrics.bearing_y = rect.origin.y + rect.size.height;
+    }
 
     if (flags & OC_LOAD_NO_SCALE) {
         goto exit;
@@ -3501,9 +3519,18 @@ void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fl
 
     metrics.width = (INT32)dw_metrics.advanceWidth - dw_metrics.leftSideBearing - dw_metrics.rightSideBearing;
     metrics.height = (INT32)dw_metrics.advanceHeight - dw_metrics.topSideBearing - dw_metrics.bottomSideBearing;
-    metrics.bearing_x = dw_metrics.leftSideBearing;
-    metrics.bearing_y = dw_metrics.verticalOriginY - dw_metrics.topSideBearing;
     metrics.advance = dw_metrics.advanceWidth;
+
+    /* Hide metrics when the glyph has no dimension.
+     * This is done to match other backends, since DirectWrite
+     * tries to get every field possible when other backends fail quietly.
+     */
+    if (metrics.width == 0 || metrics.height == 0) {
+        metrics.width = metrics.height = 0;
+    } else {
+        metrics.bearing_x = dw_metrics.leftSideBearing;
+        metrics.bearing_y = dw_metrics.verticalOriginY - dw_metrics.topSideBearing;
+    }
 
     if (flags & OC_LOAD_NO_SCALE) {
         goto exit;
