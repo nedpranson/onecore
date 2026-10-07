@@ -1,3 +1,5 @@
+#include "winerror.h"
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -1213,7 +1215,7 @@ oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_poi
     const uint8_t* loca;
     const uint8_t* glyf;
 
-    int16_t format;
+    int16_t  format;
     uint32_t glyph_offset;
 
     void* head_ctx = NULL;
@@ -1243,9 +1245,7 @@ oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_poi
         oc__exit(oc_error_table_missing);
     }
 
-    if (head_size < OC__HEAD_MIN_SIZE) {
-        oc__exit(oc_error_table_missing);
-    }
+    assert(head_size >= OC__HEAD_MIN_SIZE);
 
     res = dw_face->lpVtbl->TryGetFontTable(
         dw_face,
@@ -1293,27 +1293,26 @@ oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_poi
     // index in unsafe!!!
     switch (format) {
     case 0:
+        assert((size_t)(index + 1) * 2 <= loca_size);
         glyph_offset = (uint32_t)u16_from_be(loca + (size_t)index * 2) * 2;
         break;
     case 1:
+        assert((size_t)(index + 1) * 4 <= loca_size);
         glyph_offset = u32_from_be(loca + (size_t)index * 4);
         break;
     default:
         oc__exit(oc__unexpected(0));
     }
 
-    // glyph_offset is unsafe!!!
-
-    err = dw_face->lpVtbl->GetDesignGlyphMetrics(
+    assert((size_t)glyph_offset + 10 <= glyf_size);
+    res = dw_face->lpVtbl->GetDesignGlyphMetrics(
         dw_face,
         &index,
         1,
         &metrics,
         FALSE);
 
-    if (FAILED(err)) {
-        oc__exit(oc__unexpected(err));
-    }
+    assert(SUCCEEDED(res));
 
     uint16_t min_x = i16_from_be(glyf + glyph_offset + 2);
     uint16_t max_y = i16_from_be(glyf + glyph_offset + 8);

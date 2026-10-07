@@ -2288,6 +2288,91 @@ exit:
         *oextent = extent;
     return err;
 }
+
+enum {
+    OC__HEAD_FORMAT_OFF = 50,
+    OC__HEAD_MIN_SIZE   = 52,
+};
+
+oc_error oc__get_phantom_points(CGFontRef cg_font, uint16_t index, oc_point opp[4]) {
+    const uint8_t* head;
+    const uint8_t* loca;
+    const uint8_t* glyf;
+
+    CFIndex head_size;
+    CFIndex loca_size;
+    CFIndex glyf_size;
+
+    int16_t  format;
+    uint32_t glyph_offset;
+
+    CGRect  rect;
+    int     advance;
+
+    CFDataRef head_table = NULL;
+    CFDataRef loca_table = NULL;
+    CFDataRef glyf_table = NULL;
+
+    CGGlyph  glyph = index;
+    oc_error err = oc_error_ok;
+
+    if ((head_table = CGFontCopyTableForTag(cg_font, 'head')) == NULL) {
+        oc__exit(oc_error_table_missing);
+    }
+    head = CFDataGetBytePtr(head_table);
+    head_size = CFDataGetLength(head_table);
+
+    assert(head_size >= OC__HEAD_MIN_SIZE);
+
+    if ((loca_table = CGFontCopyTableForTag(cg_font, 'loca')) == NULL) {
+        oc__exit(oc_error_table_missing);
+    }
+    loca = CFDataGetBytePtr(loca_table);
+    loca_size = CFDataGetLength(loca_table);
+
+    if ((glyf_table = CGFontCopyTableForTag(cg_font, 'glyf')) == NULL) {
+        oc__exit(oc_error_table_missing);
+    }
+    glyf = CFDataGetBytePtr(glyf_table);
+    glyf_size = CFDataGetLength(glyf_table);
+     
+    format = i16_from_be(head + OC__HEAD_FORMAT_OFF);
+    switch (format) {
+    case 0:
+        assert((index + 1) * 2 <= loca_size);
+        glyph_offset = (uint32_t)u16_from_be(loca + (size_t)index * 2) * 2;
+        break;
+    case 1:
+        assert((index + 1) * 4 <= loca_size);
+        glyph_offset = u32_from_be(loca + (size_t)index * 4);
+        break;
+    default:
+        oc__exit(oc__unexpected(0));
+    }
+
+    assert(glyph_offset + 10 <= glyf_size);
+    CGFontGetGlyphAdvances(cg_font, &glyph, 1, &advance);
+    CGFontGetGlyphBBoxes(cg_font, &glyph, 1, &rect);
+
+    uint16_t min_x = i16_from_be(glyf + glyph_offset + 2);
+    uint16_t max_y = i16_from_be(glyf + glyph_offset + 8);
+
+    oc_point p1 = { OC_26P6_SUB(min_x, rect.origin.x), 0 };
+    oc_point p2 = { OC_26P6_ADD(p1.x, advance), 0 };
+    oc_point p3 = { 0, OC_26P6_SUB(max_y, rect.size.height) };
+    oc_point p4 = { 0, OC_26P6_SUB(p3.y, 0) };
+
+    opp[0] = p1;
+    opp[1] = p2;
+    opp[2] = p3;
+    opp[3] = p4;
+exit:
+    if (head_table) CFRelease(head_table);
+    if (loca_table) CFRelease(loca_table);
+    if (glyf_table) CFRelease(glyf_table);
+
+    return err;
+}
 #endif /* ONECORE_CORETEXT_LOADER_IMPLEMENTATION */
 
 #ifdef ONECORE_CORETEXT_FINDER_IMPLEMENTATION
@@ -4148,7 +4233,7 @@ oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_poi
     const uint8_t* loca;
     const uint8_t* glyf;
 
-    int16_t format;
+    int16_t  format;
     uint32_t glyph_offset;
 
     void* head_ctx = NULL;
@@ -4178,9 +4263,7 @@ oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_poi
         oc__exit(oc_error_table_missing);
     }
 
-    if (head_size < OC__HEAD_MIN_SIZE) {
-        oc__exit(oc_error_table_missing);
-    }
+    assert(head_size >= OC__HEAD_MIN_SIZE);
 
     res = dw_face->lpVtbl->TryGetFontTable(
         dw_face,
@@ -4228,27 +4311,26 @@ oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_poi
     // index in unsafe!!!
     switch (format) {
     case 0:
+        assert((size_t)(index + 1) * 2 <= loca_size);
         glyph_offset = (uint32_t)u16_from_be(loca + (size_t)index * 2) * 2;
         break;
     case 1:
+        assert((size_t)(index + 1) * 4 <= loca_size);
         glyph_offset = u32_from_be(loca + (size_t)index * 4);
         break;
     default:
         oc__exit(oc__unexpected(0));
     }
 
-    // glyph_offset is unsafe!!!
-
-    err = dw_face->lpVtbl->GetDesignGlyphMetrics(
+    assert((size_t)glyph_offset + 10 <= glyf_size);
+    res = dw_face->lpVtbl->GetDesignGlyphMetrics(
         dw_face,
         &index,
         1,
         &metrics,
         FALSE);
 
-    if (FAILED(err)) {
-        oc__exit(oc__unexpected(err));
-    }
+    assert(SUCCEEDED(res));
 
     uint16_t min_x = i16_from_be(glyf + glyph_offset + 2);
     uint16_t max_y = i16_from_be(glyf + glyph_offset + 8);
