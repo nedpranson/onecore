@@ -2368,8 +2368,8 @@ oc_error oc__get_phantom_points(CGFontRef cg_font, CTFontRef ct_font, uint16_t i
 
     oc_point p1 = { OC_26P6_SUB(min_x, rect.origin.x), 0 };
     oc_point p2 = { OC_26P6_ADD(p1.x, hadvance), 0 };
-    oc_point p3 = { 0, (oc_26p6)(translation.height * upem / size) };
-    oc_point p4 = { 0, OC_26P6_SUB(p3.y, vadvance.height) };
+    oc_point p3 = { 0, -(oc_26p6)(translation.height * upem / size) };
+    oc_point p4 = { 0, OC_26P6_SUB(p3.y, vadvance.width * upem / size) };
 
     opp[0] = p1;
     opp[1] = p2;
