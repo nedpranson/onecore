@@ -1342,7 +1342,7 @@ int main(void) {
     TEST_ASSERT_EQUAL_UINT16(2, phantom_outline.ncontours);
 
     oc_point pp[4];
-    oc__get_phantom_points(phantom_face.impl->cg_font, phantom_idx, pp);
+    // oc__get_phantom_points(phantom_face.impl->dw_face, phantom_idx, pp);
 
     printf("p1 {%d, %d}\n", pp[0].x, pp[0].y);
     printf("p2 {%d, %d}\n", pp[1].x, pp[1].y);

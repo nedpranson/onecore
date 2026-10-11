@@ -1290,7 +1290,6 @@ oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_poi
     }
 
     format = i16_from_be(head + OC__HEAD_FORMAT_OFF);
-    // index in unsafe!!!
     switch (format) {
     case 0:
         assert((size_t)(index + 1) * 2 <= loca_size);
@@ -1304,7 +1303,7 @@ oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_poi
         oc__exit(oc__unexpected(0));
     }
 
-    assert((size_t)glyph_offset + 10 <= glyf_size);
+    assert((size_t)glyph_offset + 4 <= glyf_size);
     res = dw_face->lpVtbl->GetDesignGlyphMetrics(
         dw_face,
         &index,
@@ -1315,11 +1314,10 @@ oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_poi
     assert(SUCCEEDED(res));
 
     uint16_t min_x = i16_from_be(glyf + glyph_offset + 2);
-    uint16_t max_y = i16_from_be(glyf + glyph_offset + 8);
 
     oc_point p1 = { OC_26P6_SUB(min_x, metrics.leftSideBearing), 0 };
     oc_point p2 = { OC_26P6_ADD(p1.x, metrics.advanceWidth), 0 };    
-    oc_point p3 = { 0, OC_26P6_ADD(max_y, metrics.topSideBearing) };    
+    oc_point p3 = { 0, metrics.verticalOriginY };
     oc_point p4 = { 0, OC_26P6_SUB(p3.y, metrics.advanceHeight) };
 
     opp[0] = p1;

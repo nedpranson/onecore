@@ -2294,7 +2294,7 @@ enum {
     OC__HEAD_MIN_SIZE   = 52,
 };
 
-oc_error oc__get_phantom_points(CGFontRef cg_font, uint16_t index, oc_point opp[4]) {
+oc_error oc__get_phantom_points(CGFontRef cg_font, CTFontRef ct_font, uint16_t index, oc_point opp[4]) {
     const uint8_t* head;
     const uint8_t* loca;
     const uint8_t* glyf;
@@ -2307,7 +2307,9 @@ oc_error oc__get_phantom_points(CGFontRef cg_font, uint16_t index, oc_point opp[
     uint32_t glyph_offset;
 
     CGRect  rect;
-    int     advance;
+
+    int    hadvance;
+    CGSize vadvance;
 
     CFDataRef head_table = NULL;
     CFDataRef loca_table = NULL;
@@ -2350,17 +2352,24 @@ oc_error oc__get_phantom_points(CGFontRef cg_font, uint16_t index, oc_point opp[
         oc__exit(oc__unexpected(0));
     }
 
-    assert(glyph_offset + 10 <= glyf_size);
-    CGFontGetGlyphAdvances(cg_font, &glyph, 1, &advance);
+    assert(glyph_offset + 4 <= glyf_size);
+    CGFontGetGlyphAdvances(cg_font, &glyph, 1, &hadvance);
     CGFontGetGlyphBBoxes(cg_font, &glyph, 1, &rect);
 
     uint16_t min_x = i16_from_be(glyf + glyph_offset + 2);
-    uint16_t max_y = i16_from_be(glyf + glyph_offset + 8);
+
+    CGFloat upem = CTFontGetUnitsPerEm(ct_font);
+    CGFloat size = CTFontGetSize(ct_font);
+
+    CGSize translation;
+    CTFontGetVerticalTranslationsForGlyphs(ct_font, &glyph, &translation, 1);
+
+    CTFontGetAdvancesForGlyphs(ct_font, kCTFontOrientationVertical, &glyph, &vadvance, 1);
 
     oc_point p1 = { OC_26P6_SUB(min_x, rect.origin.x), 0 };
-    oc_point p2 = { OC_26P6_ADD(p1.x, advance), 0 };
-    oc_point p3 = { 0, OC_26P6_SUB(max_y, rect.size.height) };
-    oc_point p4 = { 0, OC_26P6_SUB(p3.y, 0) };
+    oc_point p2 = { OC_26P6_ADD(p1.x, hadvance), 0 };
+    oc_point p3 = { 0, (oc_26p6)(translation.height * upem / size) };
+    oc_point p4 = { 0, OC_26P6_SUB(p3.y, vadvance.height) };
 
     opp[0] = p1;
     opp[1] = p2;
@@ -4308,7 +4317,6 @@ oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_poi
     }
 
     format = i16_from_be(head + OC__HEAD_FORMAT_OFF);
-    // index in unsafe!!!
     switch (format) {
     case 0:
         assert((size_t)(index + 1) * 2 <= loca_size);
@@ -4322,7 +4330,7 @@ oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_poi
         oc__exit(oc__unexpected(0));
     }
 
-    assert((size_t)glyph_offset + 10 <= glyf_size);
+    assert((size_t)glyph_offset + 4 <= glyf_size);
     res = dw_face->lpVtbl->GetDesignGlyphMetrics(
         dw_face,
         &index,
@@ -4333,11 +4341,10 @@ oc_error oc__get_phantom_points(IDWriteFontFace* dw_face, uint16_t index, oc_poi
     assert(SUCCEEDED(res));
 
     uint16_t min_x = i16_from_be(glyf + glyph_offset + 2);
-    uint16_t max_y = i16_from_be(glyf + glyph_offset + 8);
 
     oc_point p1 = { OC_26P6_SUB(min_x, metrics.leftSideBearing), 0 };
     oc_point p2 = { OC_26P6_ADD(p1.x, metrics.advanceWidth), 0 };    
-    oc_point p3 = { 0, OC_26P6_ADD(max_y, metrics.topSideBearing) };    
+    oc_point p3 = { 0, metrics.verticalOriginY };
     oc_point p4 = { 0, OC_26P6_SUB(p3.y, metrics.advanceHeight) };
 
     opp[0] = p1;
