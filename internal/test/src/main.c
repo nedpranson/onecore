@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,6 +21,155 @@
 
 oc_library* g_library;
 oc_face    g_arial_ttf;
+oc_face    g_garamond_otf;
+
+static uint64_t test_hash_bytes(uint64_t hash, const void* data, size_t size) {
+    const unsigned char* bytes = data;
+
+    for (size_t i = 0; i < size; i++) {
+        hash ^= bytes[i];
+        hash *= UINT64_C(1099511628211);
+    }
+
+    return hash;
+}
+
+static uint64_t test_hash_metrics(const oc_glyph_metrics* metrics) {
+    uint64_t hash = UINT64_C(14695981039346656037);
+
+    hash = test_hash_bytes(hash, &metrics->width, sizeof(metrics->width));
+    hash = test_hash_bytes(hash, &metrics->height, sizeof(metrics->height));
+    hash = test_hash_bytes(hash, &metrics->bearing_x, sizeof(metrics->bearing_x));
+    hash = test_hash_bytes(hash, &metrics->bearing_y, sizeof(metrics->bearing_y));
+    return test_hash_bytes(hash, &metrics->advance, sizeof(metrics->advance));
+}
+
+static uint64_t test_hash_extent(const oc_extent* extent) {
+    uint64_t hash = UINT64_C(14695981039346656037);
+
+    hash = test_hash_bytes(hash, &extent->rows, sizeof(extent->rows));
+    return test_hash_bytes(hash, &extent->cols, sizeof(extent->cols));
+}
+
+static uint64_t test_hash_outline(const oc_outline* outline) {
+    uint64_t hash = UINT64_C(14695981039346656037);
+
+    hash = test_hash_bytes(hash, &outline->npoints, sizeof(outline->npoints));
+    hash = test_hash_bytes(hash, &outline->ncontours, sizeof(outline->ncontours));
+    hash = test_hash_bytes(hash, outline->tags, outline->npoints * sizeof(*outline->tags));
+    hash = test_hash_bytes(hash, outline->points, outline->npoints * sizeof(*outline->points));
+    return test_hash_bytes(hash, outline->contours, outline->ncontours * sizeof(*outline->contours));
+}
+
+static void test_compare_fixture(const char* path, oc_face* face, oc_load_flags flags) {
+    FILE* file = fopen(path, "r");
+    char  line[256];
+    size_t total = 0;
+    size_t matched = 0;
+    size_t mismatched = 0;
+    size_t metrics_mismatched = 0;
+    size_t extents_mismatched = 0;
+    size_t outlines_mismatched = 0;
+
+    TEST_ASSERT_NOT_NULL_MESSAGE(file, path);
+    TEST_ASSERT_NOT_NULL(fgets(line, sizeof(line), file));
+
+    while (fgets(line, sizeof(line), file) != NULL) {
+        uint32_t codepoint;
+        uint64_t metrics_hash;
+        uint64_t extent_hash;
+        uint64_t outline_hash;
+        uint16_t index;
+        oc_error err;
+        oc_glyph_metrics metrics = { 0 };
+        oc_extent extent = { 0 };
+        oc_outline outline = { 0 };
+        bool metrics_match;
+        bool extent_match;
+        bool outline_match;
+
+        if (sscanf(
+                line,
+                "%" SCNx32 ",%" SCNx64 ",%" SCNx64 ",%" SCNx64,
+                &codepoint,
+                &metrics_hash,
+                &extent_hash,
+                &outline_hash) != 4) {
+            TEST_FAIL_MESSAGE("invalid fixture row");
+        }
+
+        total++;
+        index = ocl_get_char_index(face, codepoint);
+        TEST_ASSERT_NOT_EQUAL_UINT16_MESSAGE(0, index, "fixture contains an unmapped code point");
+
+        ocl_get_glyph_metrics(face, index, flags, &metrics);
+        metrics_match = metrics_hash == test_hash_metrics(&metrics);
+        if (!metrics_match) {
+            metrics_mismatched++;
+        }
+
+        err = ocl_render_glyph(face, index, &extent, NULL, 0);
+        TEST_ASSERT_EQUAL(oc_error_ok, err);
+        extent_match = extent_hash == test_hash_extent(&extent);
+        if (!extent_match) {
+            extents_mismatched++;
+        }
+
+        err = ocl_get_outline(face, index, flags, &outline);
+        TEST_ASSERT_EQUAL(oc_error_ok, err);
+        outline_match = outline_hash == test_hash_outline(&outline);
+        if (!outline_match) {
+            outlines_mismatched++;
+        }
+        ocl_free_outline(&outline);
+
+        if (metrics_match && extent_match && outline_match) {
+            matched++;
+        } else {
+            mismatched++;
+        }
+    }
+
+    fclose(file);
+
+    if (mismatched != 0) {
+        printf(
+            "%s: total=%zu matched=%zu mismatched=%zu "
+            "metrics=%zu extents=%zu outlines=%zu\n",
+            path,
+            total,
+            matched,
+            mismatched,
+            metrics_mismatched,
+            extents_mismatched,
+            outlines_mismatched);
+    }
+    TEST_ASSERT_EQUAL_UINT32_MESSAGE(0, mismatched, path);
+}
+
+void test_arial_no_scale_csv(void) {
+    test_compare_fixture("test/files/arial-outline-no-scale.csv", &g_arial_ttf, OC_LOAD_NO_SCALE);
+}
+
+void test_arial_no_hinting_csv(void) {
+    test_compare_fixture("test/files/arial-outline-no-hinting.csv", &g_arial_ttf, OC_LOAD_NO_HINTING);
+}
+
+void test_arial_no_fitting_csv(void) {
+    test_compare_fixture("test/files/arial-outline-no-fitting.csv", &g_arial_ttf, OC_LOAD_NO_FITTING);
+}
+
+void test_garamond_no_scale_csv(void) {
+    test_compare_fixture("test/files/garamond-outline-no-scale.csv", &g_garamond_otf, OC_LOAD_NO_SCALE);
+}
+
+void test_garamond_no_hinting_csv(void) {
+    test_compare_fixture("test/files/garamond-outline-no-hinting.csv", &g_garamond_otf, OC_LOAD_NO_HINTING);
+}
+
+void test_garamond_no_fitting_csv(void) {
+    test_compare_fixture("test/files/garamond-outline-no-fitting.csv", &g_garamond_otf, OC_LOAD_NO_FITTING);
+}
 
 // todo: test if we have face* and out* ptr test out* to be zero init when passing NULL as face*
 
@@ -818,7 +968,7 @@ void test_ocl_get_outline(void) {
     // p2: {455, 0}
     // p3: {0, 1491}
     // p4: {0, -431}
-    printf("get 'i' outline\n");
+    // printf("get 'i' outline\n");
 
     idx = ocl_get_char_index(&g_arial_ttf, 'i');
     TEST_ASSERT_EQUAL_INT16(76, idx);
@@ -859,7 +1009,7 @@ void test_ocl_get_outline(void) {
     // p2: {1366, 0}
     // p3: {0, 1491}
     // p4: {0, -431}
-    printf("get 'S' outline\n");
+    // printf("get 'S' outline\n");
 
     idx = ocl_get_char_index(&g_arial_ttf, 'S');
     TEST_ASSERT_EQUAL_INT16(54, idx);
@@ -936,7 +1086,7 @@ void test_ocl_get_outline(void) {
 
     ocl_free_outline(&outline);
 
-    printf("get 'S' outline\n");
+    // printf("get 'S' outline\n");
 
     err = ocl_get_outline(&g_arial_ttf, idx, OC_LOAD_NO_HINTING, &outline);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
@@ -1014,7 +1164,7 @@ void test_ocl_get_outline(void) {
     err = ocl_open_face(g_library, "test/files/AGaramondPro-Regular.otf", NULL, &face);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
-    printf("get '?' outline\n");
+    // printf("get '?' outline\n");
 
     idx = ocl_get_char_index(&face, '?');
     TEST_ASSERT_EQUAL_INT16(32, idx);
@@ -1092,7 +1242,7 @@ void test_ocl_get_outline(void) {
 
     ocl_free_outline(&outline);
 
-    printf("get '?' outline\n");
+    // printf("get '?' outline\n");
     err = ocl_get_outline(&face, idx, OC_LOAD_NO_HINTING, &outline);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
@@ -1259,9 +1409,10 @@ void test_ocl_render_glyph(void) {
     for (size_t y = 0; y < 12; y++) {
         for (size_t x = 64; x < 64 + 10; x++) {
             int idx = (canvas[y * 128 + x] * (ramp_len - 1)) / 255;
-            printf("%c%c", ramp[idx], ramp[idx]);
+            (void)idx;
+            // printf("%c%c", ramp[idx], ramp[idx]);
         }
-        printf("\n");
+        // printf("\n");
     }
 }
 
@@ -1298,6 +1449,9 @@ int main(void) {
     TEST_ASSERT_EQUAL_UINT16(1674, g_arial_ttf.nglyphs);
     TEST_ASSERT_EQUAL_UINT16(16, g_arial_ttf.size.ppem);
 
+    err = ocl_open_face(g_library, "test/files/AGaramondPro-Regular.otf", &face_params, &g_garamond_otf);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
     RUN_TEST(test_math);
     RUN_TEST(test_oc_init_library);
     RUN_TEST(test_oc_init_collection);
@@ -1316,8 +1470,15 @@ int main(void) {
     // RUN_TEST(test_oc_get_glyph_bbox_hinted);
     RUN_TEST(test_ocl_get_outline);
     RUN_TEST(test_ocl_render_glyph);
+    RUN_TEST(test_arial_no_scale_csv);
+    RUN_TEST(test_arial_no_hinting_csv);
+    RUN_TEST(test_arial_no_fitting_csv);
+    RUN_TEST(test_garamond_no_scale_csv);
+    RUN_TEST(test_garamond_no_hinting_csv);
+    RUN_TEST(test_garamond_no_fitting_csv);
 
     ocl_free_face(&g_arial_ttf);
+    ocl_free_face(&g_garamond_otf);
 
     oc_face phantom_face;
     oc_outline phantom_outline = { 0 };
@@ -1328,7 +1489,7 @@ int main(void) {
     uint16_t phantom_idx = ocl_get_char_index(&phantom_face, 'f');
     TEST_ASSERT_EQUAL_UINT16(73, phantom_idx);
 
-    printf("get 'f' outline\n");
+    // printf("get 'f' outline\n");
     err = ocl_get_outline(&phantom_face, phantom_idx, OC_LOAD_NO_SCALE, &phantom_outline);
 
     oc_glyph_metrics metrics;
@@ -1342,12 +1503,13 @@ int main(void) {
     TEST_ASSERT_EQUAL_UINT16(2, phantom_outline.ncontours);
 
     oc_point pp[4];
+    (void)pp;
     // oc__get_phantom_points(phantom_face.impl->dw_face, phantom_idx, pp);
 
-    printf("p1 {%d, %d}\n", pp[0].x, pp[0].y);
-    printf("p2 {%d, %d}\n", pp[1].x, pp[1].y);
-    printf("p3 {%d, %d}\n", pp[2].x, pp[2].y);
-    printf("p4 {%d, %d}\n", pp[3].x, pp[3].y);
+    // printf("p1 {%d, %d}\n", pp[0].x, pp[0].y);
+    // printf("p2 {%d, %d}\n", pp[1].x, pp[1].y);
+    // printf("p3 {%d, %d}\n", pp[2].x, pp[2].y);
+    // printf("p4 {%d, %d}\n", pp[3].x, pp[3].y);
 
     ocl_free_outline(&phantom_outline);
     ocl_free_face(&phantom_face);

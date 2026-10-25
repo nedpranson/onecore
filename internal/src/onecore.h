@@ -280,6 +280,9 @@ ocl_set_size(oc_face* face, oc_26p6 desired_size, uint16_t dpi);
 OCDEF uint16_t
 ocl_get_char_index(const oc_face* face, uint32_t charcode);
 
+// ocl_get_first_char
+// ocl_get_next_char
+
 /*
  * Returns the metrics of a given glyph.
  */
