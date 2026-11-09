@@ -448,6 +448,43 @@ exit:
         *ocbox = cbox;
 }
 
+static void oc__remove_implicit_midpoints(
+    oc_point* points,
+    uint8_t* tags,
+    uint16_t* contours,
+    uint16_t ncontours,
+    uint16_t* npoints) {
+    uint16_t write = 0;
+    uint16_t start = 0;
+
+    for (uint16_t contour = 0; contour < ncontours; contour++) {
+        uint16_t end = contours[contour];
+
+        for (uint16_t i = start; i <= end; i++) {
+            uint16_t previous = i == start ? end : i - 1;
+            uint16_t next = i == end ? start : i + 1;
+            // CoreText materializes a contour-boundary midpoint as its start point.
+            bool midpoint = i != start &&
+                tags[i] == OC__CURVE_TAG_ON &&
+                tags[previous] == OC__CURVE_TAG_CONIC &&
+                tags[next] == OC__CURVE_TAG_CONIC &&
+                (int64_t)points[i].x * 2 == (int64_t)points[previous].x + points[next].x &&
+                (int64_t)points[i].y * 2 == (int64_t)points[previous].y + points[next].y;
+
+            if (!midpoint) {
+                points[write] = points[i];
+                tags[write] = tags[i];
+                write++;
+            }
+        }
+
+        contours[contour] = write - 1;
+        start = end + 1;
+    }
+
+    *npoints = write;
+}
+
 oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, oc_outline* ooutline) {
     FT_Error     ft_err;
     FT_Face      ft_face;
@@ -532,6 +569,8 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     }
 
     oc__mutex_impl_unlock(lock);
+
+    oc__remove_implicit_midpoints(points, tags, contours, ft_outline.n_contours, &ft_outline.n_points);
 
     outline.tags = tags;
     outline.points = points;
