@@ -762,7 +762,7 @@ static bool oc__walk_outline(OC__PathSink* sink, const oc__path_felement* elemen
         break;
     case oc__path_line:
         if (!oc__points_equal(sink->element.pt1, start) && 
-            // dwrite may repeat a cubic endpoint as the first line point.
+            // DirectWrite may repeat a cubic endpoint as the first line point.
             (npoints == 0 || !oc__points_equal(sink->points[npoints - 1], pt1))) {
             if (!oc__append(sink->points, pt1))
                 return true;

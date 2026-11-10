@@ -1593,7 +1593,30 @@ static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_si
     CGFloat  size;
 
     scaled = (desired_size * dpi + 36) / 72;
-    ct_font = CTFontCreateWithFontDescriptor(descriptor, scaled / 64.0, NULL);
+
+    {
+        /* CoreText derives 'opsz' from the point size by default. This
+         * library renders the fvar default instance on every backend, so
+         * automatic optical sizing is turned off. */
+        const void* keys[] = { kCTFontOpticalSizeAttribute };
+        const void* values[] = { CFSTR("none") };
+
+        CFDictionaryRef attrs = CFDictionaryCreate(
+            NULL, keys, values, 1,
+            &kCFTypeDictionaryKeyCallBacks,
+            &kCFTypeDictionaryValueCallBacks);
+        CTFontDescriptorRef plain = attrs
+            ? CTFontDescriptorCreateCopyWithAttributes(descriptor, attrs)
+            : NULL;
+
+        if (attrs) CFRelease(attrs);
+        if (plain == NULL) {
+            return oc_error_out_of_memory;
+        }
+
+        ct_font = CTFontCreateWithFontDescriptor(plain, scaled / 64.0, NULL);
+        CFRelease(plain);
+    }
 
     if (ct_font == NULL) {
         return oc_error_out_of_memory;
@@ -1878,7 +1901,7 @@ void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fl
     oc_26p6 x_adv = 0;
 
     CGGlyph glyph = index;
-    oc_glyph_metrics metrics = { 0 };
+    oc_glyph_metrics metrics;
     bool fit = false;
 
     if (!(face && ometrics)) {
@@ -2018,6 +2041,8 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
     oc_point pt2 = ctx->element.pt2;
     oc_point pt3 = ctx->element.pt3;
 
+    size_t npoints = oc__len(ctx->points);
+
     if (oc__unlikely(ctx->doomed)) {
         return;
     }
@@ -2055,7 +2080,9 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
         ctx->start = ctx->element.pt1;
         break;
     case kCGPathElementAddLineToPoint:
-        if (!oc__points_equal(ctx->element.pt1, ctx->start)) {
+        if (!oc__points_equal(ctx->element.pt1, ctx->start) &&
+            // CoreText may repeat a cubic endpoint as the first line point.
+            (npoints == 0 || !oc__points_equal(ctx->points[npoints - 1], pt1))) {
             if ((ctx->doomed = !oc__append(ctx->points, pt1)))
                 break;
             if ((ctx->doomed = !oc__append(ctx->tags, OC__CURVE_TAG_ON)))
@@ -2110,8 +2137,8 @@ static void oc__walk_applier(void* info, const CGPathElement* element) {
         }
         break;
     case kCGPathElementCloseSubpath:
-        assert(oc__len(ctx->points) > 0);
-        ctx->doomed = !oc__append(ctx->contours, oc__len(ctx->points) - 1);
+        assert(npoints > 0);
+        ctx->doomed = !oc__append(ctx->contours, npoints - 1);
         break;
     default:
         break;
@@ -3807,7 +3834,7 @@ static bool oc__walk_outline(OC__PathSink* sink, const oc__path_felement* elemen
         break;
     case oc__path_line:
         if (!oc__points_equal(sink->element.pt1, start) && 
-            // dwrite may repeat a cubic endpoint as the first line point.
+            // DirectWrite may repeat a cubic endpoint as the first line point.
             (npoints == 0 || !oc__points_equal(sink->points[npoints - 1], pt1))) {
             if (!oc__append(sink->points, pt1))
                 return true;
