@@ -563,6 +563,14 @@ void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fl
     oc_16p16             scale;
     oc_glyph_metrics     metrics = { 0 };
 
+    oc_26p6 x_min = 0;
+    oc_26p6 x_max = 0;
+    oc_26p6 y_min = 0;
+    oc_26p6 y_max = 0;
+    oc_26p6 x_adv = 0;
+
+    bool fit = false;
+
     if (!(face && ometrics)) {
         goto exit;
     }
@@ -584,19 +592,18 @@ void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fl
     (void)err;
     assert(err == S_OK);
 
-    metrics.width = (INT32)dw_metrics.advanceWidth - dw_metrics.leftSideBearing - dw_metrics.rightSideBearing;
-    metrics.height = (INT32)dw_metrics.advanceHeight - dw_metrics.topSideBearing - dw_metrics.bottomSideBearing;
-    metrics.advance = dw_metrics.advanceWidth;
+    x_min = dw_metrics.leftSideBearing;
+    x_max = (INT32)dw_metrics.advanceWidth - dw_metrics.rightSideBearing;
+    y_min = dw_metrics.verticalOriginY + dw_metrics.bottomSideBearing - (INT32)dw_metrics.advanceHeight;
+    y_max = dw_metrics.verticalOriginY - dw_metrics.topSideBearing;
+    x_adv = dw_metrics.advanceWidth;
 
     /* Hide metrics when the glyph has no dimension.
      * This is done to match other backends, since DirectWrite
      * tries to get every field possible when other backends fail quietly.
      */
-    if (metrics.width == 0 || metrics.height == 0) {
-        metrics.width = metrics.height = 0;
-    } else {
-        metrics.bearing_x = dw_metrics.leftSideBearing;
-        metrics.bearing_y = dw_metrics.verticalOriginY - dw_metrics.topSideBearing;
+    if (x_min == x_max || y_min == y_max) {
+        x_min = x_max = y_min = y_max = 0;
     }
 
     if (flags & OC_LOAD_NO_SCALE) {
@@ -605,20 +612,30 @@ void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fl
 
     scale = face->size.scale;
 
-    metrics.width = oc_mul_16p16(metrics.width, scale);
-    metrics.height = oc_mul_16p16(metrics.height, scale);
-    metrics.bearing_x = oc_mul_16p16(metrics.bearing_x, scale);
-    metrics.bearing_y = oc_mul_16p16(metrics.bearing_y, scale);
-    metrics.advance = oc_mul_16p16(metrics.advance, scale);
+    x_min = oc_mul_16p16(x_min, scale);
+    x_max = oc_mul_16p16(x_max, scale);
+    y_min = oc_mul_16p16(y_min, scale);
+    y_max = oc_mul_16p16(y_max, scale);
+    x_adv = oc_mul_16p16(x_adv, scale);
 
     if (flags & OC_LOAD_NO_FITTING) {
         goto exit;
     }
 
-    oc__fit_metrics(&metrics);
+    fit = true;
 exit:
-    if (ometrics)
+    if (ometrics) {
+        metrics.bearing_x = x_min;
+        metrics.bearing_y = y_max;
+        metrics.width = x_max - x_min;
+        metrics.height = y_max - y_min;
+        metrics.advance = x_adv;
+
+        if (fit)
+            oc__fit_metrics(&metrics);
+
         *ometrics = metrics;
+    }
 }
 
 void ocl_get_glyph_cbox(const oc_face* face, uint16_t index, oc_load_flags flags, oc_bbox* ocbox) {
