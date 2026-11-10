@@ -26,30 +26,7 @@ static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_si
     CGFloat  size;
 
     scaled = (desired_size * dpi + 36) / 72;
-
-    {
-        /* CoreText derives 'opsz' from the point size by default. This
-         * library renders the fvar default instance on every backend, so
-         * automatic optical sizing is turned off. */
-        const void* keys[] = { kCTFontOpticalSizeAttribute };
-        const void* values[] = { CFSTR("none") };
-
-        CFDictionaryRef attrs = CFDictionaryCreate(
-            NULL, keys, values, 1,
-            &kCFTypeDictionaryKeyCallBacks,
-            &kCFTypeDictionaryValueCallBacks);
-        CTFontDescriptorRef plain = attrs
-            ? CTFontDescriptorCreateCopyWithAttributes(descriptor, attrs)
-            : NULL;
-
-        if (attrs) CFRelease(attrs);
-        if (plain == NULL) {
-            return oc_error_out_of_memory;
-        }
-
-        ct_font = CTFontCreateWithFontDescriptor(plain, scaled / 64.0, NULL);
-        CFRelease(plain);
-    }
+    ct_font = CTFontCreateWithFontDescriptor(descriptor, scaled / 64.0, NULL);
 
     if (ct_font == NULL) {
         return oc_error_out_of_memory;
@@ -65,6 +42,55 @@ static oc_error oc__init_face(CTFontDescriptorRef descriptor, oc_26p6 desired_si
     if (cg_font == NULL) {
         CFRelease(ct_font);
         return oc_error_out_of_memory;
+    }
+
+    // todo: find a way to cleanly disabling opsz
+    {
+        /* CoreText derives 'opsz' from the point size (or the descriptor)
+         * and carries it into the CGFont. This library renders the fvar
+         * default instance on every backend, so pin all axes to defaults. */
+        CFArrayRef axes = CGFontCopyVariationAxes(cg_font);
+
+        if (axes != NULL) {
+            CFMutableDictionaryRef vars = CFDictionaryCreateMutable(
+                NULL, 0,
+                &kCFTypeDictionaryKeyCallBacks,
+                &kCFTypeDictionaryValueCallBacks);
+            CGFontRef pinned_cg = NULL;
+            CTFontRef pinned_ct = NULL;
+
+            if (vars != NULL) {
+                for (CFIndex i = 0; i < CFArrayGetCount(axes); i++) {
+                    CFDictionaryRef axis = CFArrayGetValueAtIndex(axes, i);
+                    CFTypeRef       name = CFDictionaryGetValue(axis, kCGFontVariationAxisName);
+                    CFTypeRef       def = CFDictionaryGetValue(axis, kCGFontVariationAxisDefaultValue);
+
+                    if (name && def) {
+                        CFDictionarySetValue(vars, name, def);
+                    }
+                }
+
+                pinned_cg = CGFontCreateCopyWithVariations(cg_font, vars);
+                if (pinned_cg) {
+                    pinned_ct = CTFontCreateWithGraphicsFont(pinned_cg, scaled / 64.0, NULL, NULL);
+                }
+                CFRelease(vars);
+            }
+            CFRelease(axes);
+
+            if (pinned_cg == NULL || pinned_ct == NULL) {
+                if (pinned_cg) CGFontRelease(pinned_cg);
+                if (pinned_ct) CFRelease(pinned_ct);
+                CGFontRelease(cg_font);
+                CFRelease(ct_font);
+                return oc_error_out_of_memory;
+            }
+
+            CGFontRelease(cg_font);
+            CFRelease(ct_font);
+            cg_font = pinned_cg;
+            ct_font = pinned_ct;
+        }
     }
 
     impl = malloc(sizeof(*impl));
