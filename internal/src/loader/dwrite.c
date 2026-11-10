@@ -561,7 +561,7 @@ void ocl_get_glyph_metrics(const oc_face* face, uint16_t index, oc_load_flags fl
     DWRITE_GLYPH_METRICS dw_metrics;
     IDWriteFontFace*     dw_face;
     oc_16p16             scale;
-    oc_glyph_metrics     metrics = { 0 };
+    oc_glyph_metrics     metrics;
 
     oc_26p6 x_min = 0;
     oc_26p6 x_max = 0;
