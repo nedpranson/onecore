@@ -1070,44 +1070,6 @@ exit:
         *ocbox = cbox;
 }
 
-// todo: deslop this code
-static void oc__remove_implicit_midpoints(
-    oc_point* points,
-    uint8_t* tags,
-    uint16_t* contours,
-    uint16_t ncontours,
-    uint16_t* npoints) {
-    uint16_t write = 0;
-    uint16_t start = 0;
-
-    for (uint16_t contour = 0; contour < ncontours; contour++) {
-        uint16_t end = contours[contour];
-
-        for (uint16_t i = start; i <= end; i++) {
-            uint16_t previous = i == start ? end : i - 1;
-            uint16_t next = i == end ? start : i + 1;
-            // CoreText materializes a contour-boundary midpoint as its start point.
-            bool midpoint = i != start &&
-                tags[i] == OC__CURVE_TAG_ON &&
-                tags[previous] == OC__CURVE_TAG_CONIC &&
-                tags[next] == OC__CURVE_TAG_CONIC &&
-                (int64_t)points[i].x * 2 == (int64_t)points[previous].x + points[next].x &&
-                (int64_t)points[i].y * 2 == (int64_t)points[previous].y + points[next].y;
-
-            if (!midpoint) {
-                points[write] = points[i];
-                tags[write] = tags[i];
-                write++;
-            }
-        }
-
-        contours[contour] = write - 1;
-        start = end + 1;
-    }
-
-    *npoints = write;
-}
-
 oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, oc_outline* ooutline) {
     FT_Error     ft_err;
     FT_Face      ft_face;
@@ -1192,8 +1154,6 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     }
 
     oc__mutex_impl_unlock(lock);
-
-    oc__remove_implicit_midpoints(points, tags, contours, ft_outline.n_contours, &ft_outline.n_points);
 
     outline.tags = tags;
     outline.points = points;
@@ -3778,6 +3738,8 @@ typedef struct {
 } OC__PathSink;
 
 static bool oc__walk_outline(OC__PathSink* sink, const oc__path_felement* element) {
+    size_t npoints = oc__len(sink->points);
+
     bool implicit;
     bool closing;
 
@@ -3812,7 +3774,9 @@ static bool oc__walk_outline(OC__PathSink* sink, const oc__path_felement* elemen
             return true;
         break;
     case oc__path_line:
-        if (!oc__points_equal(sink->element.pt1, start)) {
+        if (!oc__points_equal(sink->element.pt1, start) && 
+            // dwrite may repeat a cubic endpoint as the first line point.
+            (npoints == 0 || !oc__points_equal(sink->points[npoints - 1], pt1))) {
             if (!oc__append(sink->points, pt1))
                 return true;
             if (!oc__append(sink->tags, OC__CURVE_TAG_ON))
@@ -3867,8 +3831,8 @@ static bool oc__walk_outline(OC__PathSink* sink, const oc__path_felement* elemen
         }
         break;
     case oc__path_close:
-        assert(oc__len(sink->points) > 0);
-        if (!oc__append(sink->contours, oc__len(sink->points) - 1))
+        assert(npoints > 0);
+        if (!oc__append(sink->contours, npoints - 1))
             return true;
         break;
     default:

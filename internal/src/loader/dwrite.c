@@ -708,6 +708,8 @@ typedef struct {
 } OC__PathSink;
 
 static bool oc__walk_outline(OC__PathSink* sink, const oc__path_felement* element) {
+    size_t npoints = oc__len(sink->points);
+
     bool implicit;
     bool closing;
 
@@ -742,7 +744,9 @@ static bool oc__walk_outline(OC__PathSink* sink, const oc__path_felement* elemen
             return true;
         break;
     case oc__path_line:
-        if (!oc__points_equal(sink->element.pt1, start)) {
+        if (!oc__points_equal(sink->element.pt1, start) && 
+            // dwrite may repeat a cubic endpoint as the first line point.
+            (npoints == 0 || !oc__points_equal(sink->points[npoints - 1], pt1))) {
             if (!oc__append(sink->points, pt1))
                 return true;
             if (!oc__append(sink->tags, OC__CURVE_TAG_ON))
@@ -797,8 +801,8 @@ static bool oc__walk_outline(OC__PathSink* sink, const oc__path_felement* elemen
         }
         break;
     case oc__path_close:
-        assert(oc__len(sink->points) > 0);
-        if (!oc__append(sink->contours, oc__len(sink->points) - 1))
+        assert(npoints > 0);
+        if (!oc__append(sink->contours, npoints - 1))
             return true;
         break;
     default:
