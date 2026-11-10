@@ -108,5 +108,8 @@ int main(void) {
     generate("test/files/garamond-outline-no-scale.csv", "test/files/AGaramondPro-Regular.otf", OC_LOAD_NO_SCALE);
     generate("test/files/garamond-outline-no-hinting.csv", "test/files/AGaramondPro-Regular.otf", OC_LOAD_NO_HINTING);
     generate("test/files/garamond-outline-no-fitting.csv", "test/files/AGaramondPro-Regular.otf", OC_LOAD_NO_FITTING);
+    generate("test/files/source-serif-4-variable-outline-no-scale.csv", "test/files/SourceSerif4Variable-Roman.otf", OC_LOAD_NO_SCALE);
+    generate("test/files/source-serif-4-variable-outline-no-hinting.csv", "test/files/SourceSerif4Variable-Roman.otf", OC_LOAD_NO_HINTING);
+    generate("test/files/source-serif-4-variable-outline-no-fitting.csv", "test/files/SourceSerif4Variable-Roman.otf", OC_LOAD_NO_FITTING);
     return 0;
 }

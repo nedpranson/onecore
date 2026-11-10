@@ -22,6 +22,7 @@
 oc_library* g_library;
 oc_face    g_arial_ttf;
 oc_face    g_garamond_otf;
+oc_face    g_source_serif_4_variable_otf;
 
 static uint64_t test_hash_bytes(uint64_t hash, const void* data, size_t size) {
     const unsigned char* bytes = data;
@@ -169,6 +170,27 @@ void test_garamond_no_hinting_csv(void) {
 
 void test_garamond_no_fitting_csv(void) {
     test_compare_fixture("test/files/garamond-outline-no-fitting.csv", &g_garamond_otf, OC_LOAD_NO_FITTING);
+}
+
+void test_source_serif_4_variable_no_scale_csv(void) {
+    test_compare_fixture(
+        "test/files/source-serif-4-variable-outline-no-scale.csv",
+        &g_source_serif_4_variable_otf,
+        OC_LOAD_NO_SCALE);
+}
+
+void test_source_serif_4_variable_no_hinting_csv(void) {
+    test_compare_fixture(
+        "test/files/source-serif-4-variable-outline-no-hinting.csv",
+        &g_source_serif_4_variable_otf,
+        OC_LOAD_NO_HINTING);
+}
+
+void test_source_serif_4_variable_no_fitting_csv(void) {
+    test_compare_fixture(
+        "test/files/source-serif-4-variable-outline-no-fitting.csv",
+        &g_source_serif_4_variable_otf,
+        OC_LOAD_NO_FITTING);
 }
 
 // todo: test if we have face* and out* ptr test out* to be zero init when passing NULL as face*
@@ -1452,6 +1474,13 @@ int main(void) {
     err = ocl_open_face(g_library, "test/files/AGaramondPro-Regular.otf", &face_params, &g_garamond_otf);
     TEST_ASSERT_EQUAL(oc_error_ok, err);
 
+    err = ocl_open_face(
+        g_library,
+        "test/files/SourceSerif4Variable-Roman.otf",
+        &face_params,
+        &g_source_serif_4_variable_otf);
+    TEST_ASSERT_EQUAL(oc_error_ok, err);
+
     RUN_TEST(test_math);
     RUN_TEST(test_oc_init_library);
     RUN_TEST(test_oc_init_collection);
@@ -1476,9 +1505,13 @@ int main(void) {
     RUN_TEST(test_garamond_no_scale_csv);
     RUN_TEST(test_garamond_no_hinting_csv);
     RUN_TEST(test_garamond_no_fitting_csv);
+    RUN_TEST(test_source_serif_4_variable_no_scale_csv);
+    RUN_TEST(test_source_serif_4_variable_no_hinting_csv);
+    RUN_TEST(test_source_serif_4_variable_no_fitting_csv);
 
     ocl_free_face(&g_arial_ttf);
     ocl_free_face(&g_garamond_otf);
+    ocl_free_face(&g_source_serif_4_variable_otf);
 
     oc_face phantom_face;
     oc_outline phantom_outline = { 0 };

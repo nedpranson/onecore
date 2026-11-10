@@ -844,27 +844,27 @@ OC__PathSink_AddBeziers(ID2D1SimplifiedGeometrySink* This, const D2D1_BEZIER_SEG
         D2D1_POINT_2F pt2 = beziers[i].point2;
         D2D1_POINT_2F pt3 = beziers[i].point3;
 
-        D2D1_POINT_2F origin = this->origin;
+        // D2D1_POINT_2F origin = this->origin;
+        //
+        // float cx1 = (3.0f * pt1.x - origin.x) * 0.5f;
+        // float cy1 = (3.0f * pt1.y - origin.y) * 0.5f;
+        //
+        // float cx2 = (3.0f * pt2.x - pt3.x) * 0.5f;
+        // float cy2 = (3.0f * pt2.y - pt3.y) * 0.5f;
+        //
+        // float dx = cx1 - cx2;
+        // float dy = cy1 - cy2;
 
-        float cx1 = (3.0f * pt1.x - origin.x) * 0.5f;
-        float cy1 = (3.0f * pt1.y - origin.y) * 0.5f;
-
-        float cx2 = (3.0f * pt2.x - pt3.x) * 0.5f;
-        float cy2 = (3.0f * pt2.y - pt3.y) * 0.5f;
-
-        float dx = cx1 - cx2;
-        float dy = cy1 - cy2;
-
-        if (dx * dx + dy * dy < 0.05f * 0.05f) {
-            element.pt1 = (D2D1_POINT_2F) { roundf(cx2), roundf(cy2) };
-            element.pt2 = pt3;
-            element.type = oc__path_conic;
-        } else {
+        // if (dx * dx + dy * dy < 0.05f * 0.05f) {
+        //     element.pt1 = (D2D1_POINT_2F) { roundf(cx2), roundf(cy2) };
+        //     element.pt2 = pt3;
+        //     element.type = oc__path_conic;
+        // } else {
             element.pt1 = pt1;
             element.pt2 = pt2;
             element.pt3 = pt3;
             element.type = oc__path_cubic;
-        }
+        // }
 
         if (oc__unlikely(this->doomed = oc__walk_outline(this, &element))) {
             break;

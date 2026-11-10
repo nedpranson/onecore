@@ -448,6 +448,7 @@ exit:
         *ocbox = cbox;
 }
 
+// todo: deslop this code
 static void oc__remove_implicit_midpoints(
     oc_point* points,
     uint8_t* tags,
