@@ -562,6 +562,7 @@ void ocl_free_outline(oc_outline* outline) {
     memset(outline, 0, sizeof(*outline));
 }
 
+// todo: use dwrite_2.h
 oc_error ocl_render_glyph(const oc_face* face, uint16_t index, oc_extent* oextent, unsigned char* buffer, size_t pitch) {
     FT_Face           ft_face;
     oc__mutex_impl_t* lock;
