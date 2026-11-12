@@ -6,12 +6,9 @@
  *  - BASE
  *  - LIBRARY
  */
-#include "../base.h"
+#define ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
+#include "../library.c"
 /* ---- */
-#include <initguid.h>
-
-#include <dwrite.h>
-
 struct oc_collection_impl {
     const oc_library* oc_library;
     char**            families;

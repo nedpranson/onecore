@@ -3,6 +3,7 @@
  * @impl CORETEXT_LOADER
  * @deps
  *  - BASE
+ *  - LIBRARY
  */
 #include <CoreFoundation/CFCGTypes.h>
 #include <CoreText/CTFontDescriptor.h>

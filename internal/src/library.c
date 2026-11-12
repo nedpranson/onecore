@@ -4,7 +4,7 @@
  * @deps
  *  - BASE
  */
-#include "onecore.h"
+#include "base.h"
 /* ---- */
 
 #ifdef ONECORE_FREETYPE_LOADER_IMPLEMENTATION

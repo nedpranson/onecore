@@ -5,13 +5,10 @@
  *  - BASE
  *  - LIBRARY
  */
-#include "../base.h"
+#define ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
+#include "../library.c"
 /* ---- */
-#include <initguid.h>
-
 #include <d2d1.h>
-#include <dwrite.h>
-#include <math.h>
 
 struct oc_face_impl {
     IDWriteFontFace* dw_face;
@@ -211,6 +208,116 @@ static const IDWriteFontFileLoaderVtbl OC__IDWriteFontFileLoaderVtbl = {
 
 OC__IDWriteFontFileLoader oc__file_loader = { &OC__IDWriteFontFileLoaderVtbl, 0 };
 IDWriteFontFileLoader*    oc__dw_file_loader = (IDWriteFontFileLoader*)&oc__file_loader;
+
+
+static oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_face, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
+    DWRITE_FONT_METRICS    font_metrics;
+    DWRITE_FONT_FACE_TYPE  face_type;
+    oc_face_impl*          impl;
+    oc_face                face = {0};
+
+    (void)dw_factory;
+
+    if (!(dw_face && oface)) {
+        return oc_error_invalid_param;
+    }
+
+    if (desired_size == 0) {
+        desired_size = 12 << 6;
+    } else if (desired_size < 1 << 6) {
+        return oc_error_invalid_pixel_size;
+    }
+
+    if (dpi == 0) {
+        dpi = 72;
+    }
+
+    impl = (oc_face_impl*)calloc(1, sizeof(*impl));
+    if (!impl) {
+        return oc_error_out_of_memory;
+    }
+
+    impl->dw_face = dw_face;
+    impl->dw_factory = dw_factory;
+
+    dw_face->lpVtbl->GetMetrics(dw_face, &font_metrics);
+    face_type = dw_face->lpVtbl->GetType(dw_face);
+    (void)face_type;
+
+    face.impl = impl;
+    face.nglyphs = (uint16_t)dw_face->lpVtbl->GetGlyphCount(dw_face);
+    face.upem = font_metrics.designUnitsPerEm;
+    face.ascent = font_metrics.ascent;
+    face.descent = font_metrics.descent;
+    face.leading = (int16_t)font_metrics.lineGap;
+    face.underline_position = font_metrics.underlinePosition;
+    face.underline_thickness = font_metrics.underlineThickness;
+
+    {
+        oc_error err = ocl_set_size(&face, desired_size, dpi);
+        if (err != oc_error_ok) {
+            free(impl);
+            return err;
+        }
+    }
+
+    dw_face->lpVtbl->AddRef(dw_face);
+    *oface = face;
+    return oc_error_ok;
+}
+
+static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWriteFontFile* dw_font_file, const oc_open_params* uparams, oc_face* oface) {
+    HRESULT               hr;
+    BOOL                  is_supported;
+    DWRITE_FONT_FILE_TYPE file_type;
+    DWRITE_FONT_FACE_TYPE face_type;
+    UINT32                number_of_faces;
+    IDWriteFontFace*      dw_face = NULL;
+    oc_open_params        params;
+    oc_error              err;
+
+    if (!(dw_factory && dw_font_file && oface)) {
+        return oc_error_invalid_param;
+    }
+
+    params = oc__open_params_defaults(uparams);
+
+    hr = dw_font_file->lpVtbl->Analyze(
+        dw_font_file,
+        &is_supported,
+        &file_type,
+        &face_type,
+        &number_of_faces);
+
+    if (hr != S_OK || !is_supported || number_of_faces == 0) {
+        return oc_error_failed_to_open;
+    }
+    if (params.face_index >= number_of_faces) {
+        return oc_error_invalid_param;
+    }
+
+    hr = dw_factory->lpVtbl->CreateFontFace(
+        dw_factory,
+        face_type,
+        1,
+        &dw_font_file,
+        params.face_index,
+        DWRITE_FONT_SIMULATIONS_NONE,
+        &dw_face);
+
+    switch (hr) {
+    case S_OK:
+        break;
+    case E_OUTOFMEMORY:
+        return oc_error_out_of_memory;
+    default:
+        return oc__unexpected(hr);
+    }
+
+    err = oc__init_face(dw_factory, dw_face, params.desired_size, params.dpi, oface);
+    dw_face->lpVtbl->Release(dw_face);
+    return err;
+}
 
 oc_error ocl_open_face(const oc_library* library, const char* path, const oc_open_params* uparams, oc_face* oface) {
     int32_t          err;

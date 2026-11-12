@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #ifdef NDEBUG
 #define oc__unexpected(e) oc_error_unexpected

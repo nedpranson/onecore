@@ -4,6 +4,7 @@
  * @rank 2
  * @deps
  *  - BASE
+ *  - LIBRARY
  */
 #include "freetype/freetype.h"
 #include <stdint.h>
