@@ -1,7 +1,13 @@
+/*
+ * @fuse
+ * @impl FONTCONFIG_FINDER
+ * @rank 2
+ * @deps
+ *  - BASE
+ */
 #define ONECORE_IMPLEMENTATION
 #include "onecore.h"
-
-/* ONECORE_FONTCONFIG_FINDER_IMPLEMENTATION */
+/* ---- */
 #include <fontconfig/fontconfig.h>
 
 struct oc_collection_impl {

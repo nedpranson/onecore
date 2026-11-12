@@ -1,11 +1,17 @@
+/* 
+ * @fuse
+ * @impl FREETYPE_LOADER
+ * @deps
+ *  - BASE
+ *  - LIBRARY
+ */
 #include "internal/src/onecore.h"
 #include <stdint.h>
 #include <stdio.h>
 #define ONECORE_IMPLEMENTATION
-#define OC__OVERRIDE_LIBRARY_IMPL
 #include "onecore.h"
+/* ---- */
 
-/* ONECORE_FREETYPE_LOADER_IMPLEMENTATION */
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_TRUETYPE_TABLES_H
@@ -42,93 +48,7 @@ struct oc_face_impl {
     oc__mutex_impl_t lock;
 };
 
-#define OC__OVERRIDE_LIBRARY_IMPL
 
-#ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
-#include <initguid.h>
-
-#include <dwrite.h>
-
-struct oc_library {
-    FT_Library      ft_library;
-    IDWriteFactory* dw_factory;
-};
-#endif
-
-oc_error oc_init_library(oc_library** olibrary) {
-    FT_Error   ft_err;
-    FT_Library ft_library;
-#ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
-    HRESULT         result;
-    IDWriteFactory* dw_factory;
-#endif
-    oc_error    err = oc_error_ok;
-    oc_library* library = NULL;
-
-    if (!olibrary) {
-        return oc_error_invalid_param;
-    }
-
-    ft_err = FT_Init_FreeType(&ft_library);
-    switch (ft_err) {
-    case FT_Err_Ok:
-        break;
-    case FT_Err_Out_Of_Memory:
-        oc__exit(oc_error_out_of_memory);
-    default:
-        oc__exit(oc__unexpected(ft_err));
-    }
-#ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
-    result = DWriteCreateFactory(DWRITE_FACTORY_TYPE_ISOLATED, &IID_IDWriteFactory, (IUnknown**)&dw_factory);
-    switch (result) {
-    case S_OK:
-        break;
-    case E_OUTOFMEMORY:
-        FT_Done_FreeType(ft_library);
-        oc__exit(oc_error_out_of_memory);
-    default:
-        FT_Done_FreeType(ft_library);
-        oc__exit(oc__unexpected(result));
-    }
-
-    library = malloc(sizeof(*library));
-    if (!library) {
-        dw_factory->lpVtbl->Release(dw_factory);
-        FT_Done_FreeType(ft_library);
-        oc__exit(oc_error_out_of_memory);
-    }
-
-    library->ft_library = ft_library;
-    library->dw_factory = dw_factory;
-#else
-    library = (oc_library*)ft_library;
-#endif
-exit:
-    *olibrary = library;
-    return err;
-}
-
-void oc_free_library(oc_library* library) {
-    FT_Library ft_library;
-#ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
-    IDWriteFactory* dw_factory;
-#endif
-    if (!library) {
-        return;
-    }
-#ifdef ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION
-    ft_library = library->ft_library;
-    dw_factory = library->dw_factory;
-
-    dw_factory->lpVtbl->Release(dw_factory);
-    FT_Done_FreeType(ft_library);
-
-    free(library);
-#else
-    ft_library = (FT_Library)library;
-    FT_Done_FreeType(ft_library);
-#endif
-}
 
 static oc_error oc__init_face(FT_Face ft_face, const oc_open_params* params, oc_face* oface) {
     FT_Error err;
@@ -448,6 +368,43 @@ exit:
         *ocbox = cbox;
 }
 
+static void oc__remove_implicit_midpoints(
+    oc_point* points,
+    uint8_t* tags,
+    uint16_t* contours,
+    uint16_t ncontours,
+    uint16_t* npoints) {
+    uint16_t write = 0;
+    uint16_t start = 0;
+
+    for (uint16_t contour = 0; contour < ncontours; contour++) {
+        uint16_t end = contours[contour];
+
+        for (uint16_t i = start; i <= end; i++) {
+            uint16_t previous = i == start ? end : i - 1;
+            uint16_t next = i == end ? start : i + 1;
+            // CoreText materializes a contour-boundary midpoint as its start point.
+            bool midpoint = i != start &&
+                tags[i] == OC__CURVE_TAG_ON &&
+                tags[previous] == OC__CURVE_TAG_CONIC &&
+                tags[next] == OC__CURVE_TAG_CONIC &&
+                (int64_t)points[i].x * 2 == (int64_t)points[previous].x + points[next].x &&
+                (int64_t)points[i].y * 2 == (int64_t)points[previous].y + points[next].y;
+
+            if (!midpoint) {
+                points[write] = points[i];
+                tags[write] = tags[i];
+                write++;
+            }
+        }
+
+        contours[contour] = write - 1;
+        start = end + 1;
+    }
+
+    *npoints = write;
+}
+
 oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flags, oc_outline* ooutline) {
     FT_Error     ft_err;
     FT_Face      ft_face;
@@ -532,6 +489,8 @@ oc_error ocl_get_outline(const oc_face* face, uint16_t index, oc_load_flags flag
     }
 
     oc__mutex_impl_unlock(lock);
+
+    oc__remove_implicit_midpoints(points, tags, contours, ft_outline.n_contours, &ft_outline.n_points);
 
     outline.tags = tags;
     outline.points = points;

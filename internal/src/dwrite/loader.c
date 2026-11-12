@@ -1,13 +1,12 @@
-#include "winerror.h"
-#include <assert.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#define ONECORE_IMPLEMENTATION
-#include "../onecore.h"
-
-/* ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION */
+/* 
+ * @fuse
+ * @impl DIRECTWRITE_LOADER
+ * @deps
+ *  - BASE
+ *  - LIBRARY
+ */
+#include "../base.h"
+/* ---- */
 #include <initguid.h>
 
 #include <d2d1.h>
@@ -212,147 +211,6 @@ static const IDWriteFontFileLoaderVtbl OC__IDWriteFontFileLoaderVtbl = {
 
 OC__IDWriteFontFileLoader oc__file_loader = { &OC__IDWriteFontFileLoaderVtbl, 0 };
 IDWriteFontFileLoader*    oc__dw_file_loader = (IDWriteFontFileLoader*)&oc__file_loader;
-
-#define OC__OVERRIDE_LIBRARY_IMPL
-
-oc_error oc_init_library(oc_library** olibrary) {
-    HRESULT         err;
-    IDWriteFactory* dw_factory;
-
-    if (olibrary == NULL) {
-        return oc_error_invalid_param;
-    }
-
-    err = DWriteCreateFactory(DWRITE_FACTORY_TYPE_ISOLATED, &IID_IDWriteFactory, (IUnknown**)&dw_factory);
-    switch (err) {
-    case S_OK:
-        break;
-    case E_OUTOFMEMORY:
-        return oc_error_out_of_memory;
-    default:
-        return oc__unexpected(err);
-    }
-
-    err = dw_factory->lpVtbl->RegisterFontFileLoader(dw_factory, oc__dw_file_loader);
-    if (err != S_OK) {
-        // DWRITE_E_ALREADYREGISTERED;
-        dw_factory->lpVtbl->Release(dw_factory);
-        return oc__unexpected(err);
-    }
-
-    *olibrary = (oc_library*)dw_factory;
-    return oc_error_ok;
-}
-
-void oc_free_library(oc_library* library) {
-    IDWriteFactory* dw_factory;
-
-    if (!library) {
-        return;
-    }
-
-    dw_factory = (IDWriteFactory*)library;
-
-    dw_factory->lpVtbl->UnregisterFontFileLoader(dw_factory, oc__dw_file_loader);
-    dw_factory->lpVtbl->Release(dw_factory);
-}
-
-static oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_face, oc_26p6 desired_size, uint16_t dpi, oc_face* oface) {
-    DWRITE_FONT_METRICS metrics;
-    oc_16p16            scaled;
-    oc_16p16            scale;
-    int32_t             ppem;
-    oc_face             face;
-
-    assert(dpi > 0);
-    assert(desired_size >= 1 << 6);
-
-    face.impl = malloc(sizeof(face));
-    if (face.impl == NULL) {
-        dw_face->lpVtbl->Release(dw_face);
-        return oc_error_out_of_memory;
-    }
-
-    dw_face->lpVtbl->GetMetrics(dw_face, &metrics);
-
-    // https://github.com/freetype/freetype/blob/85c8efe0afa5ad0df35114e317a065f544943c52/include/freetype/internal/ftobjs.h#L665
-    scaled = (desired_size * dpi + 36) / 72;
-    scale = oc_div_16p16(scaled, metrics.designUnitsPerEm);
-
-    // https://github.com/freetype/freetype/blob/master/src/base/ftobjs.c#L3368
-    ppem = (scaled + 32) >> 6;
-    if (ppem > UINT16_MAX) {
-        dw_face->lpVtbl->Release(dw_face);
-        return oc_error_invalid_pixel_size;
-    }
-
-    face.impl->dw_face = dw_face;
-    face.impl->dw_factory = dw_factory;
-    face.size.scale = scale;
-    face.size.ppem = (uint16_t)ppem;
-    face.nglyphs = dw_face->lpVtbl->GetGlyphCount(dw_face);
-    face.upem = metrics.designUnitsPerEm;
-    face.ascent = metrics.ascent;
-    face.descent = metrics.descent;
-    face.leading = metrics.lineGap;
-    face.underline_position = metrics.underlinePosition;
-    face.underline_thickness = metrics.underlineThickness;
-
-    *oface = face;
-    return oc_error_ok;
-}
-
-static oc_error oc__open_face_from_font_file(IDWriteFactory* dw_factory, IDWriteFontFile* font_file, const oc_open_params* uparams, oc_face* oface) {
-    HRESULT               err;
-    WINBOOL               is_supported_fonttype;
-    DWRITE_FONT_FILE_TYPE file_type;
-    DWRITE_FONT_FACE_TYPE face_type;
-    IDWriteFontFace*      dw_face;
-    UINT32                face_num;
-    oc_open_params        params = oc__open_params_defaults(uparams);
-
-    err = font_file->lpVtbl->Analyze(
-        font_file,
-        &is_supported_fonttype,
-        &file_type,
-        &face_type,
-        &face_num);
-
-    switch (err) {
-    case S_OK:
-        break;
-    case E_OUTOFMEMORY:
-        return oc_error_out_of_memory;
-    default:
-        return oc__unexpected(err);
-    }
-
-    if (!is_supported_fonttype) {
-        return oc_error_failed_to_open;
-    }
-
-    err = dw_factory->lpVtbl->CreateFontFace(
-        dw_factory,
-        face_type,
-        1,
-        &font_file,
-        params.face_index,
-        DWRITE_FONT_SIMULATIONS_NONE,
-        &dw_face);
-
-    switch (err) {
-    case S_OK:
-        break;
-    case E_INVALIDARG:
-        return oc_error_invalid_param;
-    case E_OUTOFMEMORY:
-        return oc_error_out_of_memory;
-    default:
-        return oc__unexpected(err);
-    }
-
-    return oc__init_face(dw_factory, dw_face, params.desired_size, params.dpi, oface);
-}
 
 oc_error ocl_open_face(const oc_library* library, const char* path, const oc_open_params* uparams, oc_face* oface) {
     int32_t          err;
@@ -861,30 +719,30 @@ OC__PathSink_AddBeziers(ID2D1SimplifiedGeometrySink* This, const D2D1_BEZIER_SEG
     }
 
     for (UINT32 i = 0; i < beziersCount; i++) {
-        D2D1_POINT_2F pt1 = beziers[i].point1;
+        // D2D1_POINT_2F pt1 = beziers[i].point1;
         D2D1_POINT_2F pt2 = beziers[i].point2;
         D2D1_POINT_2F pt3 = beziers[i].point3;
 
         // D2D1_POINT_2F origin = this->origin;
-        //
+
         // float cx1 = (3.0f * pt1.x - origin.x) * 0.5f;
         // float cy1 = (3.0f * pt1.y - origin.y) * 0.5f;
-        //
-        // float cx2 = (3.0f * pt2.x - pt3.x) * 0.5f;
-        // float cy2 = (3.0f * pt2.y - pt3.y) * 0.5f;
-        //
+
+        float cx2 = (3.0f * pt2.x - pt3.x) * 0.5f;
+        float cy2 = (3.0f * pt2.y - pt3.y) * 0.5f;
+
         // float dx = cx1 - cx2;
         // float dy = cy1 - cy2;
 
         // if (dx * dx + dy * dy < 0.05f * 0.05f) {
-        //     element.pt1 = (D2D1_POINT_2F) { roundf(cx2), roundf(cy2) };
-        //     element.pt2 = pt3;
-        //     element.type = oc__path_conic;
+            element.pt1 = (D2D1_POINT_2F) { roundf(cx2), roundf(cy2) };
+            element.pt2 = pt3;
+            element.type = oc__path_conic;
         // } else {
-            element.pt1 = pt1;
-            element.pt2 = pt2;
-            element.pt3 = pt3;
-            element.type = oc__path_cubic;
+        //     element.pt1 = pt1;
+        //     element.pt2 = pt2;
+        //     element.pt3 = pt3;
+        //     element.type = oc__path_cubic;
         // }
 
         if (oc__unlikely(this->doomed = oc__walk_outline(this, &element))) {

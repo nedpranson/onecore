@@ -1,16 +1,13 @@
-#include "src/onecore.h"
-#include "winerror.h"
-#define OC__OVERRIDE_LIBRARY_IMPL
-#define ONECORE_IMPLEMENTATION
-#include "onecore.h"
-#include <ft2build.h>
-#include FT_FREETYPE_H
-
-#include <dwrite.h>
-extern oc_error oc__init_face(IDWriteFactory* dw_factory, IDWriteFontFace* dw_face, oc_26p6 desired_size, uint16_t dpi, oc_face* oface);
-#define ONECORE_DIRECTWRITE_LOADER_IMPLEMENTATION
-
-/* ONECORE_DIRECTWRITE_FINDER_IMPLEMENTATION */
+/* 
+ * @fuse
+ * @impl DIRECTWRITE_FINDER
+ * @rank 2
+ * @deps
+ *  - BASE
+ *  - LIBRARY
+ */
+#include "../base.h"
+/* ---- */
 #include <initguid.h>
 
 #include <dwrite.h>
@@ -26,43 +23,6 @@ typedef struct {
     IDWriteFont*      dw_font;
     oc_font           font;
 } oc__font_impl;
-
-#ifndef OC__OVERRIDE_LIBRARY_IMPL
-#define OC__OVERRIDE_LIBRARY_IMPL
-
-oc_error oc_init_library(oc_library** olibrary) {
-    HRESULT         result;
-    IDWriteFactory* dw_factory;
-
-    if (olibrary == NULL) {
-        return oc_error_invalid_param;
-    }
-
-    result = DWriteCreateFactory(DWRITE_FACTORY_TYPE_ISOLATED, &IID_IDWriteFactory, (IUnknown**)&dw_factory);
-    switch (result) {
-    case S_OK:
-        break;
-    case E_OUTOFMEMORY:
-        return oc_error_out_of_memory;
-    default:
-        return oc__unexpected(result);
-    }
-
-    *olibrary = (oc_library*)dw_factory;
-    return oc_error_ok;
-}
-
-void oc_free_library(oc_library* library) {
-    IDWriteFactory* dw_factory;
-
-    if (!library) {
-        return;
-    }
-
-    dw_factory = (IDWriteFactory*)library;
-    dw_factory->lpVtbl->Release(dw_factory);
-}
-#endif
 
 static inline void oc__free_font(oc_font* font) {
     oc__font_impl* impl = oc__parentof(oc__font_impl, font, font);

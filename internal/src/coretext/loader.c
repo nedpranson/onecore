@@ -1,10 +1,15 @@
+/* 
+ * @fuse
+ * @impl CORETEXT_LOADER
+ * @deps
+ *  - BASE
+ */
 #include <CoreFoundation/CFCGTypes.h>
 #include <CoreText/CTFontDescriptor.h>
 #include <stdint.h>
 #define ONECORE_IMPLEMENTATION
 #include "../onecore.h"
-
-/* ONECORE_CORETEXT_LOADER_IMPLEMENTATION */
+/* ---- */
 #include <CoreText/CoreText.h>
 
 struct oc_face_impl {
